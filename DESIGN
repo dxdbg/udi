@@ -1,0 +1,106 @@
+Design document for the Userland Debugger Interface (UDI)
+
+The UDI attempts to provide a full-featured debugger interface completely
+in userland with little to no support from the kernel.
+
+1 Motivation
+
+Debugger interfaces vary across all operating systems. POSIX does not specify a
+standard debugger interface and as such, all the Unices implement a different
+interface, each with different models for how to control and modify a running
+process. Additionally, the functionality provided by these debugger interfaces
+varies from OS to OS. Further, adding new functionality is time consuming
+because new features require modifying kernel internals. Finally, these
+debugger interfaces exist in kernel code as special cases that are not stressed
+by normal system usage. Thus, debugger interactions are a breeding ground for
+complex bugs. These problems make the implementation of a cross-platform
+debugger difficult.
+
+2 Proposed Solution
+
+This project explores the implementation of a system debugger interface 
+completely in userland, in an effort to solve these previously stated
+problems.
+
+The basic idea of UDI is to link a wrapper library with the application under
+test. This wrapper library will provide all the facilities of a debugger
+interface via a pseudo-filesystem interface. The library will intercept all
+events a debugger would be interested in and allow the debugger to modify and
+control the debuggee when these events occur. The debugger will communicate to
+the debuggee using standard system-provided IPC mechanisms.
+
+The interaction between the debugger and the debuggee is identical to the
+interaction between a shell and a forked child process. In some current
+debugger interfaces, the debugger attach operation establishes a special
+relationship between the debugger and the debuggee, typically in the form of a
+flag in the internal process structure. This flag is used to mark off special
+case code within the debugger to handle the debugger-debuggee relationship.
+This special case code is only tested by a debugger.
+
+Pros of this approach:
+
+* Since the debugger relies on IPC and shell job control to control and modify
+the debuggee, the debugger will utilize the same code paths as normal system
+operation. This will avoid many of debugger-specific bugs that are found in
+current operating systems. 
+
+* An operating system that uses UDI could remove all debugger-specific code in
+its kernel if it switched to use a UDI model for debugging.
+
+* It is actually simpler to debug UDI on some systems because a traditional
+debugger can be attached to both the debuggee and debugger. On systems such
+as Linux, only one process can act like a debugger for each target process.
+
+* UDI could be ported to many systems and provide a similar if not identical
+interface across all platforms.
+
+* It is simpler and less time intensive to implement new debugger interface
+features since the debugger interface is just a wrapper library.
+
+* No special security models for restricting debugger-like access to other 
+processes are required since controlling and modifying the target process
+is done via a pseudo-filesystem.
+
+Cons of this approach:
+
+* Attach is complicated because a system call is typically used to establish
+the debugger-debuggee relationship. In UDI, bootstrapping this relationship
+may not be as clean as a system call.
+
+* UDI will possibly require pre-loading the wrapper library into a running
+process or linking the wrapper library with the application under test.
+
+3 Debugger Interface Details
+
+The debugger interface will be constructed using named pipes (or some similar
+mechanism). These named pipes will be used to create a pseudo-filesystem
+modeled after the full-featured /proc filesystem in Plan 9 and Solaris. The UDI
+library creates the following file hierarchy:
+
+.../udi/<pid>/:
+    mem         The virtual memory image of the running process
+    command     All operations are written into this file
+    state       Process status and information
+    async       Used to wait for completion of async. operations
+    events      Used to wait for events to occur in the target process
+    thread/:
+        command         All operations are written into this file
+        state           Thread-specific information
+        async           Used to wait for thread-specific async. operations
+        events          Used to wait for events to occur in the target process
+
+3.1 Process and thread control model
+
+As stated earlier, the process and thread control model varies across current
+debugger interfaces. UDI presents a single process and thread control model
+that is the same on all platforms, despite the differences in the underlying
+threading model (e.g., on Linux, a signal does not stop every thread in a 
+process while on FreeBSD, a signal does stop every thread in a process).
+
+The following describes the process and threading control model maintained
+by UDI.
+
+* all events stop all threads within in a process
+* all operations, whether read or write, must be performed on a stopped process
+  (i.e. all threads must be stopped) -- all operations performed on a running
+  process will be discarded
