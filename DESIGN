@@ -78,16 +78,12 @@ modeled after the full-featured /proc filesystem in Plan 9 and Solaris. The UDI
 library creates the following file hierarchy:
 
 .../udi/<pid>/:
-    mem         The virtual memory image of the running process
-    command     All operations are written into this file
-    state       Process status and information
-    async       Used to wait for completion of async. operations
+    request     All requests are written into this file
+    response    Receive responses from requests
     events      Used to wait for events to occur in the target process
-    thread/:
-        command         All operations are written into this file
-        state           Thread-specific information
-        async           Used to wait for thread-specific async. operations
-        events          Used to wait for events to occur in the target process
+    <tid>/:
+        request     All requests are written into this file
+        response    Receive thread-specific response from requests
 
 3.1 Process and thread control model
 
@@ -104,3 +100,14 @@ by UDI.
 * all operations, whether read or write, must be performed on a stopped process
   (i.e. all threads must be stopped) -- all operations performed on a running
   process will be discarded
+
+3.2 Initialization
+
+Before attaching or creating a process, the debugger must create the root
+directory of the pseudo-filesystem. This will avoid race conditions when
+creating/attaching multiple processes at once. The debuggee will create the
+specific files for itself under this root directory.
+
+Once the events file is created, the debugger should open the events
+and response files for reading and then issue an INIT request to the
+debuggee via the request file, in that order.
