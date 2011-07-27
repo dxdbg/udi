@@ -29,6 +29,10 @@
 #ifndef _UDI_H
 #define _UDI_H 1
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 
 /* Definition of the userland debugger interface (UDI) */
@@ -50,11 +54,11 @@ typedef uint64_t udi_event_type;
  */
 typedef enum
 {
-    CONTINUE = 0,
-    READ_MEM,
-    WRITE_MEM,
-    STATE
-    INIT
+    UDI_REQ_CONTINUE = 0,
+    UDI_REQ_READ_MEM,
+    UDI_REQ_WRITE_MEM,
+    UDI_REQ_STATE,
+    UDI_REQ_INIT
 } udi_request_type_e;
 
 /*
@@ -66,8 +70,8 @@ typedef enum
  */
 typedef enum
 {
-    ERROR = 0,
-    VALID
+    UDI_RESP_ERROR = 0,
+    UDI_RESP_VALID
 } udi_response_type_e;
 
 /* Request-response payload definitions 
@@ -127,14 +131,14 @@ typedef enum
 
 /* Event specification
  *
- * Events occur asynchronously -- that is they nevery directly occur in response to
- * requests.
+ * Events occur asynchronously 
+ * -- that is they nevery directly occur in response to requests.
  */
 
 typedef enum
 {
-    ERROR = -1,
-    SIGNAL
+    UDI_EVENT_ERROR = -1,
+    UDI_EVENT_SIGNAL
 } udi_event_type_e;
 
 /*
@@ -158,5 +162,9 @@ typedef enum
  * udi_length - length of address field
  * udi_address - virtual address where the signal occurred
  */
+
+#ifdef __cplusplus
+} /* extern C */
+#endif
 
 #endif

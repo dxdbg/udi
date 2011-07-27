@@ -26,15 +26,27 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* UDI implementation common between all platforms */
+#ifndef LIB_UDI_TEST_H
+#define LIB_UDI_TEST
 
-#include "udirt.h"
+#include <vector>
+#include <string>
 
-const char *UDI_ROOT_DIR_ENV = "UDI_ROOT_DIR";
-const char *UDI_DEBUG_ENV = "UDI_DEBUG_ENV";
-char *UDI_ROOT_DIR;
-const char *REQUEST_FILE_NAME = "request";
-const char *RESPONSE_FILE_NAME = "response";
-const char *EVENTS_FILE_NAME = "events";
+class UDITestCase {
+    private:
+        static std::vector<UDITestCase *> testCases_;
+    protected:
+        const std::string testName_;
 
-int udi_debug_on = 0;
+    public:
+        UDITestCase(std::string iTestName);
+        virtual ~UDITestCase();
+
+        // Execute all linked tests
+        static int executeTests(int argc, char *argv[]);
+
+        virtual int operator()(void) = 0;
+        virtual const std::string &name() const;
+};
+
+#endif

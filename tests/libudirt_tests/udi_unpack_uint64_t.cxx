@@ -26,15 +26,31 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* UDI implementation common between all platforms */
+#include <iostream>
+#include <cstdlib>
 
 #include "udirt.h"
+#include "libuditest.h"
 
-const char *UDI_ROOT_DIR_ENV = "UDI_ROOT_DIR";
-const char *UDI_DEBUG_ENV = "UDI_DEBUG_ENV";
-char *UDI_ROOT_DIR;
-const char *REQUEST_FILE_NAME = "request";
-const char *RESPONSE_FILE_NAME = "response";
-const char *EVENTS_FILE_NAME = "events";
+using std::cout;
+using std::endl;
 
-int udi_debug_on = 0;
+class test_udi_unpack_uint64_t : public UDITestCase {
+    public:
+        test_udi_unpack_uint64_t(std::string iTestName)
+            : UDITestCase(iTestName) {}
+        virtual ~test_udi_unpack_uint64_t() {}
+
+        int operator()(void);
+};
+
+static test_udi_unpack_uint64_t testInstance(
+        std::string("test_udi_unpack_uint64_t"));
+
+int test_udi_unpack_uint64_t::operator()(void) {
+    uint64_t tmp = 0x1234567800aabbccLL;
+    uint64_t expected = 0xccbbaa0078563412LL;
+
+    return ( udi_unpack_uint64_t(tmp) == expected ) ? EXIT_SUCCESS :
+        EXIT_FAILURE;
+}

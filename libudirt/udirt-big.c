@@ -26,15 +26,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* UDI implementation common between all platforms */
+/* big endian specific functions */
 
-#include "udirt.h"
+/* brew-your-own because htonl doesn't handle 64-bit */
 
-const char *UDI_ROOT_DIR_ENV = "UDI_ROOT_DIR";
-const char *UDI_DEBUG_ENV = "UDI_DEBUG_ENV";
-char *UDI_ROOT_DIR;
-const char *REQUEST_FILE_NAME = "request";
-const char *RESPONSE_FILE_NAME = "response";
-const char *EVENTS_FILE_NAME = "events";
+#include <stdint.h>
 
-int udi_debug_on = 0;
+uint64_t udi_unpack_uint64_t(uint64_t value) {
+    return value;
+}

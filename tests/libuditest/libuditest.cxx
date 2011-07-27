@@ -26,15 +26,51 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* UDI implementation common between all platforms */
+#include "libuditest.h"
 
-#include "udirt.h"
+#include <vector>
+#include <cstdlib>
+#include <iostream>
 
-const char *UDI_ROOT_DIR_ENV = "UDI_ROOT_DIR";
-const char *UDI_DEBUG_ENV = "UDI_DEBUG_ENV";
-char *UDI_ROOT_DIR;
-const char *REQUEST_FILE_NAME = "request";
-const char *RESPONSE_FILE_NAME = "response";
-const char *EVENTS_FILE_NAME = "events";
+using std::vector;
+using std::cout;
+using std::endl;
 
-int udi_debug_on = 0;
+vector<UDITestCase *> UDITestCase::testCases_;
+
+UDITestCase::UDITestCase(std::string iTestName) 
+    : testName_(iTestName)
+{
+    testCases_.push_back(this);
+}
+
+UDITestCase::~UDITestCase() {
+    // Don't actually do anything because all allocation done statically
+}
+
+int UDITestCase::executeTests(int /*argc*/, char ** /*argv[]*/) {
+    for (vector<UDITestCase *>::iterator i = testCases_.begin();
+            i != testCases_.end(); ++i)
+    {
+        UDITestCase *currentCase = *i;
+        int testResult = (*currentCase)();
+
+        if (testResult != EXIT_SUCCESS) {
+            cout << currentCase->name() << " failed" << endl;
+            return testResult;
+        }
+
+        cout << currentCase->name() << " passed" << endl;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+const std::string &UDITestCase::name() const {
+    return testName_;
+}
+
+// main entry point of test framework
+int main(int argc, char *argv[]) {
+    return UDITestCase::executeTests(argc, argv);
+}
