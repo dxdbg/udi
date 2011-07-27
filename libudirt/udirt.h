@@ -31,6 +31,10 @@
 #ifndef _UDI_RT_H
 #define _UDI_RT_H 1
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "udi.h"
 
 /* platform independent settings */
@@ -40,7 +44,7 @@ extern char *UDI_ROOT_DIR;
 extern int udi_debug_on;
 
 extern const char *REQUEST_FILE_NAME;
-extern const char *RESP_FILE_NAME;
+extern const char *RESPONSE_FILE_NAME;
 extern const char *EVENTS_FILE_NAME;
 
 /* platform specific settings */
@@ -75,7 +79,7 @@ void udi_free(void *ptr);
 void *udi_malloc();
 
 /* architecture specific functions */
-uint64_t udi_unpack_uint64_t(uint64_t buffer);
+uint64_t udi_unpack_uint64_t(uint64_t value);
 
 /* platform independent functions */
 
@@ -102,5 +106,9 @@ void free_event(udi_event *event);
                     ## __VA_ARGS__);\
         }\
     }while(0)
+
+#ifdef __cplusplus
+} /* extern C */
+#endif
 
 #endif

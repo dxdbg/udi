@@ -28,6 +28,8 @@
 
 /* UDI implementation specific to POSIX-compliant operating systems */
 
+#define _GNU_SOURCE
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dlfcn.h>
@@ -37,6 +39,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include "udirt.h"
 #include "udi.h"
@@ -44,16 +47,18 @@
 /* constants */
 static const unsigned int ERRMSG_SIZE = 4096;
 static const unsigned int PID_STR_LEN = 10;
+static const unsigned int DS_LEN = 1; /* '/' */
 
 /* file paths */
 static char *basedir_name;
 static char *requestfile_name;
 static char *responsefile_name;
+static char *eventsfile_name;
 
 /* file handles */
-static FILE *request_handle = -1;
-static FILE *response_handle = -1;
-static FILE *event_handle = -1;
+static FILE *request_handle = NULL;
+static FILE *response_handle = NULL;
+static FILE *events_handle = NULL;
 
 /* platform specific variables */
 const char *UDI_DS = "/";
@@ -68,7 +73,7 @@ typedef int (*sigaction_type)(int, const struct sigaction *,
 
 typedef pid_t (*fork_type)(void);
 
-typedef int (*execve_type)(const char *, char *const, char *const);
+typedef int (*execve_type)(const char *, char *const *, char *const *);
 
 /* wrapper function pointers */
 
@@ -76,7 +81,9 @@ sigaction_type real_sigaction;
 fork_type real_fork;
 execve_type real_execve;
 
-void init_udi_rt() UDI_CONSTRUCTOR 
+void init_udi_rt() UDI_CONSTRUCTOR;
+
+void init_udi_rt()
 {
     char errmsg[ERRMSG_SIZE];
     char *errmsg_tmp;
@@ -100,15 +107,18 @@ void init_udi_rt() UDI_CONSTRUCTOR
         /* first, get root directory */
         if ((UDI_ROOT_DIR = getenv(UDI_ROOT_DIR_ENV)) == NULL) 
         {
-            UDI_ROOT_DIR = DEFAULT_UDI_ROOT_DIR;
+            UDI_ROOT_DIR = (char *)malloc(strlen(DEFAULT_UDI_ROOT_DIR));
+            strncpy(UDI_ROOT_DIR, DEFAULT_UDI_ROOT_DIR, 
+                    strlen(DEFAULT_UDI_ROOT_DIR));
         }
 
         /* create the directory for this process */
-        size_t basedir_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN;
+        size_t basedir_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN + 
+            DS_LEN;
         basedir_name = (char *)malloc(basedir_length);
         if (basedir_name == NULL)
         {
-            udi_printf("malloc failed: %s\n", strerror());
+            udi_printf("malloc failed: %s\n", strerror(errno));
             errnum = errno;
             break;
         }
@@ -118,25 +128,29 @@ void init_udi_rt() UDI_CONSTRUCTOR
                 getpid());
         if (mkdir(basedir_name, S_IRWXG | S_IRWXU) == -1) 
         {
-            udi_printf("error creating basedir: %s\n", strerror());
+            udi_printf("error creating basedir: %s\n", strerror(errno));
             errnum = errno;
             break;
         }
 
         /* create the udi files */
         size_t requestfile_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN
-            + strlen(REQUEST_FILE_NAME);
+            + strlen(REQUEST_FILE_NAME) + DS_LEN*2;
         requestfile_name = (char *)malloc(requestfile_length);
         if (requestfile_name == NULL)
         {
-            udi_printf("malloc failed: %s\n", strerror());
+            udi_printf("malloc failed: %s\n", strerror(errno));
             errnum = errno;
             break;
         }
 
+        requestfile_name[requestfile_length-1] = '\0';
+        snprintf(requestfile_name, requestfile_length-1, "%s/%d/%s",
+                UDI_ROOT_DIR, getpid(), REQUEST_FILE_NAME);
         if (mkfifo(requestfile_name, S_IRWXG | S_IRWXU) == -1)
         {
-            udi_printf("error creating request file fifo: %s\n", strerror());
+            udi_printf("error creating request file fifo: %s\n", 
+                    strerror(errno));
             errnum = errno;
             break;
         }
@@ -145,48 +159,59 @@ void init_udi_rt() UDI_CONSTRUCTOR
         int request_fd = -1;
         if ((request_fd = open(requestfile_name, O_NONBLOCK | O_RDONLY)) == -1 )
         {
-            udi_printf("error open request file fifo: %s\n", strerror());
+            udi_printf("error open request file fifo: %s\n", 
+                    strerror(errno));
             errnum = errno;
             break;
         }
 
         if ((request_handle = fdopen(request_fd, "r")) == NULL) 
         {
-            udi_printf("error creating request file stream: %s\n", strerror());
+            udi_printf("error creating request file stream: %s\n", 
+                    strerror(errno));
             errnum = errno;
             break;
         }
 
         size_t responsefile_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN
-            + strlen(RESPONSE_FILE_NAME);
+            + strlen(REQUEST_FILE_NAME) + DS_LEN*2;
         responsefile_name = (char *)malloc(responsefile_length);
         if (responsefile_name == NULL)
         {
-            udi_printf("malloc failed: %s\n", strerror());
+            udi_printf("malloc failed: %s\n", 
+                    strerror(errno));
             errnum = errno;
             break;
         }
 
+        responsefile_name[responsefile_length-1] = '\0';
+        snprintf(responsefile_name, responsefile_length-1, "%s/%d/%s",
+                UDI_ROOT_DIR, getpid(), EVENTS_FILE_NAME);
         if (mkfifo(responsefile_name, S_IRWXG | S_IRWXU) == -1)
         {
-            udi_printf("error creating response file fifo: %s\n", strerror());
+            udi_printf("error creating response file fifo: %s\n", 
+                    strerror(errno));
             errnum = errno;
             break;
         }
 
-        size_t eventfile_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN
-            + strlen(STATE_FILE_NAME);
-        eventfile_name = (char *)malloc(eventfile_length);
-        if (eventfile_name == NULL)
+        size_t eventsfile_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN
+            + strlen(EVENTS_FILE_NAME) + DS_LEN*2;
+        eventsfile_name = (char *)malloc(eventsfile_length);
+        if (eventsfile_name == NULL)
         {
-            udi_printf("malloc failed: %s\n", strerror());
+            udi_printf("malloc failed: %s\n", 
+                    strerror(errno));
             errnum = errno;
             break;
         }
-
-        if (mkfifo(eventfile_name, S_IRWXG | S_IRWXU) == -1)
+        eventsfile_name[eventsfile_length-1] = '\0';
+        snprintf(eventsfile_name, eventsfile_length-1, "%s/%d/%s",
+                UDI_ROOT_DIR, getpid(), EVENTS_FILE_NAME);
+        if (mkfifo(eventsfile_name, S_IRWXG | S_IRWXU) == -1)
         {
-            udi_printf("error creating event file fifo: %s\n", strerror());
+            udi_printf("error creating event file fifo: %s\n", 
+                    strerror(errno));
             errnum = errno;
             break;
         }
@@ -244,41 +269,22 @@ void init_udi_rt() UDI_CONSTRUCTOR
 
 /* request-response handling */
 
-/* brew-your-own because htonl doesn't handle 64-bit */
-
-// TODO needs to be architecture independent -- currently for little endian
-static
-uint64_t udi_unpack_uint64_t(unsigned char *buffer) {
-    uint64_t ret = 0;
-
-    int i;
-    for(i = 0; i < sizeof(uint64_t); ++i) {
-        // TODO
-    }
-}
-
-static udi_request *read_request(FILE *stream) 
+static udi_request *read_request_stream(FILE *stream) 
 {
     udi_request *request = udi_malloc(sizeof(udi_request));
 
     if (request == NULL) 
     {
-        udi_printf("malloc failed: %s\n", strerror());
+        udi_printf("malloc failed: %s\n", strerror(errno));
         return NULL;
     }
 
     /* read the request type and length */
-
-    udi_length total = 0;
-    while( total < length )
-    {
-        size_t bytes_read = fread(dest, ((size_t)length - total)
-    }
 }
 
 udi_request *read_request()
 {
-    return read_request(request_handle);
+    return read_request_stream(request_handle);
 }
 
 /* wrapper function implementations */
@@ -298,8 +304,8 @@ pid_t fork()
     return real_fork();
 }
 
-int execve(const char *filename, char *const argv,
-        char *const envp)
+int execve(const char *filename, char *const argv[],
+        char *const envp[])
 {
     // TODO wrapper function stuff
 
