@@ -26,12 +26,25 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* big endian specific functions */
+// UDI POSIX implementation (shared between debugger and debuggee library)
 
-/* brew-your-own because htonl doesn't handle 64-bit */
+#ifndef _UDI_RT_POSIX_H_
+#define _UDI_RT_POSIX_H_ 1
 
-#include <stdint.h>
+#include "udi.h"
+#include "udi-common.h"
 
-uint64_t udi_unpack_uint64_t(uint64_t value) {
-    return value;
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Response request handling
+
+int read_all(int fd, void *dest, size_t length);
+int write_all(int fd, void *src, size_t length);
+
+#ifdef __cplusplus
+} // extern C
+#endif
+
+#endif

@@ -29,15 +29,15 @@
 #ifndef _UDI_H
 #define _UDI_H 1
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
+// Definition of the userland debugger interface (UDI)
 
-/* Definition of the userland debugger interface (UDI) */
-
-/* UDI types */
+// UDI types
 typedef uint64_t udi_address;
 typedef uint64_t udi_length;
 typedef uint64_t udi_request_type;
@@ -58,7 +58,9 @@ typedef enum
     UDI_REQ_READ_MEM,
     UDI_REQ_WRITE_MEM,
     UDI_REQ_STATE,
-    UDI_REQ_INIT
+    UDI_REQ_INIT,
+    UDI_REQ_MAX,
+    UDI_REQ_INVALID,
 } udi_request_type_e;
 
 /*
@@ -71,7 +73,8 @@ typedef enum
 typedef enum
 {
     UDI_RESP_ERROR = 0,
-    UDI_RESP_VALID
+    UDI_RESP_VALID,
+    UDI_RESP_MAX
 } udi_response_type_e;
 
 /* Request-response payload definitions 
@@ -138,7 +141,10 @@ typedef enum
 typedef enum
 {
     UDI_EVENT_ERROR = -1,
-    UDI_EVENT_SIGNAL
+    UDI_EVENT_BREAKPOINT,
+    UDI_EVENT_SIGNAL,
+    UDI_EVENT_MAX,
+    UDI_EVENT_UNKNOWN
 } udi_event_type_e;
 
 /*
@@ -163,8 +169,15 @@ typedef enum
  * udi_address - virtual address where the signal occurred
  */
 
+/*
+ * Breakpoint event data
+ *
+ * udi_length - length of address field
+ * udi_address - virtual address where the breakpoint occurred
+ */
+
 #ifdef __cplusplus
-} /* extern C */
+} // extern C
 #endif
 
 #endif

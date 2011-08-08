@@ -26,12 +26,24 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-// UDI debuggee implementation common between all platforms
+// Shared debugger and debuggee UDI implementation on all platforms
 
-#include "udirt.h"
+#include "udi.h"
+#include "udi-common.h"
 
-const char *UDI_DEBUG_ENV = "UDI_DEBUG_ENV";
-char *UDI_ROOT_DIR;
-int udi_debug_on = 0;
-int udi_enabled = 0; // not enabled until initialization complete
-int udi_in_sig_handler = 0;
+const char *UDI_ROOT_DIR_ENV = "UDI_ROOT_DIR";
+const char *REQUEST_FILE_NAME = "request";
+const char *RESPONSE_FILE_NAME = "response";
+const char *EVENTS_FILE_NAME = "events";
+
+const char *request_type_str(udi_request_type req_type) {
+    switch(req_type) {
+        CASE_TO_STR(UDI_REQ_CONTINUE);
+        CASE_TO_STR(UDI_REQ_READ_MEM);
+        CASE_TO_STR(UDI_REQ_WRITE_MEM);
+        CASE_TO_STR(UDI_REQ_STATE);
+        CASE_TO_STR(UDI_REQ_INIT);
+        CASE_TO_STR(UDI_REQ_MAX);
+        default: return "UNKNOWN";
+    }
+}

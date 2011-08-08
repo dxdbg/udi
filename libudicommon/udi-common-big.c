@@ -26,12 +26,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-// UDI debuggee implementation common between all platforms
+// big endian specific functions
 
-#include "udirt.h"
+// brew-your-own because htonl doesn't handle 64-bit
 
-const char *UDI_DEBUG_ENV = "UDI_DEBUG_ENV";
-char *UDI_ROOT_DIR;
-int udi_debug_on = 0;
-int udi_enabled = 0; // not enabled until initialization complete
-int udi_in_sig_handler = 0;
+#include <stdint.h>
+
+uint64_t udi_unpack_uint64_t(uint64_t value) {
+    // big endian is network byte order
+    return value;
+}

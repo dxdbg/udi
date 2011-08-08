@@ -26,12 +26,64 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-// UDI debuggee implementation common between all platforms
+/* shared functionality between UDI debugger and debuggee */
 
-#include "udirt.h"
+#ifndef _UDI_COMMON_H
+#define _UDI_COMMON_H 1
 
-const char *UDI_DEBUG_ENV = "UDI_DEBUG_ENV";
-char *UDI_ROOT_DIR;
-int udi_debug_on = 0;
-int udi_enabled = 0; // not enabled until initialization complete
-int udi_in_sig_handler = 0;
+#include "udi.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*
+ * Communication settings
+ *
+ * These variables facilitate communication between the debugger and debuggee
+ */
+
+/* platform independent variables */
+extern const char *UDI_ROOT_DIR_ENV;
+extern const char *REQUEST_FILE_NAME;
+extern const char *RESPONSE_FILE_NAME;
+extern const char *EVENTS_FILE_NAME;
+
+/* platform specific variables */
+extern const char *DEFAULT_UDI_ROOT_DIR;
+extern const char *UDI_DS;
+extern const unsigned int DS_LEN;
+
+/*
+ * data structure
+ */
+typedef struct {
+    udi_response_type response_type;
+    udi_request_type request_type;
+    udi_length length;
+    void *value;
+} udi_response;
+
+typedef struct {
+    udi_request_type request_type;
+    udi_length length;
+    void *argument;
+} udi_request;
+
+typedef struct {
+    udi_event_type event_type;
+    udi_length length;
+    void *data;
+} udi_event;
+
+/* helper functions */
+
+uint64_t udi_unpack_uint64_t(uint64_t value);
+
+const char *request_type_str(udi_request_type req_type); 
+
+#ifdef __cplusplus
+} // extern C
+#endif
+
+#endif
