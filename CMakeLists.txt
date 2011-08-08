@@ -19,4 +19,5 @@ macro_ensure_out_of_source_build("${PROJECT_NAME} requires an out of source buil
 # Subdirectories
 add_subdirectory(libudi)
 add_subdirectory(libudirt)
+add_subdirectory(libudicommon)
 add_subdirectory(tests)

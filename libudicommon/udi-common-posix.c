@@ -26,25 +26,52 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* little endian specific functions */
+// Shared debugger and debuggee UDI implementation specific platforms
 
-/* brew-your-own because htonl doesn't handle 64-bit */
+#define _GNU_SOURCE
 
-#include <stdint.h>
+#include <sys/types.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <stdio.h>
 
-uint64_t udi_unpack_uint64_t(uint64_t value) {
-    uint64_t ret = 0;
+#include "udi.h"
+#include "udi-common.h"
+#include "udi-common-posix.h"
 
-    int indices[] = { 1, 3, 5, 7 };
-    int i;
-    for(i = 0; i < sizeof(uint64_t); ++i) {
-        uint64_t mask = ( 0xffll << i*8 );
-        if ( i < 4 ) {
-            ret |= ( value & mask ) << indices[3-i]*8;
-        }else{
-            ret |= ( value & mask ) >> indices[i%4]*8;
+// platform specific variables
+const char *UDI_DS = "/";
+const unsigned int DS_LEN = 1;
+const char *DEFAULT_UDI_ROOT_DIR = "/tmp/udi";
+
+int read_all(int fd, void *dest, size_t length) 
+{
+    size_t total = 0;
+    while (total < length) {
+        ssize_t num_read = read(fd, dest + total, length - total);
+        if (num_read < 0) {
+            if (errno == EINTR) continue;
+            return errno;
         }
+        total += num_read;
     }
 
-    return ret;
+    return 0;
+}
+
+int write_all(int fd, void *src, size_t length) {
+    size_t total = 0;
+    while (total < length) {
+        ssize_t num_written = write(fd, src + total, length - total);
+        if ( num_written < 0 ) {
+            if ( errno == EINTR ) continue;
+            return errno;
+        }
+
+        total += num_written;
+    }
+
+    return 0;
 }

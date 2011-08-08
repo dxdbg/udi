@@ -108,6 +108,6 @@ directory of the pseudo-filesystem. This will avoid race conditions when
 creating/attaching multiple processes at once. The debuggee will create the
 specific files for itself under this root directory.
 
-Once the events file is created, the debugger should open the events
+Once the events file is created, the debugger should open the request, events
 and response files for reading and then issue an INIT request to the
 debuggee via the request file, in that order.

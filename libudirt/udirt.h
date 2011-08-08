@@ -26,89 +26,48 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* UDI implementation common between all platforms */
+// UDI debuggee implementation common between all platforms
 
 #ifndef _UDI_RT_H
 #define _UDI_RT_H 1
+
+#include "udi.h"
+#include "udi-common.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "udi.h"
-
-/* platform independent settings */
-extern const char *UDI_ROOT_DIR_ENV;
-extern const char *UDI_DEBUG_ENV;
+// platform independent settings */
 extern char *UDI_ROOT_DIR;
+extern int udi_enabled;
 extern int udi_debug_on;
+extern const char *UDI_DEBUG_ENV;
+extern int udi_in_sig_handler;
 
-extern const char *REQUEST_FILE_NAME;
-extern const char *RESPONSE_FILE_NAME;
-extern const char *EVENTS_FILE_NAME;
-
-/* platform specific settings */
-
-extern const char *UDI_DS;
-extern const char *DEFAULT_UDI_ROOT_DIR;
-
-/* platform independent structures */
-
-typedef struct {
-    udi_response_type response_type;
-    udi_request_type request_type;
-    udi_length length;
-    void *value;
-} udi_response;
-
-typedef struct {
-    udi_request_type request_type;
-    udi_length length;
-    void *argument;
-} udi_request;
-
-typedef struct {
-    udi_event_type event_type;
-    udi_length length;
-    void *data;
-} udi_event;
-
-/* platform specific functions */
+// platform specific functions
 
 void udi_free(void *ptr);
-void *udi_malloc();
+void *udi_malloc(udi_length length);
 
-/* architecture specific functions */
-uint64_t udi_unpack_uint64_t(uint64_t value);
+// platform independent functions
 
-/* platform independent functions */
-
-udi_request *read_request();
 int write_response(udi_response *response);
 int write_event(udi_event *event);
-
-udi_response *create_response(udi_response_type response_type,
-                              udi_request_type request_type,
-                              udi_length length,
-                              void *value);
-udi_event *create_event(udi_event_type event_type,
-                        udi_length length,
-                        void *data);
+udi_request *read_request();
 void free_request(udi_request *request);
-void free_response(udi_response *response);
-void free_event(udi_event *event);
 
-/* error logging */
+// error logging
 #define udi_printf(format, ...) \
     do {\
-        if( udi_debug_on ) {\
+        if( udi_debug_on && udi_in_sig_handler <= 0 ) {\
             fprintf(stderr, "%s[%d]: " format, __FILE__, __LINE__,\
                     ## __VA_ARGS__);\
         }\
     }while(0)
 
 #ifdef __cplusplus
-} /* extern C */
+} // extern C
 #endif
 
 #endif

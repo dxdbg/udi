@@ -26,26 +26,21 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <iostream>
 #include <cstdlib>
 
 #include "udirt.h"
 #include "libuditest.h"
 
-using std::cout;
-using std::endl;
-
 class test_udi_unpack_uint64_t : public UDITestCase {
     public:
-        test_udi_unpack_uint64_t(std::string iTestName)
-            : UDITestCase(iTestName) {}
+        test_udi_unpack_uint64_t()
+            : UDITestCase(std::string("test_udi_unpack_uint64_t")) {}
         virtual ~test_udi_unpack_uint64_t() {}
 
         int operator()(void);
 };
 
-static test_udi_unpack_uint64_t testInstance(
-        std::string("test_udi_unpack_uint64_t"));
+static test_udi_unpack_uint64_t testInstance;
 
 int test_udi_unpack_uint64_t::operator()(void) {
     uint64_t tmp = 0x1234567800aabbccLL;

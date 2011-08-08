@@ -26,12 +26,26 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-// UDI debuggee implementation common between all platforms
+// little endian specific functions
 
-#include "udirt.h"
+// brew-your-own because htonl doesn't handle 64-bit
 
-const char *UDI_DEBUG_ENV = "UDI_DEBUG_ENV";
-char *UDI_ROOT_DIR;
-int udi_debug_on = 0;
-int udi_enabled = 0; // not enabled until initialization complete
-int udi_in_sig_handler = 0;
+#include <stdint.h>
+
+uint64_t udi_unpack_uint64_t(uint64_t value) {
+    // XXX much more efficient to use inline assembly ala bswap instruction
+    uint64_t ret = 0;
+
+    int indices[] = { 1, 3, 5, 7 };
+    int i;
+    for(i = 0; i < sizeof(uint64_t); ++i) {
+        uint64_t mask = ( 0xffll << i*8 );
+        if ( i < 4 ) {
+            ret |= ( value & mask ) << indices[3-i]*8;
+        }else{
+            ret |= ( value & mask ) >> indices[i%4]*8;
+        }
+    }
+
+    return ret;
+}
