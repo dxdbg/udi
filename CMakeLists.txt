@@ -16,6 +16,14 @@ include(MacroOutOfSourceBuild)
  
 macro_ensure_out_of_source_build("${PROJECT_NAME} requires an out of source build.")
 
+if(CMAKE_COMPILER_IS_GNUCC)
+    set(CMAKE_CC_FLAGS "${CMAKE_CC_FLAGS} -Wall -pedantic -std=gnu99")
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCXX)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+endif()
+
 # Subdirectories
 add_subdirectory(libudi)
 add_subdirectory(libudirt)

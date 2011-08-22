@@ -39,10 +39,23 @@ extern "C" {
 
 // UDI types
 typedef uint64_t udi_address;
-typedef uint64_t udi_length;
-typedef uint64_t udi_request_type;
-typedef uint64_t udi_response_type;
-typedef uint64_t udi_event_type;
+typedef uint32_t udi_length;
+typedef uint32_t udi_request_type;
+typedef uint32_t udi_response_type;
+typedef uint32_t udi_event_type;
+typedef uint32_t udi_data_type;
+
+/*
+ * UDI data type
+ */
+typedef enum {
+    UDI_DATATYPE_INT16 = 0,
+    UDI_DATATYPE_INT32,
+    UDI_DATATYPE_LENGTH,
+    UDI_DATATYPE_INT64,
+    UDI_DATATYPE_ADDRESS,
+    UDI_DATATYPE_BYTESTREAM // encoded as a length and a following byte stream
+} udi_data_type_e;
 
 /* 
  * Request specification:
@@ -66,9 +79,9 @@ typedef enum
 /*
  * Response specification
  *
- * +-------------------+------------------+------------+----------------+
- * | udi_response_type | udi_request_type | udi_length | void *value    |
- * +-------------------+------------------+------------+----------------+
+ * +-------------------+------------------+------------+---------------------+
+ * | udi_response_type | udi_request_type | udi_length | void *packed_data   |
+ * +-------------------+------------------+------------+---------------------+
  */
 typedef enum
 {
@@ -81,7 +94,7 @@ typedef enum
  * 
  * For all request-reponse pairs:
  *      if udi_response_type == ERROR:
- *              value == error message
+ *              packed_data == error message (of type UDI_DATATYPE_BYTESTREAM)
  */
 
 /* Init request and response
@@ -105,19 +118,18 @@ typedef enum
 /* Read request and response
  *
  * Request arguments:
- *      udi_address - virtual memory address to read from
- *      udi_length - # of bytes to read
+ *      UDI_DATATYPE_ADDRESS - virtual memory address to read from
+ *      UDI_DATATYPE_LENGTH - # of bytes to read
  *
  * Response values:
- *      requested memory values of target process
+ *      UDI_DATATYPE_BYTESTREAM - requested memory values of target process
  */
 
 /* Write request and response
  *
  * Request arguments:
- *      udi_address - virtual memory address to write to
- *      udi_length - # of bytes to write
- *      void * - values to write into target process memory
+ *      UDI_DATATYPE_ADDRESS - virtual memory address to write to
+ *      UDI_DATATYPE_BYTESTREAM - bytes to write into target process
  *
  * Response values:
  *      None
@@ -158,22 +170,19 @@ typedef enum
 /*
  * Error event data
  *
- * udi_length - length of error message
- * char * - error message
+ * UDI_DATATYPE_BYTESTREAM - error message
  */
 
 /*
  * Signal event data
  *
- * udi_length - length of address field
- * udi_address - virtual address where the signal occurred
+ * UDI_DATATYPE_ADDRESS - virtual address where the signal occurred
  */
 
 /*
  * Breakpoint event data
  *
- * udi_length - length of address field
- * udi_address - virtual address where the breakpoint occurred
+ * UDI_DATATYPE_ADDRESS - virtual addresss where the breakpoint occurred
  */
 
 #ifdef __cplusplus

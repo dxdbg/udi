@@ -45,7 +45,7 @@ class UDITestCase {
         // Execute all linked tests
         static int executeTests(int argc, char *argv[]);
 
-        virtual int operator()(void) = 0;
+        virtual bool operator()(void) = 0;
         virtual const std::string &name() const;
 };
 

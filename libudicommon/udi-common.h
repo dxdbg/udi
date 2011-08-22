@@ -32,6 +32,7 @@
 #define _UDI_COMMON_H 1
 
 #include "udi.h"
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,26 +62,43 @@ typedef struct {
     udi_response_type response_type;
     udi_request_type request_type;
     udi_length length;
-    void *value;
+    void *packed_data;
 } udi_response;
 
 typedef struct {
     udi_request_type request_type;
     udi_length length;
-    void *argument;
+    void *packed_data;
 } udi_request;
 
 typedef struct {
     udi_event_type event_type;
     udi_length length;
-    void *data;
+    void *packed_data;
 } udi_event;
 
 /* helper functions */
 
-uint64_t udi_unpack_uint64_t(uint64_t value);
-
 const char *request_type_str(udi_request_type req_type); 
+
+/* self-contained data structure serialization */
+typedef void *(*malloc_type)(size_t);
+void udi_set_malloc(malloc_type allocator);
+
+void *udi_pack_data(udi_length length, ...);
+int udi_unpack_data(void *data, udi_length length, ...);
+
+/* network order packing */
+udi_address udi_address_hton(udi_address value);
+udi_address udi_address_ntoh(udi_address value);
+udi_length udi_length_hton(udi_length value);
+udi_length udi_length_ntoh(udi_length value);
+udi_request_type udi_request_type_hton(udi_request_type value);
+udi_request_type udi_request_type_ntoh(udi_request_type value);
+udi_response_type udi_response_type_hton(udi_response_type value);
+udi_response_type udi_response_type_ntoh(udi_response_type value);
+udi_event_type udi_event_type_hton(udi_event_type value);
+udi_event_type udi_event_type_ntoh(udi_event_type value);
 
 #ifdef __cplusplus
 } // extern C
