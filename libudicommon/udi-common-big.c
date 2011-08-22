@@ -28,11 +28,22 @@
 
 // big endian specific functions
 
-// brew-your-own because htonl doesn't handle 64-bit
-
 #include <stdint.h>
 
+// big endian is network byte order
+
 uint64_t udi_unpack_uint64_t(uint64_t value) {
-    // big endian is network byte order
     return value;
+}
+
+uint32_t udi_unpack_uint32_t(uint32_t value) {
+    return value;
+}
+
+uint16_t udi_unpack_uint16_t(uint16_t value) {
+    return value;
+}
+
+int is_big_endian() {
+    return 1;
 }

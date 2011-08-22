@@ -142,14 +142,14 @@ void udi_free(void *ptr) {
     free(ptr);
 }
 
-void *udi_malloc(udi_length length) {
+void *udi_malloc(size_t length) {
     return malloc(length);
 }
 
 // request-response handling
 
 void free_request(udi_request *request) {
-    if ( request->argument != NULL ) udi_free(request->argument);
+    if ( request->packed_data != NULL ) udi_free(request->packed_data);
     udi_free(request);
 }
 
@@ -159,26 +159,25 @@ udi_request *read_request_from_fd(int fd) {
     int errnum = 0;
     udi_request *request = (udi_request *)udi_malloc(sizeof(udi_request));
 
-    if (request == NULL) 
-    {
+    if (request == NULL) {
         udi_printf("malloc failed: %s\n", strerror(errno));
         return NULL;
     }
 
-    request->argument = NULL;
+    request->packed_data = NULL;
     do {
         // read the request type and length
         if ( (errnum = read_all(fd, &(request->request_type),
                         sizeof(udi_request_type))) != 0 ) break;
-        request->request_type = udi_unpack_uint64_t(request->request_type);
+        request->request_type = udi_request_type_ntoh(request->request_type);
 
         if ( (errnum = read_all(fd, &(request->length),
                     sizeof(udi_length))) != 0) break;
-        request->length = udi_unpack_uint64_t(request->length);
+        request->length = udi_length_ntoh(request->length);
 
         // read the payload
-        request->argument = udi_malloc(request->length);
-        if ( (errnum = read_all(fd, request->argument,
+        request->packed_data = udi_malloc(request->length);
+        if ( (errnum = read_all(fd, request->packed_data,
                     request->length)) != 0) break;
     }while(0);
 
@@ -200,21 +199,21 @@ int write_response_to_fd(int fd, udi_response *response) {
     int errnum = 0;
     do {
         udi_response_type tmp_type = response->response_type;
-        tmp_type = udi_unpack_uint64_t(tmp_type);
+        tmp_type = udi_response_type_hton(tmp_type);
         if ( (errnum = write_all(response_handle, &tmp_type,
                        sizeof(udi_response_type))) != 0 ) break;
 
         udi_request_type tmp_req_type = response->request_type;
-        tmp_req_type = udi_unpack_uint64_t(tmp_req_type);
+        tmp_req_type = udi_request_type_hton(tmp_req_type);
         if ( (errnum = write_all(response_handle, &tmp_req_type,
                         sizeof(udi_response_type))) != 0 ) break;
 
         udi_length tmp_length = response->length;
-        tmp_length = udi_unpack_uint64_t(tmp_length);
+        tmp_length = udi_length_hton(tmp_length);
         if ( (errnum = write_all(response_handle, &tmp_length,
                         sizeof(udi_length))) != 0 ) break;
 
-        if ( (errnum = write_all(response_handle, response->value,
+        if ( (errnum = write_all(response_handle, response->packed_data,
                         response->length)) != 0 ) break;
     }while(0);
 
@@ -233,16 +232,16 @@ int write_event_to_fd(int fd, udi_event *event) {
     int errnum = 0;
     do {
         udi_event_type tmp_type = event->event_type;
-        tmp_type = udi_unpack_uint64_t(tmp_type);
+        tmp_type = udi_event_type_hton(tmp_type);
         if ( (errnum = write_all(events_handle, &tmp_type,
                         sizeof(udi_length)) != 0 ) ) break;
 
         udi_length tmp_length = event->length;
-        tmp_length = udi_unpack_uint64_t(tmp_length);
+        tmp_length = udi_length_hton(tmp_length);
         if ( (errnum = write_all(events_handle, &tmp_length,
                         sizeof(udi_length))) != 0 ) break;
 
-        if ( (errnum = write_all(events_handle, event->data,
+        if ( (errnum = write_all(events_handle, event->packed_data,
                         event->length)) != 0 ) break;
     }while(0);
 
@@ -259,18 +258,87 @@ int write_event(udi_event *event) {
 }
 
 int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
-    // TODO
+    // for now, don't do anything special
+    // when threads introduced, this will require more work
     return 0;
 }
 
 int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
-    // TODO
-    return 0;
+    udi_address addr;
+    udi_length num_bytes;
+
+    if ( udi_unpack_data(req->packed_data, req->length, 
+                UDI_DATATYPE_ADDRESS, &addr, UDI_DATATYPE_LENGTH,
+                &num_bytes) ) 
+    {
+        snprintf(errmsg, errmsg_size, "%s", "failed to parse read request");
+        udi_printf("failed to unpack data for read request\n");
+        return -1;
+    }
+
+    void *memory_read = udi_malloc(num_bytes);
+    if ( memory_read == NULL ) {
+        return errno;
+    }
+
+    // Perform the read operation
+    memcpy(memory_read,(void *)((unsigned long)addr), num_bytes);
+
+    // Create the response
+    udi_response resp;
+    resp.response_type = UDI_RESP_VALID;
+    resp.request_type = UDI_REQ_READ_MEM;
+    resp.length = num_bytes;
+    resp.packed_data = udi_pack_data(resp.length, UDI_DATATYPE_BYTESTREAM,
+            resp.length, memory_read);
+
+    int errnum = 0;
+    do {
+        if ( resp.packed_data == NULL ) {
+            snprintf(errmsg, errmsg_size, "%s", "failed to pack response data");
+            udi_printf("failed to pack response data for read request\n");
+            errnum = -1;
+            break;
+        }
+
+        errnum = write_response(&resp);
+    }while(0);
+
+    if ( memory_read != NULL ) udi_free(memory_read);
+    if ( resp.packed_data != NULL ) udi_free(resp.packed_data);
+
+    return errnum;
 }
 
 int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
-    // TODO
-    return 0;
+    udi_address addr;
+    udi_length num_bytes;
+    void *bytes_to_write;
+
+    if ( udi_unpack_data(req->packed_data, req->length,
+                UDI_DATATYPE_ADDRESS, &addr, UDI_DATATYPE_BYTESTREAM, &num_bytes,
+                &bytes_to_write) )
+    {
+        snprintf(errmsg, errmsg_size, "%s", "failed to parse write request");
+        udi_printf("failed to unpack data for write request\n");
+        return -1;
+    }
+    
+    // Perform the write operation
+    memcpy((void *)((unsigned long)addr), bytes_to_write, num_bytes);
+
+    // Create the response
+    udi_response resp;
+    resp.response_type = UDI_RESP_VALID;
+    resp.request_type = UDI_REQ_WRITE_MEM;
+    resp.length = 0;
+    resp.packed_data = NULL;
+
+    int errnum = write_response(&resp);
+
+    udi_free(bytes_to_write);
+
+    return errnum;
 }
 
 int state_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
@@ -499,7 +567,7 @@ int handshake_with_debugger(int *output_enabled, char *errmsg,
         init_response.response_type = UDI_RESP_VALID;
         init_response.request_type = UDI_REQ_INIT;
         init_response.length = 0;
-        init_response.value = NULL;
+        init_response.packed_data = NULL;
 
         errnum = write_response(&init_response);
         if ( errnum ) {
@@ -549,14 +617,24 @@ static
 int decode_trap(const siginfo_t *siginfo, const ucontext_t *context, 
         char *errmsg, unsigned int errmsg_size) 
 {
-    udi_address trap_addr = (udi_address) siginfo->si_addr;
+    udi_address trap_addr = (udi_address)(unsigned long)siginfo->si_addr;
 
     udi_event trap_event;
     trap_event.event_type = UDI_EVENT_BREAKPOINT;
     trap_event.length = sizeof(udi_address);
-    trap_event.data = &trap_addr;
+    trap_event.packed_data = udi_pack_data(trap_event.length,
+            UDI_DATATYPE_INT64, trap_addr);
 
-    return write_event(&trap_event); 
+    if ( trap_event.packed_data == NULL ) {
+        return -1;
+    }
+
+    int result = write_event(&trap_event);
+
+    udi_free(trap_event.packed_data);
+
+    return result;
+
 }
 
 // Not static because need to pass around pointer to it
@@ -582,7 +660,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
             default:
                 event.event_type = UDI_EVENT_UNKNOWN;
                 event.length = 0;
-                event.data = NULL;
+                event.packed_data = NULL;
 
                 failure = write_event(&event);
                 break;
@@ -605,14 +683,19 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     }while(0);
 
     if ( failure ) {
+        // Shared error response code
         udi_response resp;
         resp.response_type = UDI_RESP_ERROR;
         resp.request_type = UDI_REQ_INVALID;
-        resp.length = strlen(errmsg);
-        resp.value = errmsg;
-        
-        // explicitly ignore errors
-        write_response(&resp);
+        resp.length = strlen(errmsg) + 1;
+        resp.packed_data = udi_pack_data(resp.length, 
+                UDI_DATATYPE_BYTESTREAM, errmsg);
+
+        if ( resp.packed_data != NULL ) {
+            // explicitly ignore errors
+            write_response(&resp);
+            udi_free(resp.packed_data);
+        }
     }
 
     udi_in_sig_handler--;
@@ -657,6 +740,9 @@ void init_udi_rt() {
         udi_debug_on = 1;
     }
 
+    // set allocator used for packing data
+    udi_set_malloc(udi_malloc);
+
     do {
         if ( (errnum = create_udi_filesystem()) != 0 ) {
             udi_printf("failed to create udi filesystem\n");
@@ -698,9 +784,14 @@ void init_udi_rt() {
             udi_response resp;
             resp.response_type = UDI_RESP_ERROR;
             resp.request_type = UDI_REQ_INIT;
-            resp.length = strlen(errmsg);
-            resp.value = errmsg;
-            write_response(&resp);
+            resp.length = strlen(errmsg) + 1;
+            resp.packed_data = udi_pack_data(resp.length, 
+                    UDI_DATATYPE_BYTESTREAM, errmsg);
+
+            if ( resp.packed_data != NULL ) {
+                write_response(&resp);
+                udi_free(resp.packed_data);
+            }
         }
 
         // not enabled, due to failure

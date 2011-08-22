@@ -33,6 +33,7 @@
 
 #include "udi.h"
 #include "udi-common.h"
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,7 +49,7 @@ extern int udi_in_sig_handler;
 // platform specific functions
 
 void udi_free(void *ptr);
-void *udi_malloc(udi_length length);
+void *udi_malloc(size_t length);
 
 // platform independent functions
 

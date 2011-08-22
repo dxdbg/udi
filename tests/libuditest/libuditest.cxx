@@ -53,11 +53,11 @@ int UDITestCase::executeTests(int /*argc*/, char ** /*argv[]*/) {
             i != testCases_.end(); ++i)
     {
         UDITestCase *currentCase = *i;
-        int testResult = (*currentCase)();
+        bool testResult = (*currentCase)();
 
-        if (testResult != EXIT_SUCCESS) {
+        if (!testResult) {
             cout << currentCase->name() << " failed" << endl;
-            return testResult;
+            return EXIT_FAILURE;
         }
 
         cout << currentCase->name() << " passed" << endl;

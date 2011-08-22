@@ -26,49 +26,60 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <cstdlib>
+#ifndef _LIBUDI_H
+#define _LIBUDI_H 1
 
-#include "udirt.h"
-#include "libuditest.h"
+#include "udi.h"
+#include <stdio.h>
 
+#ifdef __cplusplus
 extern "C" {
-extern uint64_t udi_unpack_uint64_t(uint64_t value);
-extern uint32_t udi_unpack_uint32_t(uint32_t value);
-extern uint16_t udi_unpack_uint16_t(uint16_t value);
-}
+#endif
 
-class test_udi_unpack_uint64_t : public UDITestCase {
-    public:
-        test_udi_unpack_uint64_t()
-            : UDITestCase(std::string("test_udi_unpack_uint64_t")) {}
-        virtual ~test_udi_unpack_uint64_t() {}
+typedef struct udi_process_struct udi_process;
 
-        bool operator()(void);
-};
+/**
+ * Create UDI-controlled process
+ * 
+ * @param executable   the full path to the executable
+ * @param argv         the arguments
+ * @param envp         the environment
+ *
+ * @return a handle to the created process
+ *
+ * @see execve
+ */
+udi_process *create_process(const char *executable, const char *argv[],
+        const char *envp[]);
 
-static test_udi_unpack_uint64_t testInstance;
+/* Memory access interface */
 
-bool test_udi_unpack_uint64_t::operator()(void) {
-    uint64_t tmp = 0x1234567800aabbccLL;
-    uint64_t expected = 0xccbbaa0078563412LL;
+/**
+ * Access unsigned long
+ *
+ * @param proc          the process handle
+ * @param write         if non-zero, write to specified address
+ * @param value         pointer to the value to read/write
+ * @param size          the size of the data block pointed to by value
+ * @param addr          the location in memory to read/write
+ *
+ * @return non-zero on failure, 0 on success
+ */
+int mem_access(udi_process *proc, int write, void *value, udi_length size, 
+        udi_address addr);
 
-    if ( udi_unpack_uint64_t(tmp) != expected ) {
-        return false;
-    }
+/**
+ * Set a breakpoint in the specified process at the specified address
+ *
+ * @param proc                  the process handle
+ * @param breakpoint_addr       the breakpoint address
+ *
+ * @return non-zero on failure, 0 on success
+ */
+int set_breakpoint(udi_process *proc, udi_address breakpoint_addr);
 
-    uint32_t tmp32 = 0x12345678;
-    uint32_t tmp32_expected = 0x78563412;
+#ifdef __cplusplus
+} // "C"
+#endif
 
-    if ( udi_unpack_uint32_t(tmp32) != tmp32_expected ) {
-        return false;
-    }
-
-    uint16_t tmp16 = 0x1234;
-    uint16_t tmp16_expected = 0x3412;
-
-    if ( udi_unpack_uint16_t(tmp16) != tmp16_expected ) {
-        return false;
-    }
-
-    return true;
-}
+#endif

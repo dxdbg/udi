@@ -48,7 +48,7 @@ class test_read_request : public UDITestCase {
             : UDITestCase(std::string("test_read_request")) {}
         virtual ~test_read_request() {}
         
-        int operator()(void);
+        bool operator()(void);
 };
 
 static test_read_request testInstance;
@@ -60,67 +60,68 @@ extern udi_request *read_request_from_fd(int fd);
 
 static const char *TMPFILEPATH = "/tmp/udi_test_tmpfile";
 static const char *TESTPAYLOAD = "testing...";
-static int test_read_request_platform() {
+static bool test_read_request_platform() {
     // First, create a dummy file to read from 
     int fd = open(TMPFILEPATH, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
     if ( fd == -1 ) {
         cout << "Failed to create temporary file " << TMPFILEPATH
              << ": " << strerror(errno) << endl;
-        return EXIT_FAILURE;
+        return false;
     }
 
     // Create the request
-    udi_request_type request_type = udi_unpack_uint64_t(UDI_REQ_WRITE_MEM);
+    udi_request_type request_type = udi_request_type_hton(UDI_REQ_WRITE_MEM);
     if ( write(fd, &request_type, sizeof(udi_request_type)) == -1 ) {
         cout << "Failed to write request type: " << strerror(errno) << endl;
-        return EXIT_FAILURE;
+        return false;
     }
 
-    udi_length length = udi_unpack_uint64_t(strlen(TESTPAYLOAD));
+    udi_length length = udi_length_hton(strlen(TESTPAYLOAD));
     udi_length exp_length = strlen(TESTPAYLOAD);
     if ( write(fd, &length, sizeof(udi_length)) == -1 ) {
         cout << "Failed to write length: " << strerror(errno) << endl;
-        return EXIT_FAILURE;
+        return false;
     }
 
     if ( write(fd, TESTPAYLOAD, exp_length) == -1 ) {
         cout << "Failed to write payload: " << strerror(errno) << endl;
-        return EXIT_FAILURE;
+        return false;
     }
 
     // Reset to behave like a fifo
     if ( lseek(fd, 0, SEEK_SET) == ((off_t)-1)) {
         cout << "Failed to reset file to beginning: " << strerror(errno) 
              << endl;
-        return EXIT_FAILURE;
+        return false;
     }
 
     // Now, actually test the function
     udi_request *result = read_request_from_fd(fd);
     if (result == NULL) {
         cout << "Failed to read request from file" << endl;
-        return EXIT_FAILURE;
+        return false;
     }
 
     if (result->request_type != UDI_REQ_WRITE_MEM)
     {
         cout << "Unexpected value in request ( " << UDI_REQ_WRITE_MEM
              << " != " << result->request_type << " ) " << endl;
-        return EXIT_FAILURE;
+        return false;
     }
 
     if ( result->length != exp_length ) {
         cout << "Unexpected value in request ( " << length
              << " != " << result->length << " ) " << endl;
-        return EXIT_FAILURE;
+        return false;
     }
 
-    if ( std::string((char *)result->argument) != 
+    if ( std::string((char *)result->packed_data) != 
          std::string(TESTPAYLOAD) )
     {
-        cout << "Unexpected value in request ( '" << (char *)result->argument
+        cout << "Unexpected value in request ( '"
+             << result->packed_data
              << "' != '" << TESTPAYLOAD << "' ) " << endl;
-        return EXIT_FAILURE;
+        return false;
     }
 
     // Cleanup
@@ -129,9 +130,9 @@ static int test_read_request_platform() {
 
     unlink(TMPFILEPATH); // don't care on error
 
-    return EXIT_SUCCESS;
+    return true;
 }
 
-int test_read_request::operator()(void) {
+bool test_read_request::operator()(void) {
     return test_read_request_platform();
 }

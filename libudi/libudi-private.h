@@ -26,49 +26,56 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <cstdlib>
+#ifndef _LIBUDI_PRIVATE_H
+#define _LIBUDI_PRIVATE_H 1
 
-#include "udirt.h"
-#include "libuditest.h"
+#include "libudi.h"
 
+#ifdef __cplusplus
 extern "C" {
-extern uint64_t udi_unpack_uint64_t(uint64_t value);
-extern uint32_t udi_unpack_uint32_t(uint32_t value);
-extern uint16_t udi_unpack_uint16_t(uint16_t value);
-}
+#endif
 
-class test_udi_unpack_uint64_t : public UDITestCase {
-    public:
-        test_udi_unpack_uint64_t()
-            : UDITestCase(std::string("test_udi_unpack_uint64_t")) {}
-        virtual ~test_udi_unpack_uint64_t() {}
+// TODO make types cross platform
+typedef int udi_handle;
+typedef pid_t udi_pid;
+const pid_t INVALID_UDI_PID = -1;
 
-        bool operator()(void);
+typedef enum {
+    UDI_ARCH_X86,
+    UDI_ARCH_X86_64
+} udi_arch_e;
+
+struct udi_process_struct {
+    udi_pid pid;
+    udi_handle request_handle;
+    udi_handle response_handle;
+    udi_handle events_handle;
+    udi_arch_e architecture;
 };
 
-static test_udi_unpack_uint64_t testInstance;
+udi_pid fork_process(const char *executable, const char *argv[],
+        const char *envp[]);
 
-bool test_udi_unpack_uint64_t::operator()(void) {
-    uint64_t tmp = 0x1234567800aabbccLL;
-    uint64_t expected = 0xccbbaa0078563412LL;
+int initialize_process(udi_process *proc);
 
-    if ( udi_unpack_uint64_t(tmp) != expected ) {
-        return false;
-    }
+int write_request(udi_request *req);
 
-    uint32_t tmp32 = 0x12345678;
-    uint32_t tmp32_expected = 0x78563412;
+udi_response *read_response();
+void free_response(udi_response *resp);
 
-    if ( udi_unpack_uint32_t(tmp32) != tmp32_expected ) {
-        return false;
-    }
+// error logging
+extern int udi_debug_on;
 
-    uint16_t tmp16 = 0x1234;
-    uint16_t tmp16_expected = 0x3412;
+#define udi_printf(format, ...) \
+    do {\
+        if ( udi_debug_on ) {\
+            fprintf(stderr, "%s[%d]: " format, __FILE__, __LINE__,\
+                        ## __VA_ARGS__);\
+        }\
+    }while(0)
 
-    if ( udi_unpack_uint16_t(tmp16) != tmp16_expected ) {
-        return false;
-    }
+#ifdef __cplusplus
+} // "C"
+#endif
 
-    return true;
-}
+#endif

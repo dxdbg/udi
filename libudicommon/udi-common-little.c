@@ -28,24 +28,53 @@
 
 // little endian specific functions
 
-// brew-your-own because htonl doesn't handle 64-bit
-
 #include <stdint.h>
 
+// inline assembly is quicker, but this is cross-compiler
+
 uint64_t udi_unpack_uint64_t(uint64_t value) {
-    // XXX much more efficient to use inline assembly ala bswap instruction
     uint64_t ret = 0;
 
-    int indices[] = { 1, 3, 5, 7 };
-    int i;
-    for(i = 0; i < sizeof(uint64_t); ++i) {
-        uint64_t mask = ( 0xffll << i*8 );
-        if ( i < 4 ) {
-            ret |= ( value & mask ) << indices[3-i]*8;
-        }else{
-            ret |= ( value & mask ) >> indices[i%4]*8;
-        }
-    }
+    unsigned char *ret_ptr = (unsigned char *)&ret;
+    unsigned char *val_ptr = (unsigned char *)&value;
+
+    ret_ptr[0] = val_ptr[7];
+    ret_ptr[1] = val_ptr[6];
+    ret_ptr[2] = val_ptr[5];
+    ret_ptr[3] = val_ptr[4];
+    ret_ptr[4] = val_ptr[3];
+    ret_ptr[5] = val_ptr[2];
+    ret_ptr[6] = val_ptr[1];
+    ret_ptr[7] = val_ptr[0];
 
     return ret;
+}
+
+uint32_t udi_unpack_uint32_t(uint32_t value) {
+    uint32_t ret = 0;
+
+    unsigned char *ret_ptr = (unsigned char *)&ret;
+    unsigned char *val_ptr = (unsigned char *)&value;
+    ret_ptr[0] = val_ptr[3];
+    ret_ptr[1] = val_ptr[2];
+    ret_ptr[2] = val_ptr[1];
+    ret_ptr[3] = val_ptr[0];
+
+    return ret;
+}
+
+uint16_t udi_unpack_uint16_t(uint16_t value) {
+    uint16_t ret = 0;
+
+    unsigned char *ret_ptr = (unsigned char *)&ret;
+    unsigned char *val_ptr = (unsigned char *)&value;
+    ret_ptr[0] = val_ptr[1];
+    ret_ptr[1] = val_ptr[0];
+
+    return ret;
+}
+
+
+int is_big_endian() {
+    return 0;
 }
