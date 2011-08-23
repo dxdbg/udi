@@ -35,10 +35,13 @@
 extern "C" {
 #endif
 
-// TODO make types cross platform
+#ifdef UNIX
 typedef int udi_handle;
 typedef pid_t udi_pid;
 const pid_t INVALID_UDI_PID = -1;
+#else
+#error Unknown platform
+#endif
 
 typedef enum {
     UDI_ARCH_X86,
@@ -53,14 +56,17 @@ struct udi_process_struct {
     udi_arch_e architecture;
 };
 
+extern const unsigned int ERRMSG_SIZE;
+extern char errmsg[4096];
+
 udi_pid fork_process(const char *executable, const char *argv[],
         const char *envp[]);
 
 int initialize_process(udi_process *proc);
 
-int write_request(udi_request *req);
+int write_request(udi_request *req, udi_process *proc);
 
-udi_response *read_response();
+udi_response *read_response(udi_process *proc);
 void free_response(udi_response *resp);
 
 // error logging

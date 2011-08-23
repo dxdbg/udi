@@ -177,12 +177,19 @@ udi_request *read_request_from_fd(int fd) {
 
         // read the payload
         request->packed_data = udi_malloc(request->length);
+        if (request->packed_data == NULL ) {
+            errnum = errno;
+            break;
+        }
+
         if ( (errnum = read_all(fd, request->packed_data,
                     request->length)) != 0) break;
     }while(0);
 
     if (errnum != 0) {
-        udi_printf("read_all failed: %s\n", strerror(errnum));
+        if ( errnum > 0 ) {
+            udi_printf("read_all failed: %s\n", strerror(errnum));
+        }
         free_request(request);
         return NULL;
     }
@@ -272,7 +279,7 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
                 &num_bytes) ) 
     {
         snprintf(errmsg, errmsg_size, "%s", "failed to parse read request");
-        udi_printf("failed to unpack data for read request\n");
+        udi_printf("%s", "failed to unpack data for read request");
         return -1;
     }
 
@@ -296,7 +303,7 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     do {
         if ( resp.packed_data == NULL ) {
             snprintf(errmsg, errmsg_size, "%s", "failed to pack response data");
-            udi_printf("failed to pack response data for read request\n");
+            udi_printf("%s", "failed to pack response data for read request");
             errnum = -1;
             break;
         }
@@ -320,7 +327,7 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
                 &bytes_to_write) )
     {
         snprintf(errmsg, errmsg_size, "%s", "failed to parse write request");
-        udi_printf("failed to unpack data for write request\n");
+        udi_printf("%s\n", "failed to unpack data for write request");
         return -1;
     }
     
@@ -358,7 +365,7 @@ int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
         udi_request *req = read_request();
         if ( req == NULL ) {
             snprintf(errmsg, errmsg_size, "%s", "failed to read command");
-            udi_printf("failed to read request\n");
+            udi_printf("%s", "failed to read request");
             errnum = -1;
             break;
         }
@@ -531,13 +538,14 @@ int handshake_with_debugger(int *output_enabled, char *errmsg,
         if ( init_request == NULL ) {
             snprintf(errmsg, ERRMSG_SIZE-1, "%s", 
                     "failed reading init request");
-            udi_printf("failed reading init request");
+            udi_printf("%s\n", "failed reading init request");
             errnum = -1;
             break;
         }
         
         if ( init_request->request_type != UDI_REQ_INIT ) {
-            udi_printf("invalid init request received, proceeding anyways...\n");
+            udi_printf("%s\n",
+                    "invalid init request received, proceeding anyways...");
         }
 
         free_request(init_request);
@@ -571,7 +579,7 @@ int handshake_with_debugger(int *output_enabled, char *errmsg,
 
         errnum = write_response(&init_response);
         if ( errnum ) {
-            udi_printf("failed to write init response\n");
+            udi_printf("%s\n", "failed to write init response");
             *output_enabled = 0;
         }
     }while(0);
@@ -729,7 +737,6 @@ void init_udi_rt() UDI_CONSTRUCTOR;
 
 void init_udi_rt() {
     char errmsg[ERRMSG_SIZE];
-    char *errmsg_tmp;
     int errnum = 0, output_enabled = 0;
 
     // initialize error message
@@ -745,29 +752,29 @@ void init_udi_rt() {
 
     do {
         if ( (errnum = create_udi_filesystem()) != 0 ) {
-            udi_printf("failed to create udi filesystem\n");
+            udi_printf("%s\n", "failed to create udi filesystem");
             break;
         }
 
         if ( (errnum = locate_wrapper_functions(errmsg, ERRMSG_SIZE)) 
                 != 0 ) {
-            udi_printf("failed to locate wrapper functions\n");
+            udi_printf("%s\n", "failed to locate wrapper functions");
             break;
         }
 
         if ( (errnum = setup_signal_handlers()) != 0 ) {
-            udi_printf("failed to setup signal handlers\n");
+            udi_printf("%s\n", "failed to setup signal handlers");
             break;
         }
 
         if ( (errnum = handshake_with_debugger(&output_enabled,
                         errmsg, ERRMSG_SIZE)) != 0 ) {
-            udi_printf("failed to complete handshake with debugger\n");
+            udi_printf("%s\n", "failed to complete handshake with debugger");
             break;
         }
 
         if ( (errnum = wait_and_execute_command(errmsg, ERRMSG_SIZE)) != 0 ) {
-            udi_printf("failed to wait for initial command\n");
+            udi_printf("%s\n", "failed to wait for initial command");
             break;
         }
     } while(0);

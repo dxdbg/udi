@@ -41,6 +41,8 @@ const char *REQUEST_FILE_NAME = "request";
 const char *RESPONSE_FILE_NAME = "response";
 const char *EVENTS_FILE_NAME = "events";
 
+#define CASE_TO_STR(x) case x: return #x
+
 const char *request_type_str(udi_request_type req_type) {
     switch(req_type) {
         CASE_TO_STR(UDI_REQ_CONTINUE);

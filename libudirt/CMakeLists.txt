@@ -6,6 +6,7 @@ set(udirt_SOURCES udirt.c)
 
 if(UNIX)
     set(udirt_SOURCES udirt-posix.c ${udirt_SOURCES})
+    set(DIRECTORY PROPERTY COMPILE_DEFINITIONS UNIX)
 else(UNIX)
     # TODO
 endif(UNIX)
