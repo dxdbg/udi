@@ -17,7 +17,7 @@ include(MacroOutOfSourceBuild)
 macro_ensure_out_of_source_build("${PROJECT_NAME} requires an out of source build.")
 
 if(CMAKE_COMPILER_IS_GNUCC)
-    set(CMAKE_CC_FLAGS "${CMAKE_CC_FLAGS} -Wall -pedantic -std=gnu99")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -std=gnu99")
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX)

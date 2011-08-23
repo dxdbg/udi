@@ -32,9 +32,34 @@
 #include "libudi-private.h"
 
 #include <stdlib.h>
+#include <string.h>
 
-// globals
+////////////////////
+// globals        //
+////////////////////
 int udi_debug_on = 0;
+
+/////////////////////
+// Error reporting //
+/////////////////////
+const unsigned int ERRMSG_SIZE = 4096;
+char errmsg[4096];
+
+const char *get_error_message(udi_error_e error_code) 
+{
+    switch(error_code) {
+        case UDI_ERROR_LIBRARY:
+            return "UDI library internal error";
+        case UDI_ERROR_REQUEST:
+            return errmsg;
+        default:
+            return "Error not set";
+    }
+}
+
+///////////////////////
+// Library functions //
+///////////////////////
 
 udi_process *create_process(const char *executable, const char *argv[],
         const char *envp[])
@@ -44,7 +69,7 @@ udi_process *create_process(const char *executable, const char *argv[],
     udi_process *proc = (udi_process *)malloc(sizeof(udi_process));
     do{
         if ( proc == NULL ) {
-            udi_printf("malloc failed\n");
+            udi_printf("%s\n", "malloc failed");
             error = 1;
             break;
         }
@@ -58,7 +83,7 @@ udi_process *create_process(const char *executable, const char *argv[],
         }
 
         if ( initialize_process(proc) != 0 ) {
-            udi_printf("failed to initialize process for debugging\n");
+            udi_printf("%s\n", "failed to initialize process for debugging");
             error = 1;
             break;
         }
@@ -74,10 +99,13 @@ udi_process *create_process(const char *executable, const char *argv[],
     return proc;
 }
 
-int mem_access(int write, void *value, udi_length size, udi_address addr) {
+udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length size, 
+        udi_address addr) 
+{
+    udi_error_e error_code = UDI_ERROR_NONE;
     udi_request request;
     
-    // Create and perform the request
+    // Create the request
     if ( write ) {
         request.request_type = UDI_REQ_WRITE_MEM;
         request.length = size + sizeof(udi_length) + sizeof(udi_address);
@@ -94,55 +122,56 @@ int mem_access(int write, void *value, udi_length size, udi_address addr) {
     int errnum = 0;
     udi_response *resp = NULL;
     do{
+        // Perform the request
         if ( request.packed_data == NULL ) {
-            udi_printf("failed to pack data for memory access request\n");
-            errnum = -1;
+            udi_printf("%s\n", "failed to pack data for memory access request");
+            error_code = UDI_ERROR_LIBRARY;
             break;
         }
 
-        if ( (errnum = write_request(&request)) != 0 ) {
-            udi_printf("failed to perform memory access request\n");
-            errnum = -1;
+        if ( (errnum = write_request(&request, proc)) != 0 ) {
+            udi_printf("%s\n", "failed to perform memory access request");
+            error_code = UDI_ERROR_LIBRARY;
             break;
         }
 
         // Get the response
-        resp = read_response();
+        resp = read_response(proc);
         if ( resp == NULL ) {
-            udi_printf("failed to receive response for memory access request\n");
-            errnum = -1;
+            udi_printf("%s\n", 
+                    "failed to receive response for memory access request");
+            error_code = UDI_ERROR_LIBRARY;
             break;
         }
 
         if ( resp->response_type == UDI_RESP_ERROR ) {
-            char *errmsg;
+            char *errmsg_local;
             udi_length errmsg_size;
 
             if ( udi_unpack_data(resp->packed_data, resp->length, 
-                        UDI_DATATYPE_BYTESTREAM, &errmsg_size, &errmsg) )
+                        UDI_DATATYPE_BYTESTREAM, &errmsg_size, &errmsg_local) )
             {
-                udi_printf("failed to unpack response for failed request\n");
-                errnum = -1;
+                udi_printf("%s\n", "failed to unpack response for failed request");
+                error_code = UDI_ERROR_LIBRARY;
                 break;
             }
 
-            // TODO make some sort of interface for getting this error message
-            udi_printf("request failed: %s\n", errmsg);
-            free(errmsg);
-
-            errnum = -1;
+            udi_printf("request failed: %s\n", errmsg_local);
+            strncpy(errmsg, errmsg_local, ERRMSG_SIZE);
+            free(errmsg_local);
+            error_code = UDI_ERROR_REQUEST;
             break;
         }
 
-        if ( request.request_type == UDI_REQ_READ_MEM ) {
+        if ( resp->request_type == UDI_REQ_READ_MEM ) {
             void *result;
             udi_length result_size;
 
             if ( udi_unpack_data(resp->packed_data, resp->length,
                         UDI_DATATYPE_BYTESTREAM, &result_size, &result) )
             {
-                udi_printf("failed to unpack response for read request\n");
-                errnum = 1;
+                udi_printf("%s\n", "failed to unpack response for read request");
+                error_code = UDI_ERROR_LIBRARY;
                 break;
             }
 
@@ -156,12 +185,13 @@ int mem_access(int write, void *value, udi_length size, udi_address addr) {
     if ( request.packed_data != NULL ) free(request.packed_data);
     if ( resp != NULL ) free_response(resp);
 
-    return errnum;
+    return error_code;
 }
 
-static const unsigned char X86_TRAP_INSTRUCT = "0xcc";
+static const unsigned char X86_TRAP_INSTRUCT = 0xcc;
 
-int set_breakpoint(udi_process *proc, udi_address breakpoint_addr) {
+udi_error_e set_breakpoint(udi_process *proc, udi_address breakpoint_addr) 
+{
     switch(proc->architecture) {
         case UDI_ARCH_X86:
         case UDI_ARCH_X86_64: 
@@ -173,5 +203,10 @@ int set_breakpoint(udi_process *proc, udi_address breakpoint_addr) {
              break;
     }
 
-    return -1;
+    return UDI_ERROR_NONE;
+}
+
+void free_response(udi_response *resp) {
+    if ( resp->packed_data != NULL ) free(resp->packed_data);
+    free(resp);
 }

@@ -39,6 +39,24 @@ extern "C" {
 typedef struct udi_process_struct udi_process;
 
 /**
+ * library error codes
+ */
+typedef enum {
+    UDI_ERROR_LIBRARY,
+    UDI_ERROR_REQUEST,
+    UDI_ERROR_NONE
+} udi_error_e;
+
+/**
+ * Get a message describing the passed error code
+ *
+ * Note: this may be dependent on the result of the most recent operation
+ *
+ * @param error_code the error code
+ */
+const char *get_error_message(udi_error_e error_code);
+
+/**
  * Create UDI-controlled process
  * 
  * @param executable   the full path to the executable
@@ -65,8 +83,8 @@ udi_process *create_process(const char *executable, const char *argv[],
  *
  * @return non-zero on failure, 0 on success
  */
-int mem_access(udi_process *proc, int write, void *value, udi_length size, 
-        udi_address addr);
+udi_error_e mem_access(udi_process *proc, int write, void *value, 
+        udi_length size, udi_address addr);
 
 /**
  * Set a breakpoint in the specified process at the specified address
@@ -76,7 +94,7 @@ int mem_access(udi_process *proc, int write, void *value, udi_length size,
  *
  * @return non-zero on failure, 0 on success
  */
-int set_breakpoint(udi_process *proc, udi_address breakpoint_addr);
+udi_error_e set_breakpoint(udi_process *proc, udi_address breakpoint_addr);
 
 #ifdef __cplusplus
 } // "C"

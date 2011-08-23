@@ -36,6 +36,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include "udi.h"
 #include "udi-common.h"
@@ -50,7 +51,14 @@ int read_all(int fd, void *dest, size_t length)
 {
     size_t total = 0;
     while (total < length) {
-        ssize_t num_read = read(fd, dest + total, length - total);
+        ssize_t num_read = read(fd, ((unsigned char*)dest) + total, 
+                length - total);
+
+        if ( num_read == 0 ) {
+            // Treat end-of-file as a separate error
+            return -1;
+        }
+
         if (num_read < 0) {
             if (errno == EINTR) continue;
             return errno;
@@ -64,7 +72,8 @@ int read_all(int fd, void *dest, size_t length)
 int write_all(int fd, void *src, size_t length) {
     size_t total = 0;
     while (total < length) {
-        ssize_t num_written = write(fd, src + total, length - total);
+        ssize_t num_written = write(fd, ((unsigned char *)src) + total, 
+                length - total);
         if ( num_written < 0 ) {
             if ( errno == EINTR ) continue;
             return errno;
