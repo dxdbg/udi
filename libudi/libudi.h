@@ -57,6 +57,18 @@ typedef enum {
 const char *get_error_message(udi_error_e error_code);
 
 /**
+ * Sets the directory to be used for the root of the UDI filesystem
+ * 
+ * Will be created if it doesn't exist
+ * 
+ * Cannot be set if processes already created
+ *
+ * @param root_dir the directory to set as the root
+ * @return zero on success, non-zero on success
+ */
+int set_udi_root_dir(const char *root_dir);
+
+/**
  * Create UDI-controlled process
  * 
  * @param executable   the full path to the executable

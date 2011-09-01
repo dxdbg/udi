@@ -33,6 +33,37 @@
 #include "udi-common-posix.h"
 
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
+const char *udi_root_dir = DEFAULT_UDI_ROOT_DIR;
+
+int create_root_udi_filesystem() {
+    if (mkdir(udi_root_dir, S_IRWXG | S_IRWXU) == -1) {
+        if ( errno == EEXIST ) {
+            // Make sure it is a directory
+            struct stat dirstat;
+            if ( stat(udi_root_dir, &dirstat) != 0 ) {
+                udi_printf("failed to stat file %s: %s\n",
+                        udi_root_dir, strerror(errno));
+                return -1;
+            }
+
+            if (!S_ISDIR(dirstat.st_mode)) {
+                udi_printf("UDI root dir %s exists and is not a directory\n",
+                        udi_root_dir);
+                return -1;
+            }
+            // It exists and it is a directory
+        }else{
+            udi_printf("error creating udi root dir: %s\n",
+                strerror(errno));
+            return -1;
+        }    
+    }
+
+    return 0;
+}
 
 udi_pid fork_process(const char *executable, const char *argv[],
         const char *envp[])
@@ -104,9 +135,130 @@ udi_pid fork_process(const char *executable, const char *argv[],
     exit(-1);
 }
 
+static const unsigned int PID_STR_LEN = 10;
+
 int initialize_process(udi_process *proc) 
 {
-    // TODO
+    // define paths to UDI debuggee files
+    size_t events_file_length = strlen(udi_root_dir) + PID_STR_LEN + DS_LEN*2 +
+        strlen(EVENTS_FILE_NAME);
+    char *events_file_path = (char *)malloc(events_file_length);
+    snprintf(events_file_path, events_file_length, "%s/%u/%s",
+            udi_root_dir, proc->pid, EVENTS_FILE_NAME);
+
+    size_t request_file_length = strlen(udi_root_dir) + PID_STR_LEN + DS_LEN*2
+        + strlen(REQUEST_FILE_NAME);
+    char *request_file_path = (char *)malloc(request_file_length);
+    snprintf(request_file_path, request_file_length, "%s/%u/%s",
+            udi_root_dir, proc->pid, REQUEST_FILE_NAME);
+
+    size_t response_file_length = strlen(udi_root_dir) + PID_STR_LEN + DS_LEN*2
+        + strlen(RESPONSE_FILE_NAME);
+    char *response_file_path = (char *)malloc(response_file_length);
+    snprintf(response_file_path, response_file_length, "%s/%u/%s",
+            udi_root_dir, proc->pid, RESPONSE_FILE_NAME);
+
+    int errnum = 0;
+
+    do {
+        if (    events_file_path == NULL
+             || request_file_path == NULL
+             || response_file_path == NULL )
+        {
+            udi_printf("failed to allocate UDI file paths: %s\n",
+                    strerror(errno));
+            errnum = errno;
+            break;
+        }
+
+        // poll for change in root UDI filesystem
+ 
+        // Note: if this becomes a bottleneck non-portable approaches can be used
+        // such as inotify or kqueue
+        while(1) {
+            struct stat events_stat;
+            if ( stat(events__file_path, &events_stat) == 0 ) {
+                break;
+            }else{
+                if ( errno == ENOENT ) sleep(1);
+                else {
+                    udi_printf("failed to wait for events file to be created: %s\n",
+                            strerror(errno));
+                    errnum = errno;
+                    break;
+                }
+            }
+        }
+
+        // order matters here because POSIX FIFOs block in these calls
+
+        // open request file, 
+        if ( (proc->request_handle = open(request_file_path, O_WRONLY)) == -1 ) {
+            udi_printf("failed to open request file %s: %s\n",
+                    request_file_path, strerror(errno));
+            errnum = errno;
+            break;
+        }
+
+        // send init request
+        udi_request init_request;
+        init_request.request_type = UDI_REQ_INIT;
+        init_request.length = 0;
+        init_request.packed_data = NULL;
+
+        if ( (errnum = write_request(&init_request, proc)) != 0 ) {
+            udi_printf("%s\n", "failed to send init request");
+            break;
+        }
+
+        // open response file, events file
+
+        if ( (proc->response_handle = open(response_file_path, O_RDONLY)) == -1 ) {
+            udi_printf("failed to open response file %s: %s\n",
+                    response_file_path, strerror(errno));
+            errnum = errno;
+            break;
+        }
+
+        if ( (proc->events_handle = open(events_file_path, O_RDONLY)) == -1 ) {
+            udi_printf("failed to open events file %s: %s\n",
+                    events_file_path, strerror(errno));
+            errnum = errno;
+            break;
+        }
+
+        // read init response
+        udi_response *init_response = NULL;
+        do{ 
+            init_response = read_response(proc);
+            if (init_response == NULL ) {
+                udi_printf("%s\n", "failed to receive init response");
+                errnum = errno;
+                break;
+            }
+
+            if ( init_response->response_type == UDI_RESP_ERROR ) {
+                log_error_msg(resp, __FILE__, __LINE__);
+                errnum = -1;
+                break;
+            }
+
+            if ( init_response->request_type != UDI_REQ_INIT ) {
+                udi_printf("%s\n", "invalid init response recieved");
+                errnum = 1;
+                break;
+            }
+        }while(0);
+
+        if (init_response != NULL ) free_response(init_response);
+
+    }while(0);
+
+    if ( events_file_path != NULL ) free(events_file_path);
+    if ( request_file_path != NULL ) free(request_file_path);
+    if ( response_file_path != NULL ) free(response_file_path);
+
+    return errnum;
 }
 
 int write_request(udi_request *req, udi_process *proc)
