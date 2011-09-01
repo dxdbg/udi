@@ -38,6 +38,7 @@
 // globals        //
 ////////////////////
 int udi_debug_on = 0;
+int processes_created = 0;
 
 /////////////////////
 // Error reporting //
@@ -65,6 +66,13 @@ udi_process *create_process(const char *executable, const char *argv[],
         const char *envp[])
 {
     int error = 0;
+
+    if ( processes_created == 0 ) {
+        if ( create_root_udi_filesystem() != 0 ) {
+            udi_printf("%s\n", "failed to create root UDI filesystem");
+            return NULL;
+        }
+    }
 
     udi_process *proc = (udi_process *)malloc(sizeof(udi_process));
     do{
@@ -94,9 +102,22 @@ udi_process *create_process(const char *executable, const char *argv[],
             free(proc);
             proc = NULL;
         }
+    }else{
+        processes_created++;
     }
 
     return proc;
+}
+
+int set_udi_root_dir(const char *root_dir) {
+    if ( processes_created > 0 ) return -1;
+
+    size_t length = strlen(root_dir);
+
+    udi_root_dir = (char *)malloc(length);
+    strncpy(udi_root_dir, root_dir, length);
+
+    return 0;
 }
 
 udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length size, 
@@ -145,20 +166,7 @@ udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length siz
         }
 
         if ( resp->response_type == UDI_RESP_ERROR ) {
-            char *errmsg_local;
-            udi_length errmsg_size;
-
-            if ( udi_unpack_data(resp->packed_data, resp->length, 
-                        UDI_DATATYPE_BYTESTREAM, &errmsg_size, &errmsg_local) )
-            {
-                udi_printf("%s\n", "failed to unpack response for failed request");
-                error_code = UDI_ERROR_LIBRARY;
-                break;
-            }
-
-            udi_printf("request failed: %s\n", errmsg_local);
-            strncpy(errmsg, errmsg_local, ERRMSG_SIZE);
-            free(errmsg_local);
+            log_error_msg(resp, __FILE__, __LINE__);
             error_code = UDI_ERROR_REQUEST;
             break;
         }
@@ -186,6 +194,25 @@ udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length siz
     if ( resp != NULL ) free_response(resp);
 
     return error_code;
+}
+
+void log_error_msg(udi_response *resp, const char *error_file, int error_line) {
+    char *errmsg_local;
+    udi_length errmsg_size;
+
+    if (resp->response_type != UDI_RESP_ERROR ) return;
+
+    if ( udi_unpack_data(resp->packed_data, resp->length, 
+                UDI_DATATYPE_BYTESTREAM, &errmsg_size, &errmsg_local) )
+    {
+        udi_printf("%s\n", "failed to unpack response for failed request");
+    }else{
+        udi_printf("request failed @[%s:%d]: %s\n", error_file, error_line, 
+                errmsg_local);
+        strncpy(errmsg, errmsg_local, ERRMSG_SIZE);
+    }
+
+    if ( errmsg_local != NULL ) free(errmsg_local);
 }
 
 static const unsigned char X86_TRAP_INSTRUCT = 0xcc;

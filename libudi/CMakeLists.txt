@@ -6,6 +6,7 @@ set(libudi_SOURCES libudi.c)
 
 if(UNIX)
     add_definitions(-DUNIX)
+    set(libudi_SOURCES ${libudi_SOURCES} libudi-posix.c)
 else(UNIX)
     # TODO
 endif(UNIX)

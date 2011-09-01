@@ -26,67 +26,29 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _LIBUDI_PRIVATE_H
-#define _LIBUDI_PRIVATE_H 1
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <stdint.h>
 
 #include "libudi.h"
+#include "libuditest.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+using std::cout;
+using std::endl;
 
-#ifdef UNIX
-typedef int udi_handle;
-typedef pid_t udi_pid;
-const pid_t INVALID_UDI_PID = -1;
-#else
-#error Unknown platform
-#endif
+class test_breakpoint : public UDITestCase {
+    public:
+        test_breakpoint()
+            : UDITestCase(std::string("test_breakpoint")) {}
+        virtual ~test_breakpoint() {}
 
-typedef enum {
-    UDI_ARCH_X86,
-    UDI_ARCH_X86_64
-} udi_arch_e;
-
-struct udi_process_struct {
-    udi_pid pid;
-    udi_handle request_handle;
-    udi_handle response_handle;
-    udi_handle events_handle;
-    udi_arch_e architecture;
+        bool operator()(void);
 };
 
-extern char *udi_root_dir;
-extern int processes_created;
+static test_breakpoint testInstance;
 
-int create_root_udi_filesystem();
-
-udi_pid fork_process(const char *executable, const char *argv[],
-        const char *envp[]);
-
-int initialize_process(udi_process *proc);
-
-int write_request(udi_request *req, udi_process *proc);
-
-udi_response *read_response(udi_process *proc);
-void free_response(udi_response *resp);
-void log_error_msg(udi_response *resp, const char *error_file, int error_line);
-
-// error logging
-extern int udi_debug_on;
-extern const unsigned int ERRMSG_SIZE;
-extern char errmsg[4096];
-
-#define udi_printf(format, ...) \
-    do {\
-        if ( udi_debug_on ) {\
-            fprintf(stderr, "%s[%d]: " format, __FILE__, __LINE__,\
-                        ## __VA_ARGS__);\
-        }\
-    }while(0)
-
-#ifdef __cplusplus
-} // "C"
-#endif
-
-#endif
+bool test_breakpoint::operator()(void) {
+    // TODO use libudi to set a breakpoint
+    return true;
+}
