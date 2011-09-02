@@ -57,6 +57,13 @@ typedef enum {
 const char *get_error_message(udi_error_e error_code);
 
 /**
+ * Initializes the library
+ *
+ * @return zero on success, non-zero on success
+ */
+int init_libudi();
+
+/**
  * Sets the directory to be used for the root of the UDI filesystem
  * 
  * Will be created if it doesn't exist
@@ -79,8 +86,8 @@ int set_udi_root_dir(const char *root_dir);
  *
  * @see execve
  */
-udi_process *create_process(const char *executable, const char *argv[],
-        const char *envp[]);
+udi_process *create_process(const char *executable, char * const argv[],
+        char * const envp[]);
 
 /* Memory access interface */
 

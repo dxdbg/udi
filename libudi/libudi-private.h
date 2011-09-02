@@ -38,7 +38,6 @@ extern "C" {
 #ifdef UNIX
 typedef int udi_handle;
 typedef pid_t udi_pid;
-const pid_t INVALID_UDI_PID = -1;
 #else
 #error Unknown platform
 #endif
@@ -48,6 +47,7 @@ typedef enum {
     UDI_ARCH_X86_64
 } udi_arch_e;
 
+extern const pid_t INVALID_UDI_PID;
 struct udi_process_struct {
     udi_pid pid;
     udi_handle request_handle;
@@ -56,13 +56,13 @@ struct udi_process_struct {
     udi_arch_e architecture;
 };
 
-extern char *udi_root_dir;
+extern const char *udi_root_dir;
 extern int processes_created;
 
 int create_root_udi_filesystem();
 
-udi_pid fork_process(const char *executable, const char *argv[],
-        const char *envp[]);
+udi_pid fork_process(const char *executable, char * const argv[],
+        char * const envp[]);
 
 int initialize_process(udi_process *proc);
 

@@ -12,3 +12,4 @@ else(UNIX)
 endif(UNIX)
 
 add_library(udi ${libudi_SOURCES})
+target_link_libraries(udi udicommon)

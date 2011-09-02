@@ -35,8 +35,12 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <errno.h>
+#include <string.h>
+#include <fcntl.h>
+#include <signal.h>
 
-const char *udi_root_dir = DEFAULT_UDI_ROOT_DIR;
+const int INVALID_UDI_PID = -1;
 
 int create_root_udi_filesystem() {
     if (mkdir(udi_root_dir, S_IRWXG | S_IRWXU) == -1) {
@@ -65,8 +69,8 @@ int create_root_udi_filesystem() {
     return 0;
 }
 
-udi_pid fork_process(const char *executable, const char *argv[],
-        const char *envp[])
+udi_pid fork_process(const char *executable, char * const argv[],
+        char * const envp[])
 {
     // Use the following procedure to get feedback on whether the exec
     // succeeded
@@ -177,7 +181,7 @@ int initialize_process(udi_process *proc)
         // such as inotify or kqueue
         while(1) {
             struct stat events_stat;
-            if ( stat(events__file_path, &events_stat) == 0 ) {
+            if ( stat(events_file_path, &events_stat) == 0 ) {
                 break;
             }else{
                 if ( errno == ENOENT ) sleep(1);
@@ -238,7 +242,7 @@ int initialize_process(udi_process *proc)
             }
 
             if ( init_response->response_type == UDI_RESP_ERROR ) {
-                log_error_msg(resp, __FILE__, __LINE__);
+                log_error_msg(init_response, __FILE__, __LINE__);
                 errnum = -1;
                 break;
             }
@@ -272,10 +276,10 @@ int write_request(udi_request *req, udi_process *proc)
 
         udi_length tmp_length = req->length;
         tmp_length = udi_length_hton(tmp_length);
-        if ( (errnum = write_all(req->request_handle, &tmp_length,
+        if ( (errnum = write_all(proc->request_handle, &tmp_length,
                        sizeof(udi_length))) != 0 ) break;
 
-        if ( (errnum = write_all(req->request_handle, req->packed_data,
+        if ( (errnum = write_all(proc->request_handle, req->packed_data,
                         req->length)) != 0 ) break;
     }while(0);
 

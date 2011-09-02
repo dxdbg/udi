@@ -37,8 +37,9 @@
 ////////////////////
 // globals        //
 ////////////////////
-int udi_debug_on = 0;
+int udi_debug_on = 1;
 int processes_created = 0;
+const char *udi_root_dir = NULL;
 
 /////////////////////
 // Error reporting //
@@ -62,8 +63,16 @@ const char *get_error_message(udi_error_e error_code)
 // Library functions //
 ///////////////////////
 
-udi_process *create_process(const char *executable, const char *argv[],
-        const char *envp[])
+int init_libudi() {
+    if ( udi_root_dir == NULL ) {
+        udi_root_dir = DEFAULT_UDI_ROOT_DIR;
+    }
+
+    return 0;
+}
+
+udi_process *create_process(const char *executable, char * const argv[],
+        char * const envp[])
 {
     int error = 0;
 
@@ -115,7 +124,12 @@ int set_udi_root_dir(const char *root_dir) {
     size_t length = strlen(root_dir);
 
     udi_root_dir = (char *)malloc(length);
-    strncpy(udi_root_dir, root_dir, length);
+
+    if (udi_root_dir == NULL) {
+        return -1;
+    }
+
+    strncpy((char *)udi_root_dir, root_dir, length);
 
     return 0;
 }
