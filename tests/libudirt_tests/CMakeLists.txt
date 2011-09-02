@@ -14,5 +14,5 @@ foreach(test ${tests})
     target_link_libraries(${test_base_name} udirt uditest)
 endforeach()
 
-add_executable(all_tests ${tests})
-target_link_libraries(all_tests udirt uditest)
+add_executable(all_udirt_tests ${tests})
+target_link_libraries(all_udirt_tests udirt uditest)

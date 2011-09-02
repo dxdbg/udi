@@ -32,6 +32,6 @@
 
 const char *UDI_DEBUG_ENV = "UDI_DEBUG_ENV";
 char *UDI_ROOT_DIR;
-int udi_debug_on = 0;
+int udi_debug_on = 1;
 int udi_enabled = 0; // not enabled until initialization complete
 int udi_in_sig_handler = 0;

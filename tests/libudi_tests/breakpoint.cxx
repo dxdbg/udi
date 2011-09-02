@@ -29,13 +29,14 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <stdint.h>
+#include <sstream>
 
 #include "libudi.h"
 #include "libuditest.h"
 
 using std::cout;
 using std::endl;
+using std::stringstream;
 
 class test_breakpoint : public UDITestCase {
     public:
@@ -48,7 +49,33 @@ class test_breakpoint : public UDITestCase {
 
 static test_breakpoint testInstance;
 
+const char *binary_root_dir = BINARY_DIR;
+
 bool test_breakpoint::operator()(void) {
-    // TODO use libudi to set a breakpoint
+    stringstream testfile;
+    testfile << binary_root_dir << "/breakpoint_bin";
+
+    if ( init_libudi() != 0 ) {
+        cout << "Failed to initialize libudi" << endl;
+        return false;
+    }
+
+    char *argv[] = { NULL };
+    char *envp[] = { NULL };
+
+    udi_process *proc = create_process(testfile.str().c_str(), argv, envp);
+    if ( proc == NULL ) {
+        cout << "Failed to create process" << endl;
+        return false;
+    }
+
+    udi_error_e result = set_breakpoint(proc, 0x80485e4);
+
+    if ( result != UDI_ERROR_NONE ) {
+        cout << "Failed to set breakpoint: " 
+             << get_error_message(result) << endl;
+        return false;
+    }
+
     return true;
 }
