@@ -72,6 +72,20 @@ int create_root_udi_filesystem() {
 udi_pid fork_process(const char *executable, char * const argv[],
         char * const envp[])
 {
+    // First process initialization
+    if (processes_created == 0) {
+        // Ignore zombies
+        struct sigaction sigchild_action;
+        memset(&sigchild_action, 0, sizeof(struct sigaction));
+        sigchild_action.sa_handler = SIG_IGN;
+        sigchild_action.sa_flags = SA_NOCLDWAIT;
+        if ( sigaction(SIGCHLD, &sigchild_action, NULL) != 0 ) {
+            udi_printf("failed to disable zombie creation: %s\n",
+                    strerror(errno));
+            return -1;
+        }
+    }
+
     // Use the following procedure to get feedback on whether the exec
     // succeeded
     int pipefd[2];
@@ -184,8 +198,16 @@ int initialize_process(udi_process *proc)
             if ( stat(events_file_path, &events_stat) == 0 ) {
                 break;
             }else{
-                if ( errno == ENOENT ) sleep(1);
-                else {
+                if ( errno == ENOENT ) {
+                    // Check to make sure process did not exit
+                    if ( kill(proc->pid, 0) != 0 ) {
+                        udi_printf("debuggee exited before handshake: %s\n",
+                                strerror(errno));
+                        errnum = errno;
+                        break;
+                    }
+                    sleep(1);
+                }else {
                     udi_printf("failed to wait for events file to be created: %s\n",
                             strerror(errno));
                     errnum = errno;
@@ -193,6 +215,9 @@ int initialize_process(udi_process *proc)
                 }
             }
         }
+
+        // Cascade errors in inner loop
+        if ( errnum != 0 ) break;
 
         // order matters here because POSIX FIFOs block in these calls
 
@@ -312,21 +337,22 @@ udi_response *read_response(udi_process *proc)
         if ( (errnum = read_all(proc->response_handle,
                     &(response->request_type), 
                     sizeof(udi_request_type))) != 0 ) break;
-        response->request_type = udi_request_type_ntoh(response->response_type);
+        response->request_type = udi_request_type_ntoh(response->request_type);
 
         if ( (errnum = read_all(proc->response_handle,
                         &(response->length), sizeof(udi_length))) != 0 ) break;
         response->length = udi_length_ntoh(response->length);
 
-        response->packed_data = malloc(response->length);
-        if ( response->packed_data == NULL ) {
-            errnum = errno;
-            break;
+        if ( response->length > 0 ) {
+            response->packed_data = malloc(response->length);
+            if ( response->packed_data == NULL ) {
+                errnum = errno;
+                break;
+            }
+            if ( (errnum = read_all(proc->response_handle,
+                            &(response->packed_data), 
+                            response->length)) != 0 ) break;
         }
-
-        if ( (errnum = read_all(proc->response_handle,
-                        &(response->packed_data), 
-                        sizeof(udi_length))) != 0 ) break;
     }while(0);
 
     if ( errnum != 0 ) {
