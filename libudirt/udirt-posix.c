@@ -32,13 +32,14 @@
 // Includes
 ////////////////////////////////////
 
-#define _GNU_SOURCE
+// This needs to be included first because it sets feature macros
+#include "udirt-platform.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <dlfcn.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <dlfcn.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -49,6 +50,7 @@
 #include "udi.h"
 #include "udi-common.h"
 #include "udi-common-posix.h"
+
 
 ////////////////////////////////////
 // Definitions
@@ -176,14 +178,16 @@ udi_request *read_request_from_fd(int fd) {
         request->length = udi_length_ntoh(request->length);
 
         // read the payload
-        request->packed_data = udi_malloc(request->length);
-        if (request->packed_data == NULL ) {
-            errnum = errno;
-            break;
-        }
+        if ( request->length > 0 ) {
+            request->packed_data = udi_malloc(request->length);
+            if (request->packed_data == NULL ) {
+                errnum = errno;
+                break;
+            }
 
-        if ( (errnum = read_all(fd, request->packed_data,
-                    request->length)) != 0) break;
+            if ( (errnum = read_all(fd, request->packed_data,
+                        request->length)) != 0) break;
+        }
     }while(0);
 
     if (errnum != 0) {
@@ -365,7 +369,7 @@ int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
         udi_request *req = read_request();
         if ( req == NULL ) {
             snprintf(errmsg, errmsg_size, "%s", "failed to read command");
-            udi_printf("%s", "failed to read request");
+            udi_printf("%s\n", "failed to read request");
             errnum = -1;
             break;
         }
@@ -435,7 +439,7 @@ int create_udi_filesystem() {
         }
 
         size_t responsefile_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN
-                                     + strlen(REQUEST_FILE_NAME) + DS_LEN*2;
+                                     + strlen(RESPONSE_FILE_NAME) + DS_LEN*2;
         responsefile_name = (char *)udi_malloc(responsefile_length);
         if (responsefile_name == NULL) {
             udi_printf("malloc failed: %s\n",
@@ -446,7 +450,7 @@ int create_udi_filesystem() {
 
         responsefile_name[responsefile_length-1] = '\0';
         snprintf(responsefile_name, responsefile_length-1, "%s/%d/%s",
-                 UDI_ROOT_DIR, getpid(), EVENTS_FILE_NAME);
+                 UDI_ROOT_DIR, getpid(), RESPONSE_FILE_NAME);
         if (mkfifo(responsefile_name, S_IRWXG | S_IRWXU) == -1) {
             udi_printf("error creating response file fifo: %s\n",
                        strerror(errno));
@@ -536,7 +540,7 @@ int handshake_with_debugger(int *output_enabled, char *errmsg,
 
         udi_request *init_request = read_request();
         if ( init_request == NULL ) {
-            snprintf(errmsg, ERRMSG_SIZE-1, "%s", 
+            snprintf(errmsg, errmsg_size-1, "%s", 
                     "failed reading init request");
             udi_printf("%s\n", "failed reading init request");
             errnum = -1;
@@ -722,8 +726,10 @@ int setup_signal_handlers() {
     sigfillset(&(action.sa_mask));
     action.sa_flags = SA_SIGINFO;
 
+    // 0 is not a valid signal to register a signal handler for
     int i;
-    for(i = 0; i < length; ++i) {
+    for(i = 1; i < length; ++i) {
+        if ( i == SIGKILL || i == SIGSTOP ) continue;
         if ( real_sigaction(i, &action, NULL) != 0 ) {
             errnum = errno;
             break;
@@ -751,11 +757,6 @@ void init_udi_rt() {
     udi_set_malloc(udi_malloc);
 
     do {
-        if ( (errnum = create_udi_filesystem()) != 0 ) {
-            udi_printf("%s\n", "failed to create udi filesystem");
-            break;
-        }
-
         if ( (errnum = locate_wrapper_functions(errmsg, ERRMSG_SIZE)) 
                 != 0 ) {
             udi_printf("%s\n", "failed to locate wrapper functions");
@@ -766,6 +767,12 @@ void init_udi_rt() {
             udi_printf("%s\n", "failed to setup signal handlers");
             break;
         }
+
+        if ( (errnum = create_udi_filesystem()) != 0 ) {
+            udi_printf("%s\n", "failed to create udi filesystem");
+            break;
+        }
+        
 
         if ( (errnum = handshake_with_debugger(&output_enabled,
                         errmsg, ERRMSG_SIZE)) != 0 ) {
