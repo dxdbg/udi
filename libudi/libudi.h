@@ -89,6 +89,15 @@ int set_udi_root_dir(const char *root_dir);
 udi_process *create_process(const char *executable, char * const argv[],
         char * const envp[]);
 
+/**
+ * Continue a stopped UDI process
+ *
+ * @param proc          the process handle
+ *
+ * @return the result of the operation
+ */
+udi_error_e continue_process(udi_process *proc);
+
 /* Memory access interface */
 
 /**
@@ -100,7 +109,7 @@ udi_process *create_process(const char *executable, char * const argv[],
  * @param size          the size of the data block pointed to by value
  * @param addr          the location in memory to read/write
  *
- * @return non-zero on failure, 0 on success
+ * @return the result of the operation
  */
 udi_error_e mem_access(udi_process *proc, int write, void *value, 
         udi_length size, udi_address addr);
@@ -111,7 +120,7 @@ udi_error_e mem_access(udi_process *proc, int write, void *value,
  * @param proc                  the process handle
  * @param breakpoint_addr       the breakpoint address
  *
- * @return non-zero on failure, 0 on success
+ * @return the result of the operation
  */
 udi_error_e set_breakpoint(udi_process *proc, udi_address breakpoint_addr);
 

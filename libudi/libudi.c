@@ -247,6 +247,44 @@ udi_error_e set_breakpoint(udi_process *proc, udi_address breakpoint_addr)
     return UDI_ERROR_NONE;
 }
 
+udi_error_e continue_process(udi_process *proc) {
+    udi_request req;
+    req.request_type = UDI_REQ_CONTINUE;
+    req.length = 0;
+    req.packed_data = NULL;
+
+    if ( write_request(&req, proc) != 0 ) {
+        udi_printf("%s\n", "failed to perform continue request");
+        return UDI_ERROR_LIBRARY;
+    }
+
+    udi_response *resp = read_response(proc);
+    if ( resp == NULL ) {
+        udi_printf("%s\n", "failed to receive response for continue request");
+        return UDI_ERROR_LIBRARY;
+    }
+
+    udi_error_e error_code = UDI_ERROR_NONE;
+    do {
+        if ( resp->response_type == UDI_RESP_ERROR ) {
+            log_error_msg(resp, __FILE__, __LINE__);
+            error_code = UDI_ERROR_REQUEST;
+            break;
+        }
+
+        if ( resp->request_type != UDI_REQ_CONTINUE ) {
+            udi_printf("Received unexpected request type: %d\n",
+                    resp->request_type);
+            error_code = UDI_ERROR_REQUEST;
+            break;
+        }
+    }while(0);
+
+    free_response(resp);
+
+    return error_code;
+}
+
 void free_response(udi_response *resp) {
     if ( resp->packed_data != NULL ) free(resp->packed_data);
     free(resp);
