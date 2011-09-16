@@ -69,13 +69,23 @@ bool test_breakpoint::operator()(void) {
         return false;
     }
 
-    udi_error_e result = set_breakpoint(proc, 0x80485e4);
+    udi_error_e result = set_breakpoint(proc, 0x080495a4);
 
     if ( result != UDI_ERROR_NONE ) {
         cout << "Failed to set breakpoint: " 
              << get_error_message(result) << endl;
         return false;
     }
+
+    result = continue_process(proc);
+
+    if ( result != UDI_ERROR_NONE ) {
+        cout << "Failed to continue process: " 
+             << get_error_message(result) << endl;
+        return false;
+    }
+
+    // Wait for breakpoint TODO
 
     return true;
 }

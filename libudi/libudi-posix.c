@@ -206,7 +206,6 @@ int initialize_process(udi_process *proc)
                         errnum = errno;
                         break;
                     }
-                    sleep(1);
                 }else {
                     udi_printf("failed to wait for events file to be created: %s\n",
                             strerror(errno));

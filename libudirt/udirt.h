@@ -61,7 +61,7 @@ void free_request(udi_request *request);
 // error logging
 #define udi_printf(format, ...) \
     do {\
-        if( udi_debug_on && udi_in_sig_handler <= 0 ) {\
+        if( udi_debug_on ) {\
             fprintf(stderr, "%s[%d]: " format, __FILE__, __LINE__,\
                     ## __VA_ARGS__);\
         }\

@@ -45,6 +45,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/mman.h>
 
 #include "udirt.h"
 #include "udi.h"
@@ -75,6 +76,14 @@ static char *eventsfile_name;
 static int request_handle = -1;
 static int response_handle = -1;
 static int events_handle = -1;
+
+// write/read permission fault handling
+static int performing_mem_access = 0;
+static void *mem_access_addr = NULL;
+static size_t mem_access_size = 0;
+
+static int abort_mem_access = 0;
+static int failed_si_code = 0;
 
 // wrapper function types
 
@@ -269,9 +278,75 @@ int write_event(udi_event *event) {
 }
 
 int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
-    // for now, don't do anything special
+    // for now, don't do anything special, just send the response
+    
     // when threads introduced, this will require more work
+    udi_response resp;
+
+    resp.response_type = UDI_RESP_VALID;
+    resp.request_type = UDI_REQ_CONTINUE;
+    resp.length = 0;
+    resp.packed_data = NULL;
+
+    return write_response(&resp);
+}
+
+static
+int abortable_memcpy(void *dest, const void *src, size_t n) {
+    /* slow as molasses, but gets the job done */
+    unsigned char *uc_dest = (unsigned char *)dest;
+    const unsigned char *uc_src = (const unsigned char *)src;
+
+    size_t i = 0;
+    for (i = 0; i < n && !abort_mem_access; ++i) {
+        uc_dest[i] = uc_src[i];
+    }
+
+    if ( abort_mem_access ) {
+        abort_mem_access = 0;
+        return -1;
+    }
+
     return 0;
+}
+
+static
+int failed_mem_access_response(udi_request_type request_type, char *errmsg,
+        unsigned int errmsg_size)
+{
+    udi_response resp;
+    resp.response_type = UDI_RESP_ERROR;
+    resp.request_type = request_type;
+
+    char *errstr;
+    switch(failed_si_code) {
+        case SEGV_MAPERR:
+            errstr = "address not mapped in process";
+            break;
+        default:
+            errstr = "unknown memory error";
+            break;
+    }
+
+    resp.length = strlen(errstr);
+    resp.packed_data = udi_pack_data(resp.length, UDI_DATATYPE_BYTESTREAM,
+        resp.length, errstr);
+
+    int errnum = 0;
+    do {
+        if ( resp.packed_data == NULL ) {
+            snprintf(errmsg, errmsg_size, "%s", "failed to pack response data");
+            udi_printf("%s", "failed to pack response data for read request");
+            errnum = -1;
+            break;
+        }
+
+        errnum = write_response(&resp);
+    }while(0);
+
+    if ( resp.packed_data != NULL ) udi_free(resp.packed_data);
+
+    return errnum;
 }
 
 int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
@@ -293,7 +368,16 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     }
 
     // Perform the read operation
-    memcpy(memory_read,(void *)((unsigned long)addr), num_bytes);
+    performing_mem_access = 1;
+    mem_access_addr = (void *)(unsigned long)addr;
+    mem_access_size = num_bytes;
+    if ( abortable_memcpy(memory_read, (void *)((unsigned long)addr), num_bytes) 
+            != 0 )
+    {
+        if (memory_read != NULL) udi_free(memory_read);
+        return failed_mem_access_response(UDI_REQ_READ_MEM, errmsg, errmsg_size);
+    }
+    performing_mem_access = 0;
 
     // Create the response
     udi_response resp;
@@ -336,7 +420,16 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     }
     
     // Perform the write operation
-    memcpy((void *)((unsigned long)addr), bytes_to_write, num_bytes);
+    performing_mem_access = 1;
+    mem_access_addr = (void *)(unsigned long)addr;
+    mem_access_size = num_bytes;
+    if ( abortable_memcpy((void *)((unsigned long)addr), bytes_to_write, num_bytes)
+            != 0 )
+    {
+        udi_free(bytes_to_write);
+        return failed_mem_access_response(UDI_REQ_WRITE_MEM, errmsg, errmsg_size);
+    }
+    performing_mem_access = 0;
 
     // Create the response
     udi_response resp;
@@ -365,7 +458,8 @@ static
 int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
     udi_request *req = NULL;
     int errnum = 0;
-    do {
+
+    while(1) {
         udi_request *req = read_request();
         if ( req == NULL ) {
             snprintf(errmsg, errmsg_size, "%s", "failed to read command");
@@ -380,7 +474,9 @@ int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
                     request_type_str(req->request_type));
             break;
         }
-    }while(0);
+
+        if ( req->request_type == UDI_REQ_CONTINUE ) break;
+    }
 
     if (req != NULL) free_request(req);
 
@@ -649,6 +745,52 @@ int decode_trap(const siginfo_t *siginfo, const ucontext_t *context,
 
 }
 
+static
+int decode_segv(const siginfo_t *siginfo, const ucontext_t *context,
+        char *errmsg, unsigned int errmsg_size)
+{
+    int errnum = 0;
+    if ( performing_mem_access ) {
+        // if the error was due to permissions, change permissions temporarily
+        // to allow mem access to complete
+        if (siginfo->si_code == SEGV_ACCERR) {
+            unsigned long mem_access_addr_ul = (unsigned long)mem_access_addr;
+
+            // page align
+            mem_access_addr_ul = mem_access_addr_ul & ~(sysconf(_SC_PAGESIZE)-1);
+
+            // Note: this could cause unwanted side effects in the debuggee
+            // because it could mask errors that the debuggee should encounter.
+            // However, in order to handle this case, the protection for a page
+            // must be queried from the OS, and currently there is not a
+            // portable way to do this. Thus, the tradeoff was made in favor of
+            // portability.
+            if ( mprotect((void *)mem_access_addr_ul, mem_access_size,
+                        PROT_READ | PROT_WRITE | PROT_EXEC) != 0 ) 
+            {
+                errnum = errno;
+                udi_printf("failed to modify permissions for memory access: %s\n",
+                        strerror(errnum));
+            }
+        }else{
+            errnum = -1;
+        }
+
+        if (errnum != 0) {
+            abort_mem_access = 1;
+            failed_si_code = siginfo->si_code;
+        }
+    }else{
+        // TODO create event and send to debugger
+    }
+
+    if ( errnum > 0 ) {
+        strerror_r(errnum, errmsg, errmsg_size);
+    }
+
+    return errnum;
+}
+
 // Not static because need to pass around pointer to it
 void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     int failure = 0;
@@ -669,6 +811,10 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                 failure = decode_trap(siginfo, context, errmsg, 
                         ERRMSG_SIZE);
                 break;
+            case SIGSEGV:
+                failure = decode_segv(siginfo, context, errmsg,
+                        ERRMSG_SIZE);
+                break;
             default:
                 event.event_type = UDI_EVENT_UNKNOWN;
                 event.length = 0;
@@ -686,11 +832,13 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
         }
     
         // wait for command
-        if ( (failure = wait_and_execute_command(errmsg, ERRMSG_SIZE)) != 0 ) {
-            if ( failure > 0 ) {
-                strncpy(errmsg, strerror(failure), ERRMSG_SIZE-1);
+        if ( !performing_mem_access ) {
+            if ( (failure = wait_and_execute_command(errmsg, ERRMSG_SIZE)) != 0 ) {
+                if ( failure > 0 ) {
+                    strncpy(errmsg, strerror(failure), ERRMSG_SIZE-1);
+                }
+                break;
             }
-            break;
         }
     }while(0);
 
