@@ -51,6 +51,8 @@ static test_breakpoint testInstance;
 
 const char *binary_root_dir = BINARY_DIR;
 
+const udi_address brkpt_addr = 0x8049644;
+
 bool test_breakpoint::operator()(void) {
     stringstream testfile;
     testfile << binary_root_dir << "/breakpoint_bin";
@@ -69,7 +71,7 @@ bool test_breakpoint::operator()(void) {
         return false;
     }
 
-    udi_error_e result = set_breakpoint(proc, 0x080495a4);
+    udi_error_e result = set_breakpoint(proc, brkpt_addr);
 
     if ( result != UDI_ERROR_NONE ) {
         cout << "Failed to set breakpoint: " 
@@ -85,7 +87,35 @@ bool test_breakpoint::operator()(void) {
         return false;
     }
 
-    // Wait for breakpoint TODO
+    udi_process **procs = (udi_process **)malloc(sizeof(udi_process *));
+    procs[0] = proc;
+
+    udi_event *event_list = wait_for_events(procs, 1);
+    
+    udi_event *current_event = event_list;
+    while (current_event != NULL) {
+        if ( current_event->event_type != UDI_EVENT_BREAKPOINT ) {
+            cout << "Received unexpected event( " 
+                 << get_event_type_str(current_event->event_type)
+                 << ")" << endl;
+        }else{
+            udi_event_breakpoint *brkpt = 
+                (udi_event_breakpoint *)current_event->event_data;
+
+            if ( brkpt->breakpoint_addr != brkpt_addr ) {
+                cout << "Unexpected breakpoint addr 0x"
+                     << std::hex << brkpt->breakpoint_addr << std::dec
+                     << ", expected "
+                     << std::hex << brkpt_addr << std::dec
+                     << endl;
+                return false;
+            }
+        }
+        current_event = current_event->next_event;
+    }
+
+    free_event_list(event_list);
+    free(procs);
 
     return true;
 }

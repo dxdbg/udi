@@ -33,6 +33,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 ////////////////////
 // globals        //
@@ -285,7 +286,103 @@ udi_error_e continue_process(udi_process *proc) {
     return error_code;
 }
 
+static
+void free_event(udi_event *event) {
+    if (event->event_data != NULL ) {
+        switch(event->event_type) {
+            case UDI_EVENT_ERROR: 
+            {
+                const char *errstr = 
+                    ((udi_event_error *)event->event_data)->errstr;
+
+                if (errstr != NULL) free((void *)errstr);
+                break;
+            }
+            default:
+                break;
+        }
+
+        free(event->event_data);
+    }
+
+    free(event);
+}
+
+void free_event_list(udi_event *event_list) {
+    udi_event *current_event = event_list;
+    while ( current_event != NULL ) {
+        udi_event *next_event = current_event->next_event;
+        free_event(current_event);
+        current_event = next_event;
+    }
+}
+
 void free_response(udi_response *resp) {
     if ( resp->packed_data != NULL ) free(resp->packed_data);
     free(resp);
+}
+
+void free_event_internal(udi_event_internal *event) {
+    if ( event->packed_data != NULL ) free(event->packed_data);
+    free(event);
+}
+
+const char *get_event_type_str(udi_event_type event_type) {
+    return event_type_str(event_type);
+}
+
+udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
+    udi_event *ret_event = (udi_event *)malloc(sizeof(udi_event));
+
+    if ( ret_event == NULL ) {
+        udi_printf("failed to malloc udi_event: %s\n", strerror(errno));
+        return NULL;
+    }
+
+    ret_event->proc = proc;
+    ret_event->next_event = NULL;
+    ret_event->event_type = event->event_type;
+    ret_event->event_data = NULL;
+
+    switch(ret_event->event_type) {
+        case UDI_EVENT_BREAKPOINT:
+        {
+            udi_event_breakpoint *brkpt = (udi_event_breakpoint *)
+                malloc(sizeof(udi_event_breakpoint));
+
+            if ( udi_unpack_data(event->packed_data, event->length,
+                        UDI_DATATYPE_ADDRESS, &(brkpt->breakpoint_addr)) ) 
+            {
+                udi_printf("%s\n", "failed to decode breakpoint event");
+                free_event(ret_event);
+                return NULL;
+            }
+            ret_event->event_data = brkpt;
+            break;
+        }
+        case UDI_EVENT_ERROR:
+        {
+            udi_event_error *err_event = (udi_event_error *)
+                malloc(sizeof(udi_event_error));
+            udi_length errmsg_size;
+
+            if ( udi_unpack_data(event->packed_data, event->length,
+                        UDI_DATATYPE_BYTESTREAM, &errmsg_size, 
+                        err_event->errstr) )
+            {
+                udi_printf("%s\n", "failed to decode error event");
+                free_event(ret_event);
+                return NULL;
+            }
+            ret_event->event_data = err_event;
+            break;
+        }
+        default:
+            udi_printf("unknown event: %s\n", 
+                    event_type_str(ret_event->event_type));
+            free_event(ret_event);
+            return NULL;
+    }
+
+    return ret_event;
 }
