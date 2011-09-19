@@ -248,7 +248,7 @@ int write_response(udi_response *response) {
     return write_response_to_fd(response_handle, response);
 }
 
-int write_event_to_fd(int fd, udi_event *event) {
+int write_event_to_fd(int fd, udi_event_internal *event) {
     int errnum = 0;
     do {
         udi_event_type tmp_type = event->event_type;
@@ -273,7 +273,7 @@ int write_event_to_fd(int fd, udi_event *event) {
     return errnum;
 }
 
-int write_event(udi_event *event) {
+int write_event(udi_event_internal *event) {
     return write_event_to_fd(events_handle, event);
 }
 
@@ -727,11 +727,11 @@ int decode_trap(const siginfo_t *siginfo, const ucontext_t *context,
 {
     udi_address trap_addr = (udi_address)(unsigned long)siginfo->si_addr;
 
-    udi_event trap_event;
+    udi_event_internal trap_event;
     trap_event.event_type = UDI_EVENT_BREAKPOINT;
     trap_event.length = sizeof(udi_address);
     trap_event.packed_data = udi_pack_data(trap_event.length,
-            UDI_DATATYPE_INT64, trap_addr);
+            UDI_DATATYPE_ADDRESS, trap_addr);
 
     if ( trap_event.packed_data == NULL ) {
         return -1;
@@ -805,7 +805,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     // Note: each decoder function will call write_event to avoid unnecessary
     // heap allocations
     do {
-        udi_event event;
+        udi_event_internal event;
         switch(signal) {
             case SIGTRAP:
                 failure = decode_trap(siginfo, context, errmsg, 
@@ -824,10 +824,23 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                 break;
         }
 
-        if ( failure ) {
+        if ( failure != 0 ) {
             if ( failure > 0 ) {
                 strncpy(errmsg, strerror(failure), ERRMSG_SIZE-1);
             }
+
+            event.event_type = UDI_EVENT_ERROR;
+            event.length = strlen(errmsg) + 1;
+            event.packed_data = udi_pack_data(event.length,
+                    UDI_DATATYPE_BYTESTREAM, event.length, errmsg);
+
+            // Explicitly ignore any errors -- no way to report them
+            if ( event.packed_data != NULL ) {
+                write_event(&event);
+                udi_free(event.packed_data);
+            }
+
+            failure = 0;
             break;
         }
     
@@ -849,7 +862,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
         resp.request_type = UDI_REQ_INVALID;
         resp.length = strlen(errmsg) + 1;
         resp.packed_data = udi_pack_data(resp.length, 
-                UDI_DATATYPE_BYTESTREAM, errmsg);
+                UDI_DATATYPE_BYTESTREAM, resp.length, errmsg);
 
         if ( resp.packed_data != NULL ) {
             // explicitly ignore errors
@@ -948,7 +961,7 @@ void init_udi_rt() {
             resp.request_type = UDI_REQ_INIT;
             resp.length = strlen(errmsg) + 1;
             resp.packed_data = udi_pack_data(resp.length, 
-                    UDI_DATATYPE_BYTESTREAM, errmsg);
+                    UDI_DATATYPE_BYTESTREAM, resp.length, errmsg);
 
             if ( resp.packed_data != NULL ) {
                 write_response(&resp);

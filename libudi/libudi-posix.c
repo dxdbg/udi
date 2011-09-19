@@ -39,6 +39,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/select.h>
 
 const int INVALID_UDI_PID = -1;
 
@@ -363,4 +364,112 @@ udi_response *read_response(udi_process *proc)
     }
 
     return response;
+}
+
+udi_event *read_event(udi_process *proc) {
+    udi_event_internal *event = (udi_event_internal *)
+        malloc(sizeof(udi_event_internal));
+
+    if ( event == NULL ) {
+        udi_printf("malloc failed: %s\n", strerror(errno));
+        return NULL;
+    }
+
+    // Read the raw event
+    int errnum = 0;
+    do {
+        if ( (errnum = read_all(proc->events_handle,
+                        &(event->event_type),
+                        sizeof(udi_event_type))) != 0 ) break;
+        event->event_type = udi_event_type_ntoh(event->event_type);
+
+        if ( (errnum = read_all(proc->events_handle,
+                        &(event->length),
+                        sizeof(udi_length))) != 0 ) break;
+        event->length = udi_length_ntoh(event->length);
+
+        if ( (errnum = read_all(proc->events_handle, event->packed_data,
+                        event->length)) != 0 ) break;
+    }while(0);
+
+    if (errnum != 0 ) {
+        if ( errnum > 0 ) {
+            udi_printf("read_all failed: %s\n", strerror(errnum));
+        }
+
+        free_event_internal(event);
+        return NULL;
+    }
+
+    // Convert the event to a higher level representation
+    udi_event *ret_event = decode_event(proc, event);
+    free_event_internal(event);
+
+    return ret_event;
+}
+
+void set_user_data(udi_process *proc, void *user_data) {
+    proc->user_data = user_data;
+}
+
+void *get_user_data(udi_process *proc) {
+    return proc->user_data;
+}
+
+udi_event *wait_for_events(udi_process *procs[], int num_procs) {
+    fd_set read_set;
+    FD_ZERO(&read_set);
+
+    int i;
+    for (i = 0; i < num_procs; ++i) {
+        FD_SET(procs[i]->events_handle, &read_set);
+    }
+
+    udi_event *return_list = NULL;
+    udi_event *current_event = NULL;
+    do {
+        fd_set changed_set = read_set;
+        int result = select(num_procs + 1, &changed_set, NULL, NULL, NULL);
+
+        if ( result == -1 ) {
+            if ( errno == EINTR ) {
+                udi_printf("%s\n", "select() call interrupted, trying again");
+                continue;
+            }else{
+                udi_printf("error waiting for events: %s\n", strerror(errno));
+                break;
+            }
+        }else if ( result == 0 ) {
+            udi_printf("%s\n", "select() returned 0 unexpectedly");
+            break;
+        }
+
+        for (i = 0; i < num_procs; ++i) {
+            if ( FD_ISSET(procs[i]->events_handle, &changed_set) ) {
+                udi_event *new_event = read_event(procs[i]);
+
+                if ( new_event == NULL ) {
+                    udi_printf("failed to read event for process %d\n",
+                            procs[i]->pid);
+                    if ( return_list != NULL ) {
+                        free_event_list(return_list);
+                    }
+                    return NULL;
+                }
+
+                if ( return_list == NULL ) {
+                    // First event
+                    return_list = new_event;
+                    current_event = new_event;
+                }else{
+                    current_event->next_event = new_event;
+                    current_event = new_event;
+                }
+            }
+        }
+
+        break;
+    }while(1);
+
+    return return_list;
 }

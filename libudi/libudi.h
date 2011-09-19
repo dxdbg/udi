@@ -98,6 +98,71 @@ udi_process *create_process(const char *executable, char * const argv[],
  */
 udi_error_e continue_process(udi_process *proc);
 
+/* Event handling interface */
+
+typedef struct udi_event_struct {
+    udi_event_type event_type;
+    udi_process *proc;
+    void *event_data;
+    struct udi_event_struct *next_event;
+} udi_event;
+
+/**
+ * When udi_event.event_type == UDI_EVENT_BREAKPOINT,
+ * typeof(udi_event.event_data) == udi_event_breakpoint
+ */
+typedef struct udi_event_breakpoint_struct {
+    udi_address breakpoint_addr;
+} udi_event_breakpoint;
+
+/**
+ * When udi_event.event_type == UDI_EVENT_ERROR,
+ * typeof(udi_event.event_data) == udi_event_error
+ */
+typedef struct udi_event_error_struct {
+    const char *errstr;
+} udi_event_error;
+
+/**
+ * Wait for events to occur in the specified processes. When events do occur,
+ * user specified event handlers are called, if specified.
+ *
+ * @param procs         the processes
+ * @param num_procs     the number of processes
+ *
+ * @return a list of events that occurred in the processes, NULL on failure
+ */
+udi_event *wait_for_events(udi_process *procs[], int num_procs);
+
+/**
+ * Sets the user data stored with the internal process structure
+ *
+ * @param proc          the process handle
+ * @param user_data     the user data to associated with the process handle
+ */
+void set_user_data(udi_process *proc, void *user_data);
+
+/**
+ * Gets the user data stored with the internal process structure
+ *
+ * @param proc          the process handle
+ *
+ * @return the user data
+ */
+void *get_user_data(udi_process *proc);
+
+/**
+ * @return a string representation of the specified event type
+ */
+const char *get_event_type_str(udi_event_type event_type);
+
+/**
+ * Frees a event list returned by wait_for_events
+ *
+ * @param event_list the event list to free
+ */
+void free_event_list(udi_event *event_list);
+
 /* Memory access interface */
 
 /**

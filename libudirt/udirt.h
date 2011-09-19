@@ -54,7 +54,7 @@ void *udi_malloc(size_t length);
 // platform independent functions
 
 int write_response(udi_response *response);
-int write_event(udi_event *event);
+int write_event(udi_event_internal *event);
 udi_request *read_request();
 void free_request(udi_request *request);
 

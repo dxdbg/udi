@@ -75,11 +75,12 @@ typedef struct {
     udi_event_type event_type;
     udi_length length;
     void *packed_data;
-} udi_event;
+} udi_event_internal;
 
 /* helper functions */
 
 const char *request_type_str(udi_request_type req_type); 
+const char *event_type_str(udi_event_type event_type);
 
 /* self-contained data structure serialization */
 typedef void *(*malloc_type)(size_t);
