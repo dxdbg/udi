@@ -133,7 +133,7 @@ udi_pid fork_process(const char *executable, char * const argv[],
             kill(child, SIGKILL); // explicitly ignore return value
             return -1;
         }
-            
+           
         // This means the exec succeeded because the read returned end-of-file
         return child;
     }
@@ -176,6 +176,9 @@ int initialize_process(udi_process *proc)
     char *response_file_path = (char *)malloc(response_file_length);
     snprintf(response_file_path, response_file_length, "%s/%u/%s",
             udi_root_dir, proc->pid, RESPONSE_FILE_NAME);
+
+    // TODO retrieve this from the debuggee
+    proc->architecture = UDI_ARCH_X86;
 
     int errnum = 0;
 
@@ -350,7 +353,7 @@ udi_response *read_response(udi_process *proc)
                 break;
             }
             if ( (errnum = read_all(proc->response_handle,
-                            &(response->packed_data), 
+                            response->packed_data,
                             response->length)) != 0 ) break;
         }
     }while(0);
@@ -388,8 +391,17 @@ udi_event *read_event(udi_process *proc) {
                         sizeof(udi_length))) != 0 ) break;
         event->length = udi_length_ntoh(event->length);
 
-        if ( (errnum = read_all(proc->events_handle, event->packed_data,
-                        event->length)) != 0 ) break;
+        if (event->length > 0) {
+            event->packed_data = malloc(event->length);
+            if ( event->packed_data == NULL ) {
+                errnum = errno;
+                break;
+            }
+
+            if ( (errnum = read_all(proc->events_handle, 
+                            event->packed_data,
+                            event->length)) != 0 ) break;
+        }
     }while(0);
 
     if (errnum != 0 ) {
@@ -420,16 +432,19 @@ udi_event *wait_for_events(udi_process *procs[], int num_procs) {
     fd_set read_set;
     FD_ZERO(&read_set);
 
-    int i;
+    int i, max_fd = -1;
     for (i = 0; i < num_procs; ++i) {
         FD_SET(procs[i]->events_handle, &read_set);
+        if (procs[i]->events_handle > max_fd ) {
+            max_fd = procs[i]->events_handle;
+        }
     }
 
     udi_event *return_list = NULL;
     udi_event *current_event = NULL;
     do {
         fd_set changed_set = read_set;
-        int result = select(num_procs + 1, &changed_set, NULL, NULL, NULL);
+        int result = select(max_fd + 1, &changed_set, NULL, NULL, NULL);
 
         if ( result == -1 ) {
             if ( errno == EINTR ) {
