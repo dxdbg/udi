@@ -41,6 +41,10 @@ extern "C" {
 #define RTLD_NEXT ((void *) -1L)
 #endif
 
+#ifndef REG_EIP
+#define REG_EIP 14
+#endif
+
 #else
 #error Unknown platform
 #endif

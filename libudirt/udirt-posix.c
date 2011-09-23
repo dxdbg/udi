@@ -46,6 +46,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <sys/ucontext.h>
 
 #include "udirt.h"
 #include "udi.h"
@@ -254,7 +255,7 @@ int write_event_to_fd(int fd, udi_event_internal *event) {
         udi_event_type tmp_type = event->event_type;
         tmp_type = udi_event_type_hton(tmp_type);
         if ( (errnum = write_all(events_handle, &tmp_type,
-                        sizeof(udi_length)) != 0 ) ) break;
+                        sizeof(udi_event_type)) != 0 ) ) break;
 
         udi_length tmp_length = event->length;
         tmp_length = udi_length_hton(tmp_length);
@@ -725,7 +726,9 @@ static
 int decode_trap(const siginfo_t *siginfo, const ucontext_t *context, 
         char *errmsg, unsigned int errmsg_size) 
 {
-    udi_address trap_addr = (udi_address)(unsigned long)siginfo->si_addr;
+    // TODO this is x86 specific
+    udi_address trap_addr = (udi_address)(unsigned long)
+        context->uc_mcontext.gregs[REG_EIP] - 1;
 
     udi_event_internal trap_event;
     trap_event.event_type = UDI_EVENT_BREAKPOINT;
@@ -793,11 +796,17 @@ int decode_segv(const siginfo_t *siginfo, const ucontext_t *context,
 
 // Not static because need to pass around pointer to it
 void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
-    int failure = 0;
+    int failure = 0, request_failure = 0;
     char errmsg[ERRMSG_SIZE];
     errmsg[ERRMSG_SIZE-1] = '\0';
 
     ucontext_t *context = (ucontext_t *)v_context;
+
+    if (!udi_enabled) {
+        udi_printf("UDI disabled, not handling signal %d: %lx\n", signal,
+                (unsigned long)siginfo->si_addr);
+        return;
+    }
 
     udi_in_sig_handler++;
 
@@ -847,6 +856,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
         // wait for command
         if ( !performing_mem_access ) {
             if ( (failure = wait_and_execute_command(errmsg, ERRMSG_SIZE)) != 0 ) {
+                request_failure = 1;
                 if ( failure > 0 ) {
                     strncpy(errmsg, strerror(failure), ERRMSG_SIZE-1);
                 }
@@ -856,19 +866,27 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     }while(0);
 
     if ( failure ) {
-        // Shared error response code
-        udi_response resp;
-        resp.response_type = UDI_RESP_ERROR;
-        resp.request_type = UDI_REQ_INVALID;
-        resp.length = strlen(errmsg) + 1;
-        resp.packed_data = udi_pack_data(resp.length, 
-                UDI_DATATYPE_BYTESTREAM, resp.length, errmsg);
+        // A failed request most likely means the debugger is no longer around, so
+        // don't try to send a request
+        if ( !request_failure ) {
+            // Shared error response code
+            udi_response resp;
+            resp.response_type = UDI_RESP_ERROR;
+            resp.request_type = UDI_REQ_INVALID;
+            resp.length = strlen(errmsg) + 1;
+            resp.packed_data = udi_pack_data(resp.length, 
+                    UDI_DATATYPE_BYTESTREAM, resp.length, errmsg);
 
-        if ( resp.packed_data != NULL ) {
-            // explicitly ignore errors
-            write_response(&resp);
-            udi_free(resp.packed_data);
+            if ( resp.packed_data != NULL ) {
+                // explicitly ignore errors
+                write_response(&resp);
+                udi_free(resp.packed_data);
+            }
         }
+
+        // TODO reset signal handlers to defaults
+        udi_printf("%s\n", "disabling UDI due to request failure");
+        udi_enabled = 0;
     }
 
     udi_in_sig_handler--;
@@ -896,6 +914,8 @@ int setup_signal_handlers() {
             break;
         }
     }
+
+    // TODO save old sigaction and reinstate on detach/debugger failure
 
     return errnum;
 }
