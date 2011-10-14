@@ -111,3 +111,11 @@ specific files for itself under this root directory.
 Once the events file is created, the debugger should open the request, events
 and response files for reading and then issue an INIT request to the
 debuggee via the request file, in that order.
+
+4. Library design
+
+debuggee side             debugger side
+
++----------+  <=======>  +--------+   +----------+
+| libudirt |  <  ipc  >  | libudi |   | libudidb |
++----------+  <=======>  +--------+   +----------+
