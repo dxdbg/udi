@@ -108,14 +108,6 @@ typedef struct udi_event_struct {
 } udi_event;
 
 /**
- * When udi_event.event_type == UDI_EVENT_BREAKPOINT,
- * typeof(udi_event.event_data) == udi_event_breakpoint
- */
-typedef struct udi_event_breakpoint_struct {
-    udi_address breakpoint_addr;
-} udi_event_breakpoint;
-
-/**
  * When udi_event.event_type == UDI_EVENT_ERROR,
  * typeof(udi_event.event_data) == udi_event_error
  */
