@@ -153,7 +153,6 @@ typedef enum
 typedef enum
 {
     UDI_EVENT_ERROR = -1,
-    UDI_EVENT_BREAKPOINT,
     UDI_EVENT_SIGNAL,
     UDI_EVENT_MAX,
     UDI_EVENT_UNKNOWN

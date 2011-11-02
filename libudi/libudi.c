@@ -345,21 +345,6 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
     ret_event->event_data = NULL;
 
     switch(ret_event->event_type) {
-        case UDI_EVENT_BREAKPOINT:
-        {
-            udi_event_breakpoint *brkpt = (udi_event_breakpoint *)
-                malloc(sizeof(udi_event_breakpoint));
-
-            if ( udi_unpack_data(event->packed_data, event->length,
-                        UDI_DATATYPE_ADDRESS, &(brkpt->breakpoint_addr)) ) 
-            {
-                udi_printf("%s\n", "failed to decode breakpoint event");
-                free_event(ret_event);
-                return NULL;
-            }
-            ret_event->event_data = brkpt;
-            break;
-        }
         case UDI_EVENT_ERROR:
         {
             udi_event_error *err_event = (udi_event_error *)

@@ -723,32 +723,6 @@ int signals[] = {
 };
 
 static
-int decode_trap(const siginfo_t *siginfo, const ucontext_t *context, 
-        char *errmsg, unsigned int errmsg_size) 
-{
-    // TODO this is x86 specific
-    udi_address trap_addr = (udi_address)(unsigned long)
-        context->uc_mcontext.gregs[REG_EIP] - 1;
-
-    udi_event_internal trap_event;
-    trap_event.event_type = UDI_EVENT_BREAKPOINT;
-    trap_event.length = sizeof(udi_address);
-    trap_event.packed_data = udi_pack_data(trap_event.length,
-            UDI_DATATYPE_ADDRESS, trap_addr);
-
-    if ( trap_event.packed_data == NULL ) {
-        return -1;
-    }
-
-    int result = write_event(&trap_event);
-
-    udi_free(trap_event.packed_data);
-
-    return result;
-
-}
-
-static
 int decode_segv(const siginfo_t *siginfo, const ucontext_t *context,
         char *errmsg, unsigned int errmsg_size)
 {
@@ -816,14 +790,11 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     do {
         udi_event_internal event;
         switch(signal) {
-            case SIGTRAP:
-                failure = decode_trap(siginfo, context, errmsg, 
-                        ERRMSG_SIZE);
-                break;
             case SIGSEGV:
                 failure = decode_segv(siginfo, context, errmsg,
                         ERRMSG_SIZE);
                 break;
+            // TODO signal event
             default:
                 event.event_type = UDI_EVENT_UNKNOWN;
                 event.length = 0;

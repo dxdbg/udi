@@ -58,7 +58,6 @@ const char *request_type_str(udi_request_type req_type) {
 const char *event_type_str(udi_event_type event_type) {
     switch(event_type) {
         CASE_TO_STR(UDI_EVENT_ERROR);
-        CASE_TO_STR(UDI_EVENT_BREAKPOINT);
         CASE_TO_STR(UDI_EVENT_SIGNAL);
         CASE_TO_STR(UDI_EVENT_MAX);
         CASE_TO_STR(UDI_EVENT_UNKNOWN);
