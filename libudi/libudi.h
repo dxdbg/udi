@@ -171,16 +171,6 @@ void free_event_list(udi_event *event_list);
 udi_error_e mem_access(udi_process *proc, int write, void *value, 
         udi_length size, udi_address addr);
 
-/**
- * Set a breakpoint in the specified process at the specified address
- *
- * @param proc                  the process handle
- * @param breakpoint_addr       the breakpoint address
- *
- * @return the result of the operation
- */
-udi_error_e set_breakpoint(udi_process *proc, udi_address breakpoint_addr);
-
 #ifdef __cplusplus
 } // "C"
 #endif

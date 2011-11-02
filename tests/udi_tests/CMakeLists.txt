@@ -2,7 +2,7 @@ include_directories("${PROJECT_SOURCE_DIR}/libudi")
 include_directories("${PROJECT_SOURCE_DIR}/tests/libuditest")
 include_directories("${PROJECT_SOURCE_DIR}/libudirt")
 
-add_definitions("-DBINARY_DIR=\"${CMAKE_BINARY_DIR}/tests/bin\"")
+add_definitions("-DMACRO_BINARY_DIR=\"${CMAKE_BINARY_DIR}/tests/bin\"")
 
 file(GLOB tests_globbed "*.cxx")
 foreach(test_globbed ${tests_globbed})
