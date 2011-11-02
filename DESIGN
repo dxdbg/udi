@@ -119,3 +119,20 @@ debuggee side             debugger side
 +----------+  <=======>  +--------+   +----------+
 | libudirt |  <  ipc  >  | libudi |   | libudidb |
 +----------+  <=======>  +--------+   +----------+
+
+4.1 Library dependencies
+
+This section documents the various dependencies of each library in this
+project.
+
+libudirt
+* libc
+* dynamic loading libraries (vary across platforms)
+
+libudi
+* libc
+
+libudidb
+* libstdc++
+* libc
+* ... more coming
