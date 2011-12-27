@@ -6,12 +6,7 @@ int function1() {
     return EXIT_SUCCESS;
 }
 
-extern void init_udi_rt();
-
 int main(int argc, char *argv[]) {
-    // TODO remove this
-    init_udi_rt();
-
     printf("Before function1\n");
     function1();
     printf("After function1\n");

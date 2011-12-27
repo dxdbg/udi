@@ -1,0 +1,13 @@
+#
+# SConscript for test binaries
+#
+import udibuild
+
+Import('topenv')
+
+bin_env = topenv.Clone()
+
+sources = bin_env.Glob('*.c', source=True, strings=True)
+
+for source in sources:
+    bin_env.Program(udibuild.GetFilename(source), source)

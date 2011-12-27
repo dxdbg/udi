@@ -1,0 +1,11 @@
+#
+# SConscript for libuditest
+#
+
+Import('topenv')
+
+lib_env = topenv.Clone()
+
+sources = ['libuditest.cxx']
+
+lib_env.StaticLibrary('uditest', sources)
