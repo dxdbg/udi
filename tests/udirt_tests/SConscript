@@ -1,0 +1,27 @@
+#
+# SConscript file for udirt_tests
+#
+
+import udibuild
+
+Import('topenv')
+
+bin_env = topenv.Clone()
+
+bin_env.Append(CPPPATH = ['#/libudirt', '#/libudicommon', '#/tests/libuditest'])
+
+sources = bin_env.Glob('*.cxx', strings=True, source=True)
+
+libs = ['udirt', 'uditest']
+
+libpath = ['#/build/libudirt', '#/build/tests/libuditest']
+
+bins = dict()
+
+for source in sources:
+    bins[udibuild.GetFilename(source)] = bin_env.Object(source)
+
+for binary,source in bins.items():
+    bin_env.Program(binary, source, LIBS=libs, LIBPATH=libpath)
+
+bin_env.Program('all_udirt_tests', bins.values(), LIBS=libs, LIBPATH=libpath)

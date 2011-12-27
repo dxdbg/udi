@@ -1,3 +1,5 @@
 *.swp
 build/*
 notes.txt
+.sconsign.dblite
+__init__.pyc

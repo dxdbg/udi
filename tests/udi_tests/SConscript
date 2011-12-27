@@ -1,0 +1,38 @@
+#
+# SConscript for udi_tests
+#
+
+import udibuild
+import os
+
+Import('topenv')
+
+bin_env = topenv.Clone()
+
+bin_env.Append(CPPPATH=['#/libudirt', '#/tests/libuditest', '#/libudi'])
+
+# define binaries used for tests
+
+bin_dir = bin_env.Dir('#/build/tests/bin/').abspath + os.sep
+
+bin_env.Append(CPPDEFINES=[('MACRO_SIMPLE_BINARY', bin_dir + 'simple')])
+
+# define sources
+
+sources = bin_env.Glob('*.cxx', source=True, strings=True)
+
+bins = dict()
+
+for source in sources:
+    bins[udibuild.GetFilename(source)] = bin_env.Object(source)
+
+libs = ['udi', 'uditest']
+
+libpath = [ '#/build/libudi', '#/build/tests/libuditest' ]
+
+for binary,source in bins.items():
+    bin_env.Program(binary, source, LIBS=libs, LIBPATH=libpath)
+
+bin_env.Program('all_libudi_tests', bins.values(), LIBS=libs, LIBPATH=libpath)
+
+bin_env.Depends(bins.values(), '#/build/tests/bin')

@@ -34,6 +34,8 @@
 #include "libudi.h"
 #include "libuditest.h"
 
+#define QUOTE(s) #s
+
 using std::cout;
 using std::endl;
 using std::stringstream;
@@ -47,17 +49,11 @@ class test_create : public UDITestCase {
         bool operator()(void);
 };
 
-static const char *BINARY_DIR = MACRO_BINARY_DIR;
-
-static const char *BIN_NAME = "simple";
+static const char *TEST_BINARY = QUOTE(MACRO_SIMPLE_BINARY);
 
 static test_create testInstance;
 
 bool test_create::operator()(void) {
-    stringstream testfile;
-
-    testfile << BINARY_DIR << "/" << BIN_NAME;
-
     if ( init_libudi() != 0 ) {
         cout << "Failed to initialize libudi" << endl;
         return false;
@@ -66,7 +62,7 @@ bool test_create::operator()(void) {
     char *argv[] = { NULL };
     char *envp[] = { NULL };
 
-    udi_process *proc = create_process(testfile.str().c_str(), argv, envp);
+    udi_process *proc = create_process(TEST_BINARY, argv, envp);
     if ( proc == NULL ) {
         cout << "Failed to create process" << endl;
         return false;

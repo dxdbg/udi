@@ -1,0 +1,24 @@
+#
+# SConscript for libudirt
+#
+
+import udibuild
+
+Import('topenv')
+
+lib_env = topenv.Clone()
+
+lib_env.Append(CPPPATH = ['#/libudicommon', '#/libudirt'])
+
+sources = ['udirt.c']
+
+if udibuild.IsUnix():
+    sources.append('udirt-posix.c')
+
+libs = ['udicommon']
+
+if udibuild.IsLinux():
+    libs.append('dl')
+
+lib_env.SharedLibrary('udirt', sources, LIBS=libs,
+        LIBPATH='#/build/libudicommon')

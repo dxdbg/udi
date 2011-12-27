@@ -67,6 +67,9 @@ Cons of this approach:
 the debugger-debuggee relationship. In UDI, bootstrapping this relationship
 may not be as clean as a system call.
 
+* Single-stepping is also complicated because this feature typically requires
+operating system support to modify processor flags that enable single stepping.
+
 * UDI will possibly require pre-loading the wrapper library into a running
 process or linking the wrapper library with the application under test.
 
