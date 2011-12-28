@@ -29,6 +29,10 @@
 #ifndef LIB_UDI_TEST_H
 #define LIB_UDI_TEST
 
+// Define some useful macros
+#define STR_EXPAND(s) #s
+#define STR(s) STR_EXPAND(s)
+
 #include <vector>
 #include <string>
 

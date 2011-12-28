@@ -34,8 +34,6 @@
 #include "libudi.h"
 #include "libuditest.h"
 
-#define QUOTE(s) #s
-
 using std::cout;
 using std::endl;
 using std::stringstream;
@@ -49,7 +47,7 @@ class test_create : public UDITestCase {
         bool operator()(void);
 };
 
-static const char *TEST_BINARY = QUOTE(MACRO_SIMPLE_BINARY);
+static const char *TEST_BINARY = STR(MACRO_SIMPLE_BINARY);
 
 static test_create testInstance;
 
