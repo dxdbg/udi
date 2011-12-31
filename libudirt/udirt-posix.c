@@ -59,8 +59,7 @@
 ////////////////////////////////////
 
 // macros
-//#define UDI_CONSTRUCTOR __attribute__((constructor))
-#define UDI_CONSTRUCTOR
+#define UDI_CONSTRUCTOR __attribute__((constructor))
 #define CASE_TO_STR(x) case x: return #x
 
 // constants
@@ -629,7 +628,7 @@ int handshake_with_debugger(int *output_enabled, char *errmsg,
     do {
         if ((request_handle = open(requestfile_name, O_RDONLY))
                 == -1 ) {
-            udi_printf("error open request file fifo: %s\n",
+            udi_printf("error opening request file fifo: %s\n",
                        strerror(errno));
             errnum = errno;
             break;
@@ -903,6 +902,7 @@ void init_udi_rt() {
     // turn on debugging, if necessary
     if (getenv(UDI_DEBUG_ENV) != NULL) {
         udi_debug_on = 1;
+        udi_printf("%s\n", "UDI rt debug logging enabled");
     }
 
     // set allocator used for packing data

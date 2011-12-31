@@ -43,7 +43,6 @@ extern "C" {
 extern char *UDI_ROOT_DIR;
 extern int udi_enabled;
 extern int udi_debug_on;
-extern const char *UDI_DEBUG_ENV;
 extern int udi_in_sig_handler;
 
 // platform specific functions

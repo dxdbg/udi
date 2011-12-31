@@ -80,11 +80,12 @@ int set_udi_root_dir(const char *root_dir);
  * 
  * @param executable   the full path to the executable
  * @param argv         the arguments
- * @param envp         the environment
+ * @param envp         the environment, if NULL, the newly created process will
+ *                     inherit the environment for this process
  *
  * @return a handle to the created process
  *
- * @see execve
+ * @see execve on a UNIX system
  */
 udi_process *create_process(const char *executable, char * const argv[],
         char * const envp[]);

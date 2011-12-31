@@ -38,7 +38,7 @@
 ////////////////////
 // globals        //
 ////////////////////
-int udi_debug_on = 1;
+int udi_debug_on = 0;
 int processes_created = 0;
 const char *udi_root_dir = NULL;
 
@@ -69,6 +69,8 @@ int init_libudi() {
         udi_root_dir = DEFAULT_UDI_ROOT_DIR;
     }
 
+    check_debug_logging();
+
     return 0;
 }
 
@@ -77,11 +79,22 @@ udi_process *create_process(const char *executable, char * const argv[],
 {
     int error = 0;
 
+    // Validate arguments
+    if (argv == NULL || executable == NULL) {
+        udi_printf("%s\n", "invalid arguments");
+        return NULL;
+    }
+
     if ( processes_created == 0 ) {
         if ( create_root_udi_filesystem() != 0 ) {
             udi_printf("%s\n", "failed to create root UDI filesystem");
             return NULL;
         }
+    }
+
+    if (envp == NULL) {
+        // Created process will inherit the current environment
+        envp = get_environment();
     }
 
     udi_process *proc = (udi_process *)malloc(sizeof(udi_process));

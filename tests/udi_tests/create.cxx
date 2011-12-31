@@ -58,9 +58,8 @@ bool test_create::operator()(void) {
     }
 
     char *argv[] = { NULL };
-    char *envp[] = { NULL };
 
-    udi_process *proc = create_process(TEST_BINARY, argv, envp);
+    udi_process *proc = create_process(TEST_BINARY, argv, NULL);
     if ( proc == NULL ) {
         cout << "Failed to create process" << endl;
         return false;

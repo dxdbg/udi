@@ -43,6 +43,10 @@
 
 const int INVALID_UDI_PID = -1;
 
+static const char *DEFAULT_UDI_RT_LIB_NAME = "libudirt.so";
+
+extern char **environ;
+
 int create_root_udi_filesystem() {
     if (mkdir(udi_root_dir, S_IRWXG | S_IRWXU) == -1) {
         if ( errno == EEXIST ) {
@@ -70,6 +74,97 @@ int create_root_udi_filesystem() {
     return 0;
 }
 
+char * const* get_environment() {
+    return environ;
+}
+
+void check_debug_logging() {
+    if ( getenv(UDI_DEBUG_ENV) != NULL ) {
+        udi_debug_on = 1;
+        udi_printf("%s\n", "UDI lib debugging logging enabled");
+    }
+}
+
+static
+char **insert_rt_library(char * const envp[]) {
+    // Look for the LD_PRELOAD value in the specified environment
+    // If it exists, append the runtime library
+    // If it does not, add it
+ 
+    int i, ld_preload_index = -1;
+    for (i = 0; envp[i] != NULL; ++i) {
+        if (strncmp(envp[i],"LD_PRELOAD=", strlen("LD_PRELOAD=")) == 0) {
+            ld_preload_index = i;
+        }
+    }
+
+    // Allocate a local copy of the array
+    int original_elements = i+1;
+    int num_elements = i+1;
+    if (ld_preload_index == -1) {
+        num_elements++;
+    }
+
+    // Make a new copy of the array, moving the LD_PRELOAD element to the end
+    char **envp_copy = (char **)malloc(num_elements*sizeof(char *));
+
+    if ( envp_copy == NULL ) {
+        udi_printf("Failed to allocate memory: %s\n", strerror(errno));
+        return NULL;
+    }
+
+    int j;
+    for (i = 0, j = 0; i < (original_elements-1); ++i, ++j) {
+        if ( i == ld_preload_index ) {
+            // Skip over this location, it will be moved to the end
+            i++;
+        }else{
+            envp_copy[j] = envp[i];
+        }
+    }
+
+    // Second to last element is the LD_PRELOAD variable
+    if ( ld_preload_index == -1 ) {
+        size_t str_size = strlen("LD_PRELOAD=") +
+                    strlen(DEFAULT_UDI_RT_LIB_NAME) + 
+                    1; // the \0 terminating character
+
+        envp_copy[num_elements-2] = (char *)malloc(sizeof(char)*(str_size));
+
+        strncpy(envp_copy[num_elements-2], "LD_PRELOAD=", strlen("LD_PRELOAD="));
+        strncat(envp_copy[num_elements-2], DEFAULT_UDI_RT_LIB_NAME, strlen(DEFAULT_UDI_RT_LIB_NAME));
+    }else{
+        size_t str_size = strlen(envp[ld_preload_index]) +
+                    1 + // for : character
+                    strlen(DEFAULT_UDI_RT_LIB_NAME) +
+                    1; // the \0 terminating character
+
+        envp_copy[num_elements-2] = (char *)malloc(sizeof(char)*(str_size));
+        strncpy(envp_copy[num_elements-2], envp[ld_preload_index], strlen(envp[ld_preload_index]));
+        strncat(envp_copy[num_elements-2], ":", 1);
+        strncat(envp_copy[num_elements-2], DEFAULT_UDI_RT_LIB_NAME, strlen(DEFAULT_UDI_RT_LIB_NAME));
+    }
+
+    // Array needs to be terminated by NULL element
+    envp_copy[num_elements-1] = NULL;
+
+    return envp_copy;
+}
+
+static
+void free_envp_copy(char **envp_copy) {
+    // Free the allocated string for LD_PRELOAD
+    char *last_element = NULL;
+    int i;
+    for (i = 0; envp_copy[i] != NULL; ++i) {
+        last_element = envp_copy[i];
+    }
+    free(last_element);
+
+    // Free the array
+    free(envp_copy);
+}
+
 udi_pid fork_process(const char *executable, char * const argv[],
         char * const envp[])
 {
@@ -87,23 +182,33 @@ udi_pid fork_process(const char *executable, char * const argv[],
         }
     }
 
+    // Force load the runtime library
+    char **envp_copy = insert_rt_library(envp);
+    if ( envp_copy == NULL ) {
+        udi_printf("failed to insert runtime library\n");
+        return -1;
+    }
+
     // Use the following procedure to get feedback on whether the exec
     // succeeded
     int pipefd[2];
     if ( pipe(pipefd) ) {
         udi_printf("failed to create pipe: %s\n", strerror(errno));
+        free_envp_copy(envp_copy);
         return -1;
     }
 
     if ( fcntl(pipefd[0], F_SETFD, FD_CLOEXEC) != 0 ) {
         udi_printf("failed to set close-on-exec flag on fd: %s\n",
                 strerror(errno));
+        free_envp_copy(envp_copy);
         return -1;
     }
 
     if ( fcntl(pipefd[1], F_SETFD, FD_CLOEXEC) != 0 ) { 
         udi_printf("failed to set close-on-exec flag on fd: %s\n",
                 strerror(errno));
+        free_envp_copy(envp_copy);
         return -1;
     }
 
@@ -111,6 +216,8 @@ udi_pid fork_process(const char *executable, char * const argv[],
 
     if ( child ) {
         // Parent
+        free_envp_copy(envp_copy);
+
         close(pipefd[1]);
 
         // Wait for child to close the pipe or write errno to it to indicate
@@ -141,9 +248,14 @@ udi_pid fork_process(const char *executable, char * const argv[],
     // Child
     close(pipefd[0]);
 
-    // TODO override LD_PRELOAD with rt library
+    udi_printf("%s\n", "Environment:");
 
-    int exec_result = execve(executable, argv, envp);
+    int i;
+    for (i = 0; envp_copy[i] != NULL; ++i) {
+        udi_printf("\t%s\n", envp_copy[i]);
+    }
+
+    int exec_result = execve(executable, argv, envp_copy);
 
     if ( exec_result == -1 ) {
         // alert the parent that the exec failed
