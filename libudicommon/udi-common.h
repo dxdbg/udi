@@ -49,6 +49,7 @@ extern const char *UDI_ROOT_DIR_ENV;
 extern const char *REQUEST_FILE_NAME;
 extern const char *RESPONSE_FILE_NAME;
 extern const char *EVENTS_FILE_NAME;
+extern const char *UDI_DEBUG_ENV;
 
 /* platform specific variables */
 extern const char *DEFAULT_UDI_ROOT_DIR;

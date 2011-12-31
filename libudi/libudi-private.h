@@ -48,7 +48,7 @@ typedef enum {
     UDI_ARCH_X86_64
 } udi_arch_e;
 
-extern const pid_t INVALID_UDI_PID;
+extern const udi_pid INVALID_UDI_PID;
 struct udi_process_struct {
     udi_pid pid;
     udi_handle request_handle;
@@ -65,6 +65,9 @@ int create_root_udi_filesystem();
 
 udi_pid fork_process(const char *executable, char * const argv[],
         char * const envp[]);
+
+char * const *get_environment();
+void check_debug_logging();
 
 int initialize_process(udi_process *proc);
 

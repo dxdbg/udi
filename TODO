@@ -1,0 +1,6 @@
+A list of enhancements/bugfixes for the future
+----------------------------------------------
+[ ] modify the default udi root filesystem procedure to include the username somehow to allow
+multiple users to run programs that use udi
+
+[ ] allow user to specify the runtime library to be loaded when creating processes in libudi

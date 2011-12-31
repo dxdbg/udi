@@ -70,6 +70,9 @@ may not be as clean as a system call.
 * Single-stepping is also complicated because this feature typically requires
 operating system support to modify processor flags that enable single stepping.
 
+* Operations that require operating system support such as tracing all system
+calls are difficult, if not impossible.
+
 * UDI will possibly require pre-loading the wrapper library into a running
 process or linking the wrapper library with the application under test.
 
@@ -115,13 +118,36 @@ Once the events file is created, the debugger should open the request, events
 and response files for reading and then issue an INIT request to the
 debuggee via the request file, in that order.
 
+3.3 Debugging primitives
+
+The following is an incomplete list of debugging primitives that can be
+provided by a debugging interface.
+
+* Create debuggees
+* Attach to debuggees
+* Detach from debuggees
+* Access memory of debuggees
+* Access registers of debuggees
+* Control running state of debuggees
+* Control running state of threads within a debuggee
+* Set and remove breakpoints
+* Provide alerts on the occurrence of the following events:
+  - entrance and exit from system calls
+  - hit of breakpoint
+  - creation of new processes
+  - creation and destruction of threads
+
+The UDI implements the following:
+
+* under construction *
+
 4. Library design
 
 debuggee side             debugger side
 
-+----------+  <=======>  +--------+   +----------+
-| libudirt |  <  ipc  >  | libudi |   | libudidb |
-+----------+  <=======>  +--------+   +----------+
++----------+  <=======>  +--------+  +----------+
+| libudirt |  <  ipc  >  | libudi |  | libudidb |
++----------+  <=======>  +--------+  +----------+
 
 4.1 Library dependencies
 

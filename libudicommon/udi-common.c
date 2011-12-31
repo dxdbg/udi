@@ -40,6 +40,7 @@ const char *UDI_ROOT_DIR_ENV = "UDI_ROOT_DIR";
 const char *REQUEST_FILE_NAME = "request";
 const char *RESPONSE_FILE_NAME = "response";
 const char *EVENTS_FILE_NAME = "events";
+const char *UDI_DEBUG_ENV = "UDI_DEBUG";
 
 #define CASE_TO_STR(x) case x: return #x
 
