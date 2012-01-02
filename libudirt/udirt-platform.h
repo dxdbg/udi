@@ -45,6 +45,11 @@ extern "C" {
 #define REG_EIP 14
 #endif
 
+// Manually extracted from a system header, shouldn't change often
+#ifndef MAX_SIGNAL_NUM
+#define MAX_SIGNAL_NUM 31
+#endif
+
 #else
 #error Unknown platform
 #endif

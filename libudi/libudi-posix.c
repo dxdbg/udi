@@ -248,12 +248,13 @@ udi_pid fork_process(const char *executable, char * const argv[],
     // Child
     close(pipefd[0]);
 
-    udi_printf("%s\n", "Environment:");
-
+    /*
     int i;
+    udi_printf("%s\n", "Environment:");
     for (i = 0; envp_copy[i] != NULL; ++i) {
         udi_printf("\t%s\n", envp_copy[i]);
     }
+    */
 
     int exec_result = execve(executable, argv, envp_copy);
 

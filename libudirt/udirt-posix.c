@@ -85,6 +85,50 @@ static size_t mem_access_size = 0;
 static int abort_mem_access = 0;
 static int failed_si_code = 0;
 
+// Signal handling
+static
+int signals[] = {
+    SIGHUP,
+    SIGINT,
+    SIGQUIT,
+    SIGILL,
+    SIGTRAP,
+    SIGABRT,
+    SIGBUS,
+    SIGFPE,
+    SIGUSR1,
+    SIGSEGV,
+    SIGUSR2,
+    SIGPIPE,
+    SIGALRM,
+    SIGTERM,
+    SIGSTKFLT,
+    SIGCHLD,
+    SIGCONT,
+    SIGTSTP,
+    SIGTTIN,
+    SIGTTOU,
+    SIGURG,
+    SIGXCPU,
+    SIGXFSZ,
+    SIGVTALRM,
+    SIGPROF,
+    SIGWINCH,
+    SIGIO,
+    SIGPWR,
+    SIGSYS
+};
+
+// This is the number of elements in the signals array
+static const unsigned int NUM_SIGNALS = 29;
+
+static struct sigaction app_actions[NUM_SIGNALS];
+
+// Used to map signals to their application action
+static int signal_map[MAX_SIGNAL_NUM];
+
+static struct sigaction default_lib_action;
+
 // wrapper function types
 
 typedef int (*sigaction_type)(int, const struct sigaction *, 
@@ -127,9 +171,37 @@ request_handler req_handlers[] = {
 int sigaction(int signum, const struct sigaction *act,
         struct sigaction *oldact)
 {
-    // TODO wrapper function stuff
+    // Block signals while doing this to avoid a race where a signal is delivered
+    // while validating the arguments
+    sigset_t full_set, orig_set;
+    sigfillset(&full_set);
 
-    return real_sigaction(signum, act, oldact);
+    int block_result = sigprocmask(SIG_SETMASK, &full_set, &orig_set);
+    if ( block_result != 0 ) return EINVAL;
+
+    // Validate the arguments
+    int result = real_sigaction(signum, act, oldact);
+    if ( result != 0 ) return result;
+
+    // Reset action back to library default
+    result = real_sigaction(signum, &default_lib_action, NULL);
+    if ( result != 0 ) return result;
+
+    // Store new application action for future use
+    int signal_index = signal_map[(signum % MAX_SIGNAL_NUM)];
+    if ( oldact != NULL ) {
+        *oldact = app_actions[signal_index];
+    }
+
+    if ( act != NULL ) {
+        app_actions[signal_index] = *act;
+    }
+
+    // Unblock signals
+    int block_result = sigprocmask(SIG_SETMASK, &orig_set, NULL);
+    if ( block_result != 0 ) return EINVAL;
+
+    return 0;
 }
 
 pid_t fork()
@@ -203,6 +275,7 @@ udi_request *read_request_from_fd(int fd) {
         if ( errnum > 0 ) {
             udi_printf("read_all failed: %s\n", strerror(errnum));
         }
+
         free_request(request);
         return NULL;
     }
@@ -217,6 +290,7 @@ udi_request *read_request()
 
 int write_response_to_fd(int fd, udi_response *response) {
     int errnum = 0;
+
     do {
         udi_response_type tmp_type = response->response_type;
         tmp_type = udi_response_type_hton(tmp_type);
@@ -250,6 +324,7 @@ int write_response(udi_response *response) {
 
 int write_event_to_fd(int fd, udi_event_internal *event) {
     int errnum = 0;
+
     do {
         udi_event_type tmp_type = event->event_type;
         tmp_type = udi_event_type_hton(tmp_type);
@@ -687,39 +762,6 @@ int handshake_with_debugger(int *output_enabled, char *errmsg,
     return errnum;
 }
 
-static
-int signals[] = {
-    SIGHUP,
-    SIGINT,
-    SIGQUIT,
-    SIGILL,
-    SIGTRAP,
-    SIGABRT,
-    SIGIOT,
-    SIGBUS,
-    SIGFPE,
-    SIGUSR1,
-    SIGSEGV,
-    SIGUSR2,
-    SIGPIPE,
-    SIGALRM,
-    SIGTERM,
-    SIGSTKFLT,
-    SIGCHLD,
-    SIGCONT,
-    SIGTSTP,
-    SIGTTIN,
-    SIGTTOU,
-    SIGURG,
-    SIGXCPU,
-    SIGXFSZ,
-    SIGVTALRM,
-    SIGPROF,
-    SIGWINCH,
-    SIGIO,
-    SIGPWR,
-    SIGSYS
-};
 
 static
 int decode_segv(const siginfo_t *siginfo, const ucontext_t *context,
@@ -767,6 +809,15 @@ int decode_segv(const siginfo_t *siginfo, const ucontext_t *context,
     return errnum;
 }
 
+static
+void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context) {
+    int signal_index = signal_map[(signal % MAX_SIGNAL_NUM)];
+
+    // TODO need to make sure correct signals are unblocked
+
+    app_actions[signal_index].sa_sigaction(signal, siginfo, v_context);
+}
+
 // Not static because need to pass around pointer to it
 void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     int failure = 0, request_failure = 0;
@@ -776,8 +827,9 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     ucontext_t *context = (ucontext_t *)v_context;
 
     if (!udi_enabled) {
-        udi_printf("UDI disabled, not handling signal %d: %lx\n", signal,
+        udi_printf("UDI disabled, not handling signal %d at addr 0x%08lx\n", signal,
                 (unsigned long)siginfo->si_addr);
+        app_signal_handler(signal, siginfo, v_context);
         return;
     }
 
@@ -793,7 +845,6 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                 failure = decode_segv(siginfo, context, errmsg,
                         ERRMSG_SIZE);
                 break;
-            // TODO signal event
             default:
                 event.event_type = UDI_EVENT_UNKNOWN;
                 event.length = 0;
@@ -836,6 +887,9 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     }while(0);
 
     if ( failure ) {
+        udi_printf("%s\n", "disabling UDI due to request failure");
+        disable_debugging();
+
         // A failed request most likely means the debugger is no longer around, so
         // don't try to send a request
         if ( !request_failure ) {
@@ -853,10 +907,6 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                 udi_free(resp.packed_data);
             }
         }
-
-        // TODO reset signal handlers to defaults
-        udi_printf("%s\n", "disabling UDI due to request failure");
-        udi_enabled = 0;
     }
 
     udi_in_sig_handler--;
@@ -868,26 +918,66 @@ int setup_signal_handlers() {
 
     int length = sizeof(signals) / sizeof(int);
 
-    struct sigaction action;
-    memset(&action, 0, sizeof(struct sigaction));
+    // Sanity check
+    if ( (sizeof(signals) / sizeof(int)) != NUM_SIGNALS ) {
+        udi_printf("%s\n", "ASSERT FAIL: signals array length != NUM_SIGNALS");
+        return -1;
+    }
 
-    action.sa_sigaction = signal_entry_point;
-    sigfillset(&(action.sa_mask));
-    action.sa_flags = SA_SIGINFO;
-
-    // 0 is not a valid signal to register a signal handler for
     int i;
-    for(i = 1; i < length; ++i) {
-        if ( i == SIGKILL || i == SIGSTOP ) continue;
-        if ( real_sigaction(i, &action, NULL) != 0 ) {
+    for(i = 0; i < NUM_SIGNALS; ++i) {
+        if ( real_sigaction(signals[i], &default_lib_action, &app_actions[i]) != 0 ) {
             errnum = errno;
             break;
         }
     }
 
-    // TODO save old sigaction and reinstate on detach/debugger failure
-
     return errnum;
+}
+
+static
+void disable_debugging() {
+    udi_enabled = 0;
+
+    // Replace the library signal handler with the application signal handlers
+    int i;
+    for(i = 0; i < NUM_SIGNALS; ++i) {
+        if ( app_actions[i].sa_sigaction == NULL ) continue;
+
+        if ( real_sigaction(signals[i], &app_actions[i], NULL) != 0 ) {
+            udi_printf("Failed to reset signal handler for %d: %s\n",
+                    signals[i], strerror(errno));
+        }
+    }
+
+    udi_printf("%s\n", "Disabled debugging");
+}
+
+static
+void global_variable_initialization() {
+    // turn on debugging, if necessary
+    if (getenv(UDI_DEBUG_ENV) != NULL) {
+        udi_debug_on = 1;
+        udi_printf("%s\n", "UDI rt debug logging enabled");
+    }
+
+    // set allocator used for packing data
+    udi_set_malloc(udi_malloc);
+
+    // Define the default sigaction for the library
+    memset(&default_lib_action, 0, sizeof(struct sigaction));
+    default_lib_action.sa_sigaction = signal_entry_point;
+    sigfillset(&(default_lib_action.sa_mask));
+    default_lib_action.sa_flags = SA_SIGINFO;
+
+    // initialize application sigactions and signal map
+    int i;
+    for (i = 0; i < NUM_SIGNALS; ++i) {
+        memset(&app_actions[i], 0, sizeof(struct sigaction));
+        app_actions[i].sa_sigaction = NULL;
+
+        signal_map[(signals[i] % MAX_SIGNAL_NUM)] = i;
+    }
 }
 
 void init_udi_rt() UDI_CONSTRUCTOR;
@@ -899,18 +989,25 @@ void init_udi_rt() {
     // initialize error message
     errmsg[ERRMSG_SIZE-1] = '\0';
 
-    // turn on debugging, if necessary
-    if (getenv(UDI_DEBUG_ENV) != NULL) {
-        udi_debug_on = 1;
-        udi_printf("%s\n", "UDI rt debug logging enabled");
-    }
-
-    // set allocator used for packing data
-    udi_set_malloc(udi_malloc);
-
+    global_variable_initialization();
+   
+    sigset_t original_set;
     do {
+        sigset_t block_set;
+        sigfillset(&block_set);
+
+        // Block any signals during initialization
+        if ( sigprocmask(SIG_SETMASK, &block_set, &original_set) 
+                == -1 ) 
+        {
+            errnum = errno;
+            udi_printf("failed to block all signals: %s\n", strerror(errnum));
+            break;
+        }
+
         if ( (errnum = locate_wrapper_functions(errmsg, ERRMSG_SIZE)) 
-                != 0 ) {
+                != 0 ) 
+        {
             udi_printf("%s\n", "failed to locate wrapper functions");
             break;
         }
@@ -943,6 +1040,8 @@ void init_udi_rt() {
     }
 
     if (errnum != 0) {
+        disable_debugging();
+
         if(!output_enabled) {
             fprintf(stderr, "Failed to initialize udi rt: %s\n", errmsg);
         } else {
@@ -960,7 +1059,11 @@ void init_udi_rt() {
             }
         }
 
-        // not enabled, due to failure
-        udi_enabled = 0;
+        udi_printf("%s\n", "Initialization failed");
+    }else{
+        udi_printf("%s\n", "Initialization completed");
     }
+
+    // Explicitly ignore errors
+    sigprocmask(SIG_SETMASK, &original_set, NULL);
 }

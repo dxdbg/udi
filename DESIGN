@@ -76,6 +76,11 @@ calls are difficult, if not impossible.
 * UDI will possibly require pre-loading the wrapper library into a running
 process or linking the wrapper library with the application under test.
 
+* On POSIX platforms, not all signals can be caught (aka. SIGSTOP and SIGKILL).
+With an operating system provided debugger interface, the debugger can 
+intercept these signals and stop them from being delivered. This cannot be done
+using UDI's approach.
+
 3 Debugger Interface Details
 
 The debugger interface will be constructed using named pipes (or some similar
