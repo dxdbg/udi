@@ -15,10 +15,10 @@ Export('topenv')
 
 if topenv['CC'] == 'gcc':
     # C compiler flags
-    topenv.Append(CFLAGS = "-Wall -std=gnu99")
+    topenv.Append(CFLAGS = "-Wall -std=gnu99 -g")
 
     # C++ compiler flags
-    topenv.Append(CXXFLAGS = "-Wall")
+    topenv.Append(CXXFLAGS = "-Wall -g")
 else:
     print 'Unknown compiler'
     quit()
