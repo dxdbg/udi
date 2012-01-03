@@ -5,4 +5,4 @@ multiple users to run programs that use udi
 
 [ ] allow user to specify the runtime library to be loaded when creating processes in libudi
 
-[ ] need to use pthread_sigmask when the application is multithreaded.
+[ ] modify udirt_tests to disable debugger

@@ -85,6 +85,9 @@ static size_t mem_access_size = 0;
 static int abort_mem_access = 0;
 static int failed_si_code = 0;
 
+// write failure handling
+static int pipe_write_failure = 0;
+
 // Signal handling
 static
 int signals[] = {
@@ -120,7 +123,7 @@ int signals[] = {
 };
 
 // This is the number of elements in the signals array
-static const unsigned int NUM_SIGNALS = 29;
+#define NUM_SIGNALS 29
 
 static struct sigaction app_actions[NUM_SIGNALS];
 
@@ -128,6 +131,11 @@ static struct sigaction app_actions[NUM_SIGNALS];
 static int signal_map[MAX_SIGNAL_NUM];
 
 static struct sigaction default_lib_action;
+
+extern int pthread_sigmask(int how, const sigset_t *new_set, sigset_t *old_set);
+#pragma weak pthread_sigmask
+
+static int pass_signal = 0;
 
 // wrapper function types
 
@@ -162,9 +170,111 @@ request_handler req_handlers[] = {
     init_handler
 };
 
+/** Request processed successfully */
+static const int REQ_SUCCESS = 0;
+
+/** Failure to process request due to environment/OS error, unrecoverable */
+static const int REQ_ERROR = -1;
+
+/** Failure to process request due to invalid arguments */
+static const int REQ_FAILURE = -2;
+
 ////////////////////////////////////
 // Functions
 ////////////////////////////////////
+
+static
+void disable_debugging() {
+    udi_enabled = 0;
+
+    // Replace the library signal handler with the application signal handlers
+    int i;
+    for(i = 0; i < NUM_SIGNALS; ++i) {
+        if ( signals[i] == SIGPIPE && pipe_write_failure ) continue;
+
+        if ( real_sigaction(signals[i], &app_actions[i], NULL) != 0 ) {
+            udi_printf("Failed to reset signal handler for %d: %s\n",
+                    signals[i], strerror(errno));
+        }
+    }
+
+    udi_printf("%s\n", "Disabled debugging");
+}
+
+static
+int setsigmask(int how, const sigset_t *new_set, sigset_t *old_set) {
+    // Only use pthread_sigmask when it is available
+    if ( pthread_sigmask ) {
+        // TODO block signals for all threads
+        return pthread_sigmask(how, new_set, old_set);
+    }
+
+    return sigprocmask(how, new_set, old_set);
+}
+
+static
+void handle_pipe_write_failure() {
+    pipe_write_failure = 1;
+
+    sigset_t set;
+
+    if ( sigpending(&set) != 0 ) {
+        udi_printf("Failed to get pending signals: %s\n", strerror(errno));
+        return;
+    }
+
+    if ( sigismember(&set, SIGPIPE) != 1 ) {
+        udi_printf("%s\n", "SIGPIPE is not pending, cannot handle write failure");
+        return;
+    }
+
+    sigset_t cur_set;
+    if ( setsigmask(SIG_BLOCK, NULL, &cur_set) != 0 ) {
+        udi_printf("Failed to get current signals: %s\n", strerror(errno));
+        return;
+    }
+    sigdelset(&set, SIGPIPE);
+
+    sigsuspend(&set);
+    if ( errno != EINTR ) {
+        udi_printf("Failed to wait for signal to be delivered: %s\n",
+                strerror(errno));
+        return;
+    }
+
+    pipe_write_failure = 0;
+}
+
+static
+void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context) {
+    int signal_index = signal_map[(signal % MAX_SIGNAL_NUM)];
+
+    if ( (void *)app_actions[signal_index].sa_sigaction == (void *)SIG_IGN ) {
+        udi_printf("Signal %d ignored, not passing to application\n", signal);
+        return;
+    }
+
+    if ( (void *)app_actions[signal_index].sa_sigaction == (void *)SIG_DFL ) {
+        // TODO
+        return;
+    }
+
+    sigset_t cur_set;
+
+    if ( setsigmask(SIG_SETMASK, &app_actions[signal_index].sa_mask, 
+            &cur_set) != 0 )
+    {
+        udi_printf("Failed to adjust blocked signals for application handler: %s\n",
+                strerror(errno));
+    }
+
+    app_actions[signal_index].sa_sigaction(signal, siginfo, v_context);
+
+    if ( setsigmask(SIG_SETMASK, &cur_set, NULL) != 0 ) {
+        udi_printf("Failed to reset blocked signals after application handler: %s\n",
+                strerror(errno));
+    }
+}
 
 // wrapper function implementations
 
@@ -176,7 +286,7 @@ int sigaction(int signum, const struct sigaction *act,
     sigset_t full_set, orig_set;
     sigfillset(&full_set);
 
-    int block_result = sigprocmask(SIG_SETMASK, &full_set, &orig_set);
+    int block_result = setsigmask(SIG_SETMASK, &full_set, &orig_set);
     if ( block_result != 0 ) return EINVAL;
 
     // Validate the arguments
@@ -198,7 +308,7 @@ int sigaction(int signum, const struct sigaction *act,
     }
 
     // Unblock signals
-    int block_result = sigprocmask(SIG_SETMASK, &orig_set, NULL);
+    block_result = setsigmask(SIG_SETMASK, &orig_set, NULL);
     if ( block_result != 0 ) return EINVAL;
 
     return 0;
@@ -315,11 +425,23 @@ int write_response_to_fd(int fd, udi_response *response) {
         udi_printf("failed to send response: %s\n", strerror(errnum));
     }
 
+    if ( errnum == EPIPE ) {
+        handle_pipe_write_failure();
+    }
+
     return errnum;
 }
 
 int write_response(udi_response *response) {
     return write_response_to_fd(response_handle, response);
+}
+
+int write_response_to_request(udi_response *response) {
+    int write_result = write_response(response);
+
+    if ( write_result < 0 ) return REQ_ERROR;
+    if ( write_result > 0 ) return write_result;
+    return REQ_SUCCESS;
 }
 
 int write_event_to_fd(int fd, udi_event_internal *event) {
@@ -345,25 +467,15 @@ int write_event_to_fd(int fd, udi_event_internal *event) {
                 strerror(errnum));
     }
 
+    if ( errnum == EPIPE ) {
+        handle_pipe_write_failure();
+    }
+
     return errnum;
 }
 
 int write_event(udi_event_internal *event) {
     return write_event_to_fd(events_handle, event);
-}
-
-int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
-    // for now, don't do anything special, just send the response
-    
-    // when threads introduced, this will require more work
-    udi_response resp;
-
-    resp.response_type = UDI_RESP_VALID;
-    resp.request_type = UDI_REQ_CONTINUE;
-    resp.length = 0;
-    resp.packed_data = NULL;
-
-    return write_response(&resp);
 }
 
 static
@@ -424,6 +536,45 @@ int failed_mem_access_response(udi_request_type request_type, char *errmsg,
     return errnum;
 }
 
+///////////////////////
+// Handler functions //
+///////////////////////
+
+int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
+    // for now, don't do anything special, just send the response
+    // when threads introduced, this will require more work
+
+    uint32_t sig_val;
+    if ( udi_unpack_data(req->packed_data, req->length,
+                UDI_DATATYPE_INT32, &sig_val) )
+    {
+        snprintf(errmsg, errmsg_size, "%s", "failed to parse continue request");
+        udi_printf("%s\n", "failed to parse continue request");
+        return REQ_FAILURE;
+    }
+
+    if ( sig_val < 0 ) {
+        snprintf(errmsg, errmsg_size, "invalid signal specified: %d", sig_val);
+        udi_printf("invalid signal specified %d\n", sig_val);
+        return REQ_FAILURE;
+    }
+    
+    udi_response resp;
+    resp.response_type = UDI_RESP_VALID;
+    resp.request_type = UDI_REQ_CONTINUE;
+    resp.length = 0;
+    resp.packed_data = NULL;
+
+    int result = write_response_to_request(&resp);
+
+    if ( result == REQ_SUCCESS ) {
+        pass_signal = sig_val;
+        kill(getpid(), sig_val);
+    }
+
+    return result;
+}
+
 int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     udi_address addr;
     udi_length num_bytes;
@@ -433,8 +584,8 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
                 &num_bytes) ) 
     {
         snprintf(errmsg, errmsg_size, "%s", "failed to parse read request");
-        udi_printf("%s", "failed to unpack data for read request");
-        return -1;
+        udi_printf("%s\n", "failed to unpack data for read request");
+        return REQ_FAILURE;
     }
 
     void *memory_read = udi_malloc(num_bytes);
@@ -450,7 +601,13 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
             != 0 )
     {
         if (memory_read != NULL) udi_free(memory_read);
-        return failed_mem_access_response(UDI_REQ_READ_MEM, errmsg, errmsg_size);
+        int mem_result = failed_mem_access_response(UDI_REQ_READ_MEM, errmsg, errmsg_size);
+
+        if ( mem_result < 0 ) {
+            return REQ_ERROR;
+        }else if ( mem_result > 0 ) {
+            return mem_result;
+        }
     }
     performing_mem_access = 0;
 
@@ -462,22 +619,22 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     resp.packed_data = udi_pack_data(resp.length, UDI_DATATYPE_BYTESTREAM,
             resp.length, memory_read);
 
-    int errnum = 0;
+    int result = 0;
     do {
         if ( resp.packed_data == NULL ) {
             snprintf(errmsg, errmsg_size, "%s", "failed to pack response data");
             udi_printf("%s", "failed to pack response data for read request");
-            errnum = -1;
+            result = REQ_ERROR;
             break;
         }
 
-        errnum = write_response(&resp);
+        result = write_response_to_request(&resp);
     }while(0);
 
     if ( memory_read != NULL ) udi_free(memory_read);
     if ( resp.packed_data != NULL ) udi_free(resp.packed_data);
 
-    return errnum;
+    return result;
 }
 
 int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
@@ -491,7 +648,7 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     {
         snprintf(errmsg, errmsg_size, "%s", "failed to parse write request");
         udi_printf("%s\n", "failed to unpack data for write request");
-        return -1;
+        return REQ_FAILURE;
     }
     
     // Perform the write operation
@@ -502,7 +659,13 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
             != 0 )
     {
         udi_free(bytes_to_write);
-        return failed_mem_access_response(UDI_REQ_WRITE_MEM, errmsg, errmsg_size);
+        int mem_result = failed_mem_access_response(UDI_REQ_WRITE_MEM, errmsg, errmsg_size);
+
+        if ( mem_result < 0 ) {
+            return REQ_ERROR;
+        }else if ( mem_result > 0 ) {
+            return mem_result;
+        }
     }
     performing_mem_access = 0;
 
@@ -513,11 +676,11 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     resp.length = 0;
     resp.packed_data = NULL;
 
-    int errnum = write_response(&resp);
+    int write_result = write_response_to_request(&resp);
 
     udi_free(bytes_to_write);
 
-    return errnum;
+    return write_result;
 }
 
 int state_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
@@ -529,22 +692,26 @@ int init_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     return 0;
 }
 
+///////////////////////////
+// End handler functions //
+///////////////////////////
+
 static
 int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
     udi_request *req = NULL;
-    int errnum = 0;
+    int result = 0;
 
     while(1) {
         udi_request *req = read_request();
         if ( req == NULL ) {
             snprintf(errmsg, errmsg_size, "%s", "failed to read command");
             udi_printf("%s\n", "failed to read request");
-            errnum = -1;
+            result = REQ_ERROR;
             break;
         }
 
-        errnum = req_handlers[req->request_type](req, errmsg, errmsg_size);
-        if ( errnum != 0 ) {
+        result = req_handlers[req->request_type](req, errmsg, errmsg_size);
+        if ( result != REQ_SUCCESS ) {
             udi_printf("Failed to handle command %s\n", 
                     request_type_str(req->request_type));
             break;
@@ -555,7 +722,7 @@ int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
 
     if (req != NULL) free_request(req);
 
-    return errnum;
+    return result;
 }
 
 static 
@@ -762,7 +929,6 @@ int handshake_with_debugger(int *output_enabled, char *errmsg,
     return errnum;
 }
 
-
 static
 int decode_segv(const siginfo_t *siginfo, const ucontext_t *context,
         char *errmsg, unsigned int errmsg_size)
@@ -809,27 +975,32 @@ int decode_segv(const siginfo_t *siginfo, const ucontext_t *context,
     return errnum;
 }
 
-static
-void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context) {
-    int signal_index = signal_map[(signal % MAX_SIGNAL_NUM)];
-
-    // TODO need to make sure correct signals are unblocked
-
-    app_actions[signal_index].sa_sigaction(signal, siginfo, v_context);
-}
-
 // Not static because need to pass around pointer to it
 void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
-    int failure = 0, request_failure = 0;
+    int failure = 0, request_error = 0;
     char errmsg[ERRMSG_SIZE];
     errmsg[ERRMSG_SIZE-1] = '\0';
 
     ucontext_t *context = (ucontext_t *)v_context;
 
+    if ( pipe_write_failure && signal == SIGPIPE ) {
+        udi_printf("%s\n", "Ignoring SIGPIPE due to previous library write failure");
+        pipe_write_failure = 0;
+
+        real_sigaction(signal, &app_actions[signal_map[signal % MAX_SIGNAL_NUM]], NULL);
+
+        return;
+    }
+
+    if ( pass_signal != 0 ) {
+        app_signal_handler(signal, siginfo, v_context);
+        pass_signal = 0;
+        return;
+    }
+
     if (!udi_enabled) {
         udi_printf("UDI disabled, not handling signal %d at addr 0x%08lx\n", signal,
                 (unsigned long)siginfo->si_addr);
-        app_signal_handler(signal, siginfo, v_context);
         return;
     }
 
@@ -876,10 +1047,17 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     
         // wait for command
         if ( !performing_mem_access ) {
-            if ( (failure = wait_and_execute_command(errmsg, ERRMSG_SIZE)) != 0 ) {
-                request_failure = 1;
-                if ( failure > 0 ) {
-                    strncpy(errmsg, strerror(failure), ERRMSG_SIZE-1);
+            int req_result = wait_and_execute_command(errmsg, ERRMSG_SIZE);
+            if ( req_result != REQ_SUCCESS ) {
+                failure = 1;
+
+                if ( req_result == REQ_FAILURE ) {
+                    request_error = 0;
+                }else if ( req_result == REQ_ERROR ) {
+                    request_error = 1;
+                }else if ( req_result > REQ_SUCCESS ) {
+                    request_error = 1;
+                    strncpy(errmsg, strerror(req_result), ERRMSG_SIZE-1);
                 }
                 break;
             }
@@ -887,12 +1065,9 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     }while(0);
 
     if ( failure ) {
-        udi_printf("%s\n", "disabling UDI due to request failure");
-        disable_debugging();
-
         // A failed request most likely means the debugger is no longer around, so
         // don't try to send a request
-        if ( !request_failure ) {
+        if ( !request_error ) {
             // Shared error response code
             udi_response resp;
             resp.response_type = UDI_RESP_ERROR;
@@ -906,6 +1081,9 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                 write_response(&resp);
                 udi_free(resp.packed_data);
             }
+        }else{
+            udi_printf("%s\n", "disabling UDI due to request failure");
+            disable_debugging();
         }
     }
 
@@ -915,8 +1093,6 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
 static
 int setup_signal_handlers() {
     int errnum = 0;
-
-    int length = sizeof(signals) / sizeof(int);
 
     // Sanity check
     if ( (sizeof(signals) / sizeof(int)) != NUM_SIGNALS ) {
@@ -936,24 +1112,6 @@ int setup_signal_handlers() {
 }
 
 static
-void disable_debugging() {
-    udi_enabled = 0;
-
-    // Replace the library signal handler with the application signal handlers
-    int i;
-    for(i = 0; i < NUM_SIGNALS; ++i) {
-        if ( app_actions[i].sa_sigaction == NULL ) continue;
-
-        if ( real_sigaction(signals[i], &app_actions[i], NULL) != 0 ) {
-            udi_printf("Failed to reset signal handler for %d: %s\n",
-                    signals[i], strerror(errno));
-        }
-    }
-
-    udi_printf("%s\n", "Disabled debugging");
-}
-
-static
 void global_variable_initialization() {
     // turn on debugging, if necessary
     if (getenv(UDI_DEBUG_ENV) != NULL) {
@@ -968,13 +1126,13 @@ void global_variable_initialization() {
     memset(&default_lib_action, 0, sizeof(struct sigaction));
     default_lib_action.sa_sigaction = signal_entry_point;
     sigfillset(&(default_lib_action.sa_mask));
-    default_lib_action.sa_flags = SA_SIGINFO;
+    default_lib_action.sa_flags = SA_SIGINFO | SA_NODEFER;
 
     // initialize application sigactions and signal map
     int i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
         memset(&app_actions[i], 0, sizeof(struct sigaction));
-        app_actions[i].sa_sigaction = NULL;
+        app_actions[i].sa_handler = SIG_DFL;
 
         signal_map[(signals[i] % MAX_SIGNAL_NUM)] = i;
     }
@@ -997,7 +1155,7 @@ void init_udi_rt() {
         sigfillset(&block_set);
 
         // Block any signals during initialization
-        if ( sigprocmask(SIG_SETMASK, &block_set, &original_set) 
+        if ( setsigmask(SIG_SETMASK, &block_set, &original_set) 
                 == -1 ) 
         {
             errnum = errno;
@@ -1040,7 +1198,7 @@ void init_udi_rt() {
     }
 
     if (errnum != 0) {
-        disable_debugging();
+        udi_enabled = 0;
 
         if(!output_enabled) {
             fprintf(stderr, "Failed to initialize udi rt: %s\n", errmsg);
@@ -1059,11 +1217,13 @@ void init_udi_rt() {
             }
         }
 
+        disable_debugging();
+
         udi_printf("%s\n", "Initialization failed");
     }else{
         udi_printf("%s\n", "Initialization completed");
     }
 
     // Explicitly ignore errors
-    sigprocmask(SIG_SETMASK, &original_set, NULL);
+    setsigmask(SIG_SETMASK, &original_set, NULL);
 }
