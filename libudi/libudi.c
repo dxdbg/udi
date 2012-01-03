@@ -264,6 +264,9 @@ udi_error_e set_breakpoint(udi_process *proc, udi_address breakpoint_addr)
 udi_error_e continue_process(udi_process *proc) {
     udi_request req;
     req.request_type = UDI_REQ_CONTINUE;
+
+    // TODO need to alter to send signal
+
     req.length = 0;
     req.packed_data = NULL;
 

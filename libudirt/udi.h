@@ -109,7 +109,7 @@ typedef enum
 /* Continue request and response
  *
  * Request arguments:
- *      None
+ *      UDI_DATATYPE_INT32 - signal to pass to the debuggee (0 for no signal)
  *
  * Response values:
  *      None
