@@ -62,6 +62,9 @@
 #define UDI_CONSTRUCTOR __attribute__((constructor))
 #define CASE_TO_STR(x) case x: return #x
 
+// testing
+extern int testing_udirt(void) __attribute__((weak));
+
 // constants
 static const unsigned int ERRMSG_SIZE = 4096;
 static const unsigned int PID_STR_LEN = 10;
@@ -132,8 +135,7 @@ static int signal_map[MAX_SIGNAL_NUM];
 
 static struct sigaction default_lib_action;
 
-extern int pthread_sigmask(int how, const sigset_t *new_set, sigset_t *old_set);
-#pragma weak pthread_sigmask
+extern int pthread_sigmask(int how, const sigset_t *new_set, sigset_t *old_set) __attribute__((weak));
 
 static int pass_signal = 0;
 
@@ -1146,6 +1148,8 @@ void init_udi_rt() {
 
     // initialize error message
     errmsg[ERRMSG_SIZE-1] = '\0';
+
+    if ( testing_udirt != NULL ) return;
 
     global_variable_initialization();
    
