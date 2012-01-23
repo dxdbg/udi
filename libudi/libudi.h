@@ -117,8 +117,15 @@ typedef struct udi_event_error_struct {
 } udi_event_error;
 
 /**
- * Wait for events to occur in the specified processes. When events do occur,
- * user specified event handlers are called, if specified.
+ * When udi_event.event_type == UDI_EVENT_PROCESS_EXIT
+ * typeof(udi_event.event_data) == udi_event_process_exit
+ */
+typedef struct udi_event_process_exit_struct {
+    int exit_code;
+} udi_event_process_exit;
+
+/**
+ * Wait for events to occur in the specified processes.
  *
  * @param procs         the processes
  * @param num_procs     the number of processes
@@ -143,6 +150,15 @@ void set_user_data(udi_process *proc, void *user_data);
  * @return the user data
  */
 void *get_user_data(udi_process *proc);
+
+/**
+ * Gets the process identifier for the specified process
+ *
+ * @param proc          the process handle
+ *
+ * @return the pid for the process
+ */
+int get_proc_pid(udi_process *proc);
 
 /**
  * @return a string representation of the specified event type

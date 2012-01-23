@@ -65,7 +65,51 @@ bool test_create::operator()(void) {
         return false;
     }
 
-    // TODO implement continue and wait for exit.
+    udi_error_e result = continue_process(proc);
+
+    if ( result != UDI_ERROR_NONE ) {
+        cout << "Failed to continue process " << get_error_message(result) << endl;
+        return false;
+    }
+
+    udi_event *events = wait_for_events(&proc, 1);
+
+    udi_event *iter = events;
+
+    bool saw_exit_event = false;
+    while ( iter != NULL ) {
+        if ( iter->proc != proc ) {
+            cout << "Received event for unknown process " << get_proc_pid(iter->proc) << endl;
+            return false;
+        }
+
+        if ( iter->event_type != UDI_EVENT_PROCESS_EXIT ) {
+            cout << "Received unexpected event " << get_event_type_str(iter->event_type) << endl;
+            return false;
+        }
+
+        saw_exit_event = true;
+        udi_event_process_exit *proc_exit = (udi_event_process_exit *)iter->event_data;
+        if ( proc_exit->exit_code != EXIT_SUCCESS ) {
+            cout << "Process unexpectedly exited with " << proc_exit->exit_code << " exit code" << endl;
+            return false;
+        }
+
+        if ( continue_process(proc) != UDI_ERROR_NONE ) {
+            cout << "Failed to continue process " << get_error_message(result) << endl;
+            return false;
+        }
+        iter = iter->next_event;
+    }
+
+    if ( events != NULL ) {
+        free_event_list(events);
+    }
+
+    if ( !saw_exit_event ) {
+        cout << "Failed to observe exit event for process " << get_proc_pid(proc) << endl;
+        return false;
+    }
 
     return true;
 }

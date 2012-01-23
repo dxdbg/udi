@@ -148,6 +148,18 @@ int set_udi_root_dir(const char *root_dir) {
     return 0;
 }
 
+void set_user_data(udi_process *proc, void *user_data) {
+    proc->user_data = user_data;
+}
+
+void *get_user_data(udi_process *proc) {
+    return proc->user_data;
+}
+
+int get_proc_pid(udi_process *proc) {
+    return proc->pid;
+}
+
 udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length size, 
         udi_address addr) 
 {
@@ -376,6 +388,22 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
                 return NULL;
             }
             ret_event->event_data = err_event;
+            break;
+        }
+        case UDI_EVENT_PROCESS_EXIT:
+        {
+            udi_event_process_exit *exit_event = (udi_event_process_exit *)
+                malloc(sizeof(udi_event_process_exit));
+
+            if ( udi_unpack_data(event->packed_data, event->length,
+                        UDI_DATATYPE_INT32, &(exit_event->exit_code)) )
+            {
+                udi_printf("%s\n", "failed to decode exit event");
+                free_event(ret_event);
+                return NULL;
+            }
+
+            ret_event->event_data = exit_event;
             break;
         }
         default:
