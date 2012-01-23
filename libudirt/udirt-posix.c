@@ -61,6 +61,7 @@
 // macros
 #define UDI_CONSTRUCTOR __attribute__((constructor))
 #define CASE_TO_STR(x) case x: return #x
+#define UDI_NORETURN __attribute__((noreturn))
 
 // testing
 extern int testing_udirt(void) __attribute__((weak));
@@ -148,11 +149,14 @@ typedef pid_t (*fork_type)(void);
 
 typedef int (*execve_type)(const char *, char *const *, char *const *);
 
+typedef void (*exit_type)(int) UDI_NORETURN;
+
 // wrapper function pointers
 
 sigaction_type real_sigaction;
 fork_type real_fork;
 execve_type real_execve;
+exit_type real_exit;
 
 // request handling
 typedef int (*request_handler)(udi_request *, char *, unsigned int);
@@ -195,7 +199,7 @@ void disable_debugging() {
         if ( signals[i] == SIGPIPE && pipe_write_failure ) continue;
 
         if ( real_sigaction(signals[i], &app_actions[i], NULL) != 0 ) {
-            udi_printf("Failed to reset signal handler for %d: %s\n",
+            udi_printf("failed to reset signal handler for %d: %s\n",
                     signals[i], strerror(errno));
         }
     }
@@ -221,7 +225,7 @@ void handle_pipe_write_failure() {
     sigset_t set;
 
     if ( sigpending(&set) != 0 ) {
-        udi_printf("Failed to get pending signals: %s\n", strerror(errno));
+        udi_printf("failed to get pending signals: %s\n", strerror(errno));
         return;
     }
 
@@ -232,14 +236,14 @@ void handle_pipe_write_failure() {
 
     sigset_t cur_set;
     if ( setsigmask(SIG_BLOCK, NULL, &cur_set) != 0 ) {
-        udi_printf("Failed to get current signals: %s\n", strerror(errno));
+        udi_printf("failed to get current signals: %s\n", strerror(errno));
         return;
     }
     sigdelset(&set, SIGPIPE);
 
     sigsuspend(&set);
     if ( errno != EINTR ) {
-        udi_printf("Failed to wait for signal to be delivered: %s\n",
+        udi_printf("failed to wait for signal to be delivered: %s\n",
                 strerror(errno));
         return;
     }
@@ -257,7 +261,7 @@ void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context) {
     }
 
     if ( (void *)app_actions[signal_index].sa_sigaction == (void *)SIG_DFL ) {
-        // TODO
+        // TODO need to emulate the default action
         return;
     }
 
@@ -266,69 +270,16 @@ void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context) {
     if ( setsigmask(SIG_SETMASK, &app_actions[signal_index].sa_mask, 
             &cur_set) != 0 )
     {
-        udi_printf("Failed to adjust blocked signals for application handler: %s\n",
+        udi_printf("failed to adjust blocked signals for application handler: %s\n",
                 strerror(errno));
     }
 
     app_actions[signal_index].sa_sigaction(signal, siginfo, v_context);
 
     if ( setsigmask(SIG_SETMASK, &cur_set, NULL) != 0 ) {
-        udi_printf("Failed to reset blocked signals after application handler: %s\n",
+        udi_printf("failed to reset blocked signals after application handler: %s\n",
                 strerror(errno));
     }
-}
-
-// wrapper function implementations
-
-int sigaction(int signum, const struct sigaction *act,
-        struct sigaction *oldact)
-{
-    // Block signals while doing this to avoid a race where a signal is delivered
-    // while validating the arguments
-    sigset_t full_set, orig_set;
-    sigfillset(&full_set);
-
-    int block_result = setsigmask(SIG_SETMASK, &full_set, &orig_set);
-    if ( block_result != 0 ) return EINVAL;
-
-    // Validate the arguments
-    int result = real_sigaction(signum, act, oldact);
-    if ( result != 0 ) return result;
-
-    // Reset action back to library default
-    result = real_sigaction(signum, &default_lib_action, NULL);
-    if ( result != 0 ) return result;
-
-    // Store new application action for future use
-    int signal_index = signal_map[(signum % MAX_SIGNAL_NUM)];
-    if ( oldact != NULL ) {
-        *oldact = app_actions[signal_index];
-    }
-
-    if ( act != NULL ) {
-        app_actions[signal_index] = *act;
-    }
-
-    // Unblock signals
-    block_result = setsigmask(SIG_SETMASK, &orig_set, NULL);
-    if ( block_result != 0 ) return EINVAL;
-
-    return 0;
-}
-
-pid_t fork()
-{
-    // TODO wrapper function stuff
-
-    return real_fork();
-}
-
-int execve(const char *filename, char *const argv[],
-        char *const envp[])
-{
-    // TODO wrapper function stuff
-
-    return real_execve(filename, argv, envp);
 }
 
 // library memory allocation -- wrappers for now
@@ -714,7 +665,7 @@ int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
 
         result = req_handlers[req->request_type](req, errmsg, errmsg_size);
         if ( result != REQ_SUCCESS ) {
-            udi_printf("Failed to handle command %s\n", 
+            udi_printf("failed to handle command %s\n", 
                     request_type_str(req->request_type));
             break;
         }
@@ -725,6 +676,35 @@ int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
     if (req != NULL) free_request(req);
 
     return result;
+}
+
+static
+void wait_and_execute_command_with_response() {
+    char errmsg[ERRMSG_SIZE];
+    errmsg[ERRMSG_SIZE-1] = '\0';
+
+    int req_result = wait_and_execute_command(errmsg, ERRMSG_SIZE);
+
+    if ( req_result != REQ_SUCCESS ) {
+        if ( req_result > REQ_SUCCESS ) {
+            strncpy(errmsg, strerror(req_result), ERRMSG_SIZE-1);
+        }
+
+        udi_printf("failed to process command: %s\n", errmsg);
+
+        udi_response resp;
+        resp.response_type = UDI_RESP_ERROR;
+        resp.request_type = UDI_REQ_INVALID;
+        resp.length = strlen(errmsg) + 1;
+        resp.packed_data = udi_pack_data(resp.length, 
+                UDI_DATATYPE_BYTESTREAM, resp.length, errmsg);
+
+        if ( resp.packed_data != NULL ) {
+            // explicitly ignore errors
+            write_response(&resp);
+            udi_free(resp.packed_data);
+        }
+    }
 }
 
 static 
@@ -853,6 +833,15 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
         real_execve = (execve_type) dlsym(RTLD_NEXT, "execve");
         errmsg_tmp = dlerror();
         if (errmsg_tmp != NULL) {
+            udi_printf("symbol lookup error: %s\n", errmsg_tmp);
+            strncpy(errmsg, errmsg_tmp, errmsg_size-1);
+            errnum = -1;
+            break;
+        }
+
+        real_exit = (exit_type) dlsym(RTLD_NEXT, "exit");
+        errmsg_tmp = dlerror();
+        if ( errmsg_tmp != NULL ) {
             udi_printf("symbol lookup error: %s\n", errmsg_tmp);
             strncpy(errmsg, errmsg_tmp, errmsg_size-1);
             errnum = -1;
@@ -1041,6 +1030,9 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
             if ( event.packed_data != NULL ) {
                 write_event(&event);
                 udi_free(event.packed_data);
+            }else{
+                udi_printf("failed to report event reporting failure: %s\n",
+                        errmsg);
             }
 
             failure = 0;
@@ -1084,7 +1076,8 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                 udi_free(resp.packed_data);
             }
         }else{
-            udi_printf("%s\n", "disabling UDI due to request failure");
+            udi_printf("Disabling UDI due to request failure: %s\n",
+                    errmsg);
             disable_debugging();
         }
     }
@@ -1140,6 +1133,92 @@ void global_variable_initialization() {
     }
 }
 
+// wrapper function implementations
+
+int sigaction(int signum, const struct sigaction *act,
+        struct sigaction *oldact)
+{
+    // Block signals while doing this to avoid a race where a signal is delivered
+    // while validating the arguments
+    sigset_t full_set, orig_set;
+    sigfillset(&full_set);
+
+    int block_result = setsigmask(SIG_SETMASK, &full_set, &orig_set);
+    if ( block_result != 0 ) return EINVAL;
+
+    // Validate the arguments
+    int result = real_sigaction(signum, act, oldact);
+    if ( result != 0 ) return result;
+
+    // Reset action back to library default
+    result = real_sigaction(signum, &default_lib_action, NULL);
+    if ( result != 0 ) return result;
+
+    // Store new application action for future use
+    int signal_index = signal_map[(signum % MAX_SIGNAL_NUM)];
+    if ( oldact != NULL ) {
+        *oldact = app_actions[signal_index];
+    }
+
+    if ( act != NULL ) {
+        app_actions[signal_index] = *act;
+    }
+
+    // Unblock signals
+    block_result = setsigmask(SIG_SETMASK, &orig_set, NULL);
+    if ( block_result != 0 ) return EINVAL;
+
+    return 0;
+}
+
+pid_t fork()
+{
+    // TODO wrapper function stuff
+
+    return real_fork();
+}
+
+int execve(const char *filename, char *const argv[],
+        char *const envp[])
+{
+    // TODO wrapper function stuff
+
+    return real_execve(filename, argv, envp);
+}
+
+void exit(int status)
+{
+    udi_printf("Entering exit with exit code %d\n", status);
+
+    // create the event
+    udi_event_internal exit_event;
+    exit_event.event_type = UDI_EVENT_PROCESS_EXIT;
+    exit_event.length = sizeof(uint32_t);
+    exit_event.packed_data = udi_pack_data(exit_event.length,
+            UDI_DATATYPE_INT32, status);
+
+    // Explicitly ignore errors as there is no way to report them
+    int failure = 0;
+    do {
+        if ( exit_event.packed_data == NULL ) {
+            failure = 1;
+            break;
+        }
+
+        failure = write_event(&exit_event);
+
+        udi_free(exit_event.packed_data);
+    }while(0);
+
+    if ( failure ) {
+        udi_printf("failed to report exit status with %d\n", status);
+    }else{
+        wait_and_execute_command_with_response();
+    }
+
+    real_exit(status);
+}
+
 void init_udi_rt() UDI_CONSTRUCTOR;
 
 void init_udi_rt() {
@@ -1191,7 +1270,7 @@ void init_udi_rt() {
             break;
         }
 
-        if ( (errnum = wait_and_execute_command(errmsg, ERRMSG_SIZE)) != 0 ) {
+        if ( (errnum = wait_and_execute_command(errmsg, ERRMSG_SIZE)) != REQ_SUCCESS ) {
             udi_printf("%s\n", "failed to wait for initial command");
             break;
         }
@@ -1205,7 +1284,7 @@ void init_udi_rt() {
         udi_enabled = 0;
 
         if(!output_enabled) {
-            fprintf(stderr, "Failed to initialize udi rt: %s\n", errmsg);
+            fprintf(stderr, "failed to initialize udi rt: %s\n", errmsg);
         } else {
             // explicitly don't worry about return
             udi_response resp;

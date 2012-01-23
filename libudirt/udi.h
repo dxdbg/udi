@@ -102,7 +102,7 @@ typedef enum
  * Request arguments:
  *      None
  *
- * Response arguments:
+ * Response values:
  *      None
  */
 
@@ -147,13 +147,15 @@ typedef enum
 /* Event specification
  *
  * Events occur asynchronously 
- * -- that is they nevery directly occur in response to requests.
+ * -- that is they never directly occur in response to requests.
  */
 
 typedef enum
 {
     UDI_EVENT_ERROR = -1,
     UDI_EVENT_SIGNAL,
+    UDI_EVENT_BREAKPOINT,
+    UDI_EVENT_PROCESS_EXIT,
     UDI_EVENT_MAX,
     UDI_EVENT_UNKNOWN
 } udi_event_type_e;
@@ -176,12 +178,19 @@ typedef enum
  * Signal event data
  *
  * UDI_DATATYPE_ADDRESS - virtual address where the signal occurred
+ * UDI_DATATYPE_INT32   - the signal number that occurred
  */
 
 /*
  * Breakpoint event data
  *
  * UDI_DATATYPE_ADDRESS - virtual addresss where the breakpoint occurred
+ */
+
+/*
+ * Process exit data
+ *
+ * UDI_DATATYPE_INT32   - the exit code from the process exit
  */
 
 #ifdef __cplusplus

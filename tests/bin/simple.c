@@ -10,6 +10,8 @@ int main(int argc, char *argv[]) {
     printf("Before function1\n");
     function1();
     printf("After function1\n");
-    
-    return EXIT_SUCCESS;
+
+    // This is a temporary workaround until
+    // can detect implicit exits via libc
+    exit(EXIT_SUCCESS);
 }

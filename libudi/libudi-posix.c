@@ -485,6 +485,7 @@ udi_response *read_response(udi_process *proc)
 udi_event *read_event(udi_process *proc) {
     udi_event_internal *event = (udi_event_internal *)
         malloc(sizeof(udi_event_internal));
+    event->packed_data = NULL;
 
     if ( event == NULL ) {
         udi_printf("malloc failed: %s\n", strerror(errno));
@@ -531,14 +532,6 @@ udi_event *read_event(udi_process *proc) {
     free_event_internal(event);
 
     return ret_event;
-}
-
-void set_user_data(udi_process *proc, void *user_data) {
-    proc->user_data = user_data;
-}
-
-void *get_user_data(udi_process *proc) {
-    return proc->user_data;
 }
 
 udi_event *wait_for_events(udi_process *procs[], int num_procs) {

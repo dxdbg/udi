@@ -5,4 +5,10 @@ multiple users to run programs that use udi
 
 [ ] allow user to specify the runtime library to be loaded when creating processes in libudi
 
-[ ] modify udirt_tests to disable debugger
+[ ] Need to handle abnormal termination of debuggee (via debuggee library error or SIGKILL)
+
+[ ] Need to catch implicit exit via libc (programs that return exit code from main)
+-- this an be done by setting a breakpoint at exit's entry, address can be obtained from
+the dynamic linker
+
+[ ] test binaries should only output logging info when certain environment variable set
