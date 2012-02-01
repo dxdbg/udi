@@ -7,7 +7,16 @@ Import('topenv')
 
 bin_env = topenv.Clone()
 
+bin_env.Append(CPPPATH = ['#/tests/bin'])
+
 sources = bin_env.Glob('*.c', source=True, strings=True)
 
+bin_lib = 'bin_lib.c'
+
+bin_lib_obj = bin_env.Object(bin_lib)
+
 for source in sources:
-    bin_env.Program(udibuild.GetFilename(source), source)
+    if source == bin_lib:
+        continue
+
+    bin_env.Program(udibuild.GetFilename(source), [ source, bin_lib_obj ])
