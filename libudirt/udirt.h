@@ -57,6 +57,52 @@ int write_event(udi_event_internal *event);
 udi_request *read_request();
 void free_request(udi_request *request);
 
+// request handling
+
+/** Request processed successfully */
+extern const int REQ_SUCCESS;
+
+/** Failure to process request due to environment/OS error, unrecoverable */
+extern const int REQ_ERROR;
+
+/** Failure to process request due to invalid arguments */
+extern const int REQ_FAILURE;
+
+// read and writing debugee memory
+
+extern void *mem_access_addr;
+extern size_t mem_access_size;
+
+extern int abort_mem_access;
+extern int performing_mem_access;
+
+const char *get_mem_errstr();
+
+int read_memory(void *dest, const void *src, size_t num_bytes,
+        char *errmsg, unsigned int errmsg_size);
+
+int write_memory(void *dest, const void *src, size_t num_bytes,
+        char *errmsg, unsigned int errmsg_size);
+
+// breakpoint handling
+
+typedef struct breakpoint_struct {
+    unsigned char saved_byte;
+    udi_address address;
+    int in_memory;
+    struct breakpoint_struct *next_breakpoint;
+} breakpoint;
+
+breakpoint *create_breakpoint(udi_address breakpoint_addr);
+
+int install_breakpoint(breakpoint *bp);
+
+int remove_breakpoint(breakpoint *bp);
+
+int delete_breakpoint(breakpoint *bp);
+
+breakpoint *find_breakpoint(udi_address breakpoint_addr);
+
 // error logging
 #define udi_printf(format, ...) \
     do {\
