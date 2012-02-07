@@ -37,6 +37,8 @@ extern "C" {
 
 extern int bin_debug_enable;
 
+void init_bin();
+
 #define bin_printf(format, ...) \
     do {\
         if ( bin_debug_enable ) {\

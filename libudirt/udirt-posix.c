@@ -82,11 +82,6 @@ static int response_handle = -1;
 static int events_handle = -1;
 
 // write/read permission fault handling
-static int performing_mem_access = 0;
-static void *mem_access_addr = NULL;
-static size_t mem_access_size = 0;
-
-static int abort_mem_access = 0;
 static int failed_si_code = 0;
 
 // write failure handling
@@ -175,15 +170,6 @@ request_handler req_handlers[] = {
     state_handler,
     init_handler
 };
-
-/** Request processed successfully */
-static const int REQ_SUCCESS = 0;
-
-/** Failure to process request due to environment/OS error, unrecoverable */
-static const int REQ_ERROR = -1;
-
-/** Failure to process request due to invalid arguments */
-static const int REQ_FAILURE = -2;
 
 ////////////////////////////////////
 // Functions
@@ -431,62 +417,13 @@ int write_event(udi_event_internal *event) {
     return write_event_to_fd(events_handle, event);
 }
 
-static
-int abortable_memcpy(void *dest, const void *src, size_t n) {
-    /* slow as molasses, but gets the job done */
-    unsigned char *uc_dest = (unsigned char *)dest;
-    const unsigned char *uc_src = (const unsigned char *)src;
-
-    size_t i = 0;
-    for (i = 0; i < n && !abort_mem_access; ++i) {
-        uc_dest[i] = uc_src[i];
-    }
-
-    if ( abort_mem_access ) {
-        abort_mem_access = 0;
-        return -1;
-    }
-
-    return 0;
-}
-
-static
-int failed_mem_access_response(udi_request_type request_type, char *errmsg,
-        unsigned int errmsg_size)
-{
-    udi_response resp;
-    resp.response_type = UDI_RESP_ERROR;
-    resp.request_type = request_type;
-
-    char *errstr;
+const char *get_mem_errstr() {
     switch(failed_si_code) {
         case SEGV_MAPERR:
-            errstr = "address not mapped in process";
-            break;
+            return "address not mapped in process";
         default:
-            errstr = "unknown memory error";
-            break;
+            return "unknown memory error";
     }
-
-    resp.length = strlen(errstr);
-    resp.packed_data = udi_pack_data(resp.length, UDI_DATATYPE_BYTESTREAM,
-        resp.length, errstr);
-
-    int errnum = 0;
-    do {
-        if ( resp.packed_data == NULL ) {
-            snprintf(errmsg, errmsg_size, "%s", "failed to pack response data");
-            udi_printf("%s", "failed to pack response data for read request");
-            errnum = -1;
-            break;
-        }
-
-        errnum = write_response(&resp);
-    }while(0);
-
-    if ( resp.packed_data != NULL ) udi_free(resp.packed_data);
-
-    return errnum;
 }
 
 ///////////////////////
@@ -547,22 +484,12 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     }
 
     // Perform the read operation
-    performing_mem_access = 1;
-    mem_access_addr = (void *)(unsigned long)addr;
-    mem_access_size = num_bytes;
-    if ( abortable_memcpy(memory_read, (void *)((unsigned long)addr), num_bytes) 
-            != 0 )
-    {
-        if (memory_read != NULL) udi_free(memory_read);
-        int mem_result = failed_mem_access_response(UDI_REQ_READ_MEM, errmsg, errmsg_size);
-
-        if ( mem_result < 0 ) {
-            return REQ_ERROR;
-        }else if ( mem_result > 0 ) {
-            return mem_result;
-        }
+    int read_result = read_memory(memory_read, (void *)(unsigned long)addr, num_bytes,
+            errmsg, errmsg_size);
+    if ( read_result != 0 ) {
+        udi_free(memory_read);
+        return read_result;
     }
-    performing_mem_access = 0;
 
     // Create the response
     udi_response resp;
@@ -605,22 +532,12 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     }
     
     // Perform the write operation
-    performing_mem_access = 1;
-    mem_access_addr = (void *)(unsigned long)addr;
-    mem_access_size = num_bytes;
-    if ( abortable_memcpy((void *)((unsigned long)addr), bytes_to_write, num_bytes)
-            != 0 )
-    {
+    int write_result = write_memory((void *)(unsigned long)addr, bytes_to_write, num_bytes,
+            errmsg, errmsg_size);
+    if ( write_result != 0 ) {
         udi_free(bytes_to_write);
-        int mem_result = failed_mem_access_response(UDI_REQ_WRITE_MEM, errmsg, errmsg_size);
-
-        if ( mem_result < 0 ) {
-            return REQ_ERROR;
-        }else if ( mem_result > 0 ) {
-            return mem_result;
-        }
+        return write_result;
     }
-    performing_mem_access = 0;
 
     // Create the response
     udi_response resp;
@@ -629,7 +546,7 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     resp.length = 0;
     resp.packed_data = NULL;
 
-    int write_result = write_response_to_request(&resp);
+    write_result = write_response_to_request(&resp);
 
     udi_free(bytes_to_write);
 

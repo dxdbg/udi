@@ -10,3 +10,5 @@ multiple users to run programs that use udi
 [ ] Need to catch implicit exit via libc (programs that return exit code from main)
 -- this an be done by setting a breakpoint at exit's entry, address can be obtained from
 the dynamic linker
+
+[ ] intercept calls to block signals so the debugger can intercept the signals 
