@@ -22,6 +22,15 @@ def IsLinux():
     else:
         return False
 
+def IsX86():
+    if platform.machine() == 'i386' or\
+       platform.machine() == 'i686' or\
+       platform.machine() == 'AMD64' or\
+       platform.machine() == 'x86_64':
+           return True
+    else:
+        return False
+
 def GetFileExtension(filename):
     return os.path.splitext(filename)[1]
 

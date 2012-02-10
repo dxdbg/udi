@@ -161,6 +161,7 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 int state_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 int init_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
+int breakpoint_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 
 static
 request_handler req_handlers[] = {
@@ -168,7 +169,8 @@ request_handler req_handlers[] = {
     read_handler,
     write_handler,
     state_handler,
-    init_handler
+    init_handler,
+    breakpoint_handler
 };
 
 ////////////////////////////////////
@@ -431,9 +433,6 @@ const char *get_mem_errstr() {
 ///////////////////////
 
 int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
-    // for now, don't do anything special, just send the response
-    // when threads introduced, this will require more work
-
     uint32_t sig_val;
     if ( udi_unpack_data(req->packed_data, req->length,
                 UDI_DATATYPE_INT32, &sig_val) )
@@ -488,7 +487,7 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
             errmsg, errmsg_size);
     if ( read_result != 0 ) {
         udi_free(memory_read);
-        return read_result;
+        return failed_mem_access_response(UDI_REQ_READ_MEM, errmsg, errmsg_size);
     }
 
     // Create the response
@@ -536,7 +535,7 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
             errmsg, errmsg_size);
     if ( write_result != 0 ) {
         udi_free(bytes_to_write);
-        return write_result;
+        return failed_mem_access_response(UDI_REQ_WRITE_MEM, errmsg, errmsg_size);
     }
 
     // Create the response
@@ -555,11 +554,15 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
 
 int state_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     // TODO
-    return 0;
+    return REQ_SUCCESS;
 }
 
 int init_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
-    return 0;
+    return REQ_SUCCESS;
+}
+
+int breakpoint_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
+    return REQ_SUCCESS;
 }
 
 ///////////////////////////
@@ -764,6 +767,21 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
             errnum = -1;
             break;
         }
+
+        breakpoint *exit_bp = create_breakpoint((udi_address)real_exit);
+        if ( exit_bp == NULL ) {
+            udi_printf("%s\n", "failed to create exit breakpoint");
+            errnum = -1;
+            break;
+        }
+
+        errnum = install_breakpoint(exit_bp, errmsg, errmsg_size);
+
+        if ( errnum != 0 ) {
+            udi_printf("%s\n", "failed to install exit breakpoint");
+            errnum = -1;
+            break;
+        }
     }while(0);
 
     return errnum;
@@ -883,6 +901,12 @@ int decode_segv(const siginfo_t *siginfo, const ucontext_t *context,
     return errnum;
 }
 
+static
+int decode_trap(const siginfo_t *siginfo, const ucontext_t *context,
+        char *errmsg, unsigned int errmsg_size)
+{
+}
+
 // Not static because need to pass around pointer to it
 void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     int failure = 0, request_error = 0;
@@ -922,6 +946,10 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
         switch(signal) {
             case SIGSEGV:
                 failure = decode_segv(siginfo, context, errmsg,
+                        ERRMSG_SIZE);
+                break;
+            case SIGTRAP:
+                failure = decode_trap(siginfo, context, errmsg,
                         ERRMSG_SIZE);
                 break;
             default:

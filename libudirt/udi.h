@@ -73,6 +73,7 @@ typedef enum
     UDI_REQ_STATE,
     UDI_REQ_INIT,
     UDI_REQ_MAX,
+    UDI_REQ_BREAKPOINT,
     UDI_REQ_INVALID,
 } udi_request_type_e;
 
