@@ -49,7 +49,6 @@ size_t mem_access_size = 0;
 int abort_mem_access = 0;
 int performing_mem_access = 0;
 
-static
 int failed_mem_access_response(udi_request_type request_type, char *errmsg,
         unsigned int errmsg_size)
 {
@@ -63,16 +62,16 @@ int failed_mem_access_response(udi_request_type request_type, char *errmsg,
     resp.packed_data = udi_pack_data(resp.length, UDI_DATATYPE_BYTESTREAM,
         resp.length, errstr);
 
-    int errnum = 0;
+    int errnum = REQ_SUCCESS;
     do {
         if ( resp.packed_data == NULL ) {
             snprintf(errmsg, errmsg_size, "%s", "failed to pack response data");
             udi_printf("%s", "failed to pack response data for read request");
-            errnum = -1;
+            errnum = REQ_ERROR;
             break;
         }
 
-        errnum = write_response(&resp);
+        errnum = write_response_to_request(&resp);
     }while(0);
 
     if ( resp.packed_data != NULL ) udi_free(resp.packed_data);
@@ -106,15 +105,7 @@ int udi_memcpy(void *dest, const void *src, size_t num_bytes,
     int mem_result = 0;
 
     performing_mem_access = 1;
-    if ( abortable_memcpy(dest, src, num_bytes) 
-            != 0 )
-    {
-        mem_result = failed_mem_access_response(UDI_REQ_READ_MEM, errmsg, errmsg_size);
-
-        if ( mem_result < 0 ) {
-            mem_result = REQ_ERROR;
-        }
-    }
+    mem_result = abortable_memcpy(dest, src, num_bytes);
     performing_mem_access = 0;
 
     return mem_result;
@@ -151,7 +142,7 @@ breakpoint *create_breakpoint(udi_address breakpoint_addr) {
         return NULL;
     }
 
-    new_breakpoint->saved_byte = 0;
+    memset(new_breakpoint->saved_bytes, 0, sizeof(new_breakpoint->saved_bytes));
     new_breakpoint->address = breakpoint_addr;
     new_breakpoint->in_memory = 0;
 
@@ -180,24 +171,60 @@ breakpoint *create_breakpoint(udi_address breakpoint_addr) {
     return new_breakpoint;
 }
 
-int install_breakpoint(breakpoint *bp) {
-    return 0;
+int install_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
+    if ( bp->in_memory ) {
+        udi_printf("breakpoint at %llx already in memory, not installed\n",
+                bp->address);
+        return 0;
+    }
+
+    int result = write_breakpoint_instruction(bp, errmsg, errmsg_size);
+
+    if ( result == 0 ) {
+        bp->in_memory = 1;
+    }
+
+    return result;
 }
 
-int remove_breakpoint(breakpoint *bp) {
+int remove_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     if ( !bp->in_memory ) {
         udi_printf("breakpoint at %llx not in memory, not removed\n",
                 bp->address);
         return 0;
     }
 
-    return 0;
+    int result = write_saved_bytes(bp, errmsg, errmsg_size);
+
+    if ( result == 0 ) {
+        bp->in_memory = 0;
+    }
+    
+    return result;
 }
 
-int delete_breakpoint(breakpoint *bp) {
-    int errnum = remove_breakpoint(bp);
+int delete_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
+    int remove_result = remove_breakpoint(bp, errmsg, errmsg_size);
 
-    if ( errnum ) return errnum;
+    if ( remove_result ) return remove_result;
+
+    breakpoint *tmp_breakpoint = breakpoints;
+    breakpoint *prev_breakpoint = breakpoints;
+
+    while ( tmp_breakpoint != NULL ) {
+        if ( tmp_breakpoint->address == bp->address ) break;
+        prev_breakpoint = tmp_breakpoint;
+        tmp_breakpoint = prev_breakpoint->next_breakpoint;
+    }
+
+    if ( tmp_breakpoint == NULL || prev_breakpoint == NULL ) {
+        udi_printf("failed to delete breakpoint at %llx\n",
+                bp->address);
+        return -1;
+    }
+
+    prev_breakpoint->next_breakpoint = NULL;
+    udi_free(tmp_breakpoint);
 
     return 0;
 }

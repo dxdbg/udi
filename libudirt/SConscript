@@ -15,6 +15,9 @@ sources = ['udirt.c']
 if udibuild.IsUnix():
     sources.append('udirt-posix.c')
 
+if udibuild.IsX86():
+    sources.append('udirt-x86.c')
+
 libs = ['udicommon']
 
 if udibuild.IsLinux():

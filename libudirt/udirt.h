@@ -53,6 +53,7 @@ void *udi_malloc(size_t length);
 // platform independent functions
 
 int write_response(udi_response *response);
+int write_response_to_request(udi_response *response);
 int write_event(udi_event_internal *event);
 udi_request *read_request();
 void free_request(udi_request *request);
@@ -84,10 +85,13 @@ int read_memory(void *dest, const void *src, size_t num_bytes,
 int write_memory(void *dest, const void *src, size_t num_bytes,
         char *errmsg, unsigned int errmsg_size);
 
+int failed_mem_access_response(udi_request_type request_type, char *errmsg,
+        unsigned int errmsg_size);
+
 // breakpoint handling
 
 typedef struct breakpoint_struct {
-    unsigned char saved_byte;
+    unsigned char saved_bytes[8];
     udi_address address;
     int in_memory;
     struct breakpoint_struct *next_breakpoint;
@@ -95,13 +99,22 @@ typedef struct breakpoint_struct {
 
 breakpoint *create_breakpoint(udi_address breakpoint_addr);
 
-int install_breakpoint(breakpoint *bp);
+int install_breakpoint(breakpoint *bp, char *errmsg, 
+        unsigned int errmsg_size);
 
-int remove_breakpoint(breakpoint *bp);
+int remove_breakpoint(breakpoint *bp, char *errmsg,
+        unsigned int errmsg_size);
 
-int delete_breakpoint(breakpoint *bp);
+int delete_breakpoint(breakpoint *bp, char *errmsg,
+        unsigned int errmsg_size);
 
 breakpoint *find_breakpoint(udi_address breakpoint_addr);
+
+// architecture specific
+int write_breakpoint_instruction(breakpoint *bp, char *errmsg,
+        unsigned int errmsg_size);
+int write_saved_bytes(breakpoint *bp, char *errmsg,
+        unsigned int errmsg_size);
 
 // error logging
 #define udi_printf(format, ...) \
