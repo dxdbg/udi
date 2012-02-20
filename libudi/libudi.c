@@ -277,15 +277,22 @@ udi_error_e continue_process(udi_process *proc) {
     udi_request req;
     req.request_type = UDI_REQ_CONTINUE;
 
-    // TODO need to alter to send signal
+    req.length = sizeof(uint32_t);
+    req.packed_data = udi_pack_data(req.length,
+            UDI_DATATYPE_INT32, 0);
 
-    req.length = 0;
-    req.packed_data = NULL;
+    if ( req.packed_data == NULL ) {
+        udi_printf("failed to allocate memory for message: %s\n",
+                strerror(errno));
+        return UDI_ERROR_LIBRARY;
+    }
 
     if ( write_request(&req, proc) != 0 ) {
         udi_printf("%s\n", "failed to perform continue request");
+        free(req.packed_data);
         return UDI_ERROR_LIBRARY;
     }
+    free(req.packed_data);
 
     udi_response *resp = read_response(proc);
     if ( resp == NULL ) {

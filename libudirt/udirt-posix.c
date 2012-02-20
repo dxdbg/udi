@@ -46,7 +46,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/mman.h>
-#include <sys/ucontext.h>
+#include <ucontext.h>
 
 #include "udirt.h"
 #include "udi.h"
@@ -144,14 +144,11 @@ typedef pid_t (*fork_type)(void);
 
 typedef int (*execve_type)(const char *, char *const *, char *const *);
 
-typedef void (*exit_type)(int) UDI_NORETURN;
-
 // wrapper function pointers
 
 sigaction_type real_sigaction;
 fork_type real_fork;
 execve_type real_execve;
-exit_type real_exit;
 
 // request handling
 typedef int (*request_handler)(udi_request *, char *, unsigned int);
@@ -758,17 +755,33 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
             errnum = -1;
             break;
         }
+    }while(0);
 
-        real_exit = (exit_type) dlsym(RTLD_NEXT, "exit");
-        errmsg_tmp = dlerror();
-        if ( errmsg_tmp != NULL ) {
-            udi_printf("symbol lookup error: %s\n", errmsg_tmp);
-            strncpy(errmsg, errmsg_tmp, errmsg_size-1);
-            errnum = -1;
+    return errnum;
+}
+
+static
+int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
+    int errnum = 0;
+    
+    sigset_t original_set;
+    do {
+        // Unblock the SIGSEGV to allow the write to complete
+        if ( (errnum = setsigmask(SIG_BLOCK, NULL, &original_set)) != 0 ) {
+            udi_printf("failed to change signal mask: %s\n", strerror(errno));
+            errnum = errno;
             break;
         }
 
-        breakpoint *exit_bp = create_breakpoint((udi_address)real_exit);
+        sigset_t segv_set = original_set;
+        sigdelset(&segv_set, SIGSEGV);
+        if ( (errnum = setsigmask(SIG_SETMASK, &segv_set, &original_set)) != 0 ) {
+            udi_printf("failed to unblock SIGSEGV: %s\n", strerror(errno));
+            errnum = errno;
+            break;
+        }
+
+        breakpoint *exit_bp = create_breakpoint((udi_address)(unsigned long)exit);
         if ( exit_bp == NULL ) {
             udi_printf("%s\n", "failed to create exit breakpoint");
             errnum = -1;
@@ -782,6 +795,13 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
             errnum = -1;
             break;
         }
+
+        if ( (errnum = setsigmask(SIG_SETMASK, &original_set, NULL)) != 0 ) {
+            udi_printf("failed to reset signal mask: %s\n", strerror(errno));
+            errnum = errno;
+            break;
+        }
+
     }while(0);
 
     return errnum;
@@ -902,9 +922,31 @@ int decode_segv(const siginfo_t *siginfo, const ucontext_t *context,
 }
 
 static
+int decode_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size)
+{
+    return 0;
+}
+
+static
 int decode_trap(const siginfo_t *siginfo, const ucontext_t *context,
         char *errmsg, unsigned int errmsg_size)
 {
+    int result = 0;
+
+    // TODO make this platform and architecture independent
+    udi_address trap_address = (udi_address)(unsigned long)context->uc_mcontext.gregs[REG_EIP] - 1;
+
+    // Check and see if it corresponds to a breakpoint
+    breakpoint *bp = find_breakpoint(trap_address);
+
+    if ( bp != NULL ) {
+        udi_printf("found breakpoint at %lx\n", trap_address);
+        result = decode_breakpoint(bp, errmsg, errmsg_size);
+    }else{
+        // TODO create signal event
+    }
+
+    return result;
 }
 
 // Not static because need to pass around pointer to it
@@ -930,7 +972,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
         return;
     }
 
-    if (!udi_enabled) {
+    if (!udi_enabled && !performing_mem_access) {
         udi_printf("UDI disabled, not handling signal %d at addr 0x%08lx\n", signal,
                 (unsigned long)siginfo->si_addr);
         return;
@@ -1005,7 +1047,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
 
     if ( failure ) {
         // A failed request most likely means the debugger is no longer around, so
-        // don't try to send a request
+        // don't try to send a response
         if ( !request_error ) {
             // Shared error response code
             udi_response resp;
@@ -1131,6 +1173,7 @@ int execve(const char *filename, char *const argv[],
     return real_execve(filename, argv, envp);
 }
 
+/*
 void exit(int status)
 {
     udi_printf("Entering exit with exit code %d\n", status);
@@ -1163,6 +1206,7 @@ void exit(int status)
 
     real_exit(status);
 }
+*/
 
 void init_udi_rt() UDI_CONSTRUCTOR;
 
@@ -1200,6 +1244,11 @@ void init_udi_rt() {
 
         if ( (errnum = setup_signal_handlers()) != 0 ) {
             udi_printf("%s\n", "failed to setup signal handlers");
+            break;
+        }
+
+        if ( (errnum = install_event_breakpoints(errmsg, ERRMSG_SIZE)) != 0 ) {
+            udi_printf("%s\n", "failed to install event breakpoints");
             break;
         }
 
