@@ -11,17 +11,42 @@ bin_env = topenv.Clone()
 
 bin_env.Append(CPPPATH=['#/libudirt', '#/tests/libuditest', '#/libudi'])
 
-# define binaries used for tests
+# create header with information about binaries used in tests
 
-bin_dir = bin_env.Dir('#/build/tests/bin/').abspath + os.sep
+def build_binary_header(target, source, env):
+    bin_dir = env.Dir('#/build/tests/bin/').abspath + os.sep
+    
+    for t in target:
+        target_file = open(str(t), "w")
 
-bin_env.Append(CPPDEFINES=[('MACRO_SIMPLE_BINARY', bin_dir + 'simple')])
+        # create the first part of the header
+        target_file.write("#ifndef __TEST_BINS_H__\n")
+        target_file.write("#define __TEST_BINS_H__\n")
+
+        # paths to binaries
+
+        target_file.write("#define SIMPLE_BINARY_PATH \"{0}\"\n".format(bin_dir + 'simple'))
+
+        # symbol addresses
+
+        target_file.write("#define SIMPLE_FUNCTION1 0x{0}\n".format(udibuild.GetSymbolAddress(bin_dir + 'simple', 'function1')))
+
+        # create the trailing part of the header
+        target_file.write("#endif\n")
+
+        target_file.close()
+
+bin_h_builder = Builder(action = build_binary_header)
+
+bin_env.Append(BUILDERS = {'BinaryHeaderBuilder' : bin_h_builder})
 
 # define sources
 
 sources = bin_env.Glob('*.cxx', source=True, strings=True)
 
 bins = dict()
+
+bin_env.Append(CPPPATH = ['#/build/tests/udi_tests'])
 
 for source in sources:
     bins[udibuild.GetFilename(source)] = bin_env.Object(source)
@@ -35,4 +60,8 @@ for binary,source in bins.items():
 
 bin_env.Program('all_libudi_tests', bins.values(), LIBS=libs, LIBPATH=libpath)
 
-bin_env.Depends(bins.values(), '#/build/tests/bin')
+test_bins_h = bin_env.BinaryHeaderBuilder('test_bins.h', sources)
+
+bin_env.Depends(test_bins_h, '#/build/tests/bin')
+
+bin_env.Depends(bins.values(), test_bins_h)

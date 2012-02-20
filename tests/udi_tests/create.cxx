@@ -33,6 +33,7 @@
 
 #include "libudi.h"
 #include "libuditest.h"
+#include "test_bins.h"
 
 using std::cout;
 using std::endl;
@@ -47,7 +48,7 @@ class test_create : public UDITestCase {
         bool operator()(void);
 };
 
-static const char *TEST_BINARY = STR(MACRO_SIMPLE_BINARY);
+static const char *TEST_BINARY = SIMPLE_BINARY_PATH;
 
 static test_create testInstance;
 

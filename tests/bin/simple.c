@@ -15,7 +15,6 @@ int main(int argc, char *argv[]) {
     function1();
     bin_printf("After function1\n");
 
-    // This is a temporary workaround until
-    // can detect implicit exits via libc
     exit(EXIT_SUCCESS);
+    //return EXIT_SUCCESS;
 }
