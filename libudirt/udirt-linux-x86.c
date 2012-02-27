@@ -26,43 +26,67 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-// UDI RT implementation specific to x86
+// UDI RT implementation specific to x86 and linux
 
+// This needs to be included first to set feature macros
+#include "udirt-platform.h"
+
+#include <ucontext.h>
+
+#include "udi.h"
 #include "udirt.h"
+#include "udirt-posix.h"
 #include "udirt-x86.h"
 
-static const unsigned char BREAKPOINT_INSN = 0xcc;
-
-int write_breakpoint_instruction(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
-    if ( bp->in_memory ) return 0;
-
-    int result = read_memory(bp->saved_bytes, (void *)(unsigned long)bp->address, sizeof(BREAKPOINT_INSN),
-            errmsg, errmsg_size);
-    if( result != 0 ) {
-        udi_printf("failed to save original bytes at 0x%llx\n",
-                bp->address);
-        return result;
-    }
-
-    result = write_memory((void *)(unsigned long)bp->address, &BREAKPOINT_INSN, sizeof(BREAKPOINT_INSN),
-            errmsg, errmsg_size);
-    if ( result != 0 ) {
-        udi_printf("failed to install breakpoint at 0x%llx\n",
-                bp->address);
-    }
-
-    return result;
+void rewind_pc(ucontext_t *context) {
+    context->uc_mcontext.gregs[REG_EIP]--;
 }
 
-int write_saved_bytes(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
-    if ( !bp->in_memory ) return 0;
+udi_address get_trap_address(const ucontext_t *context) {
+    return (udi_address)(unsigned long)context->uc_mcontext.gregs[REG_EIP] - 1;
+}
 
-    int result = write_memory((void *)(unsigned long)bp->address, bp->saved_bytes, sizeof(BREAKPOINT_INSN),
+int get_exit_inst_length(void (*exit_func)(int), char *errmsg, unsigned int errmsg_size) {
+    // Use heuristics to determine the instruction length
+
+    unsigned char possible_inst[1]; // this should be the maximum instruction length
+
+    int read_result = read_memory(possible_inst, (const void *)exit_func, sizeof(possible_inst),
             errmsg, errmsg_size);
-
-    if ( result != 0 ) {
-        udi_printf("failed to remove breakpoint at 0x%llx\n", bp->address);
+    if ( read_result != 0 ) {
+        udi_printf("failed to read instructions from exit function at 0x%lx\n",
+                (unsigned long)exit_func);
+        return -1;
     }
 
-    return result;
+    if ( possible_inst[0] == 0x55 ) {
+        return 1;
+    }
+
+    return -1;
+}
+
+exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned int errmsg_size) {
+    exit_result ret;
+    ret.failure = 0;
+
+    // The exit argument is the first parameter on the stack
+
+    // Get the stack pointer
+    unsigned long sp = (unsigned long)context->uc_mcontext.gregs[REG_ESP];
+
+    int word_length = sizeof(unsigned long);
+
+    // skip return address
+    sp += word_length;
+
+    int read_result = read_memory(&(ret.status), (const void *)sp, sizeof(int),
+            errmsg, errmsg_size);
+    if ( read_result != 0 ) {
+        udi_printf("failed to retrieve exit status off of the stack at 0x%lx\n",
+                sp);
+        ret.failure = read_result;
+    }
+
+    return ret;
 }

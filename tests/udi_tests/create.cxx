@@ -91,7 +91,7 @@ bool test_create::operator()(void) {
 
         saw_exit_event = true;
         udi_event_process_exit *proc_exit = (udi_event_process_exit *)iter->event_data;
-        if ( proc_exit->exit_code != EXIT_SUCCESS ) {
+        if ( proc_exit->exit_code != EXIT_FAILURE ) {
             cout << "Process unexpectedly exited with " << proc_exit->exit_code << " exit code" << endl;
             return false;
         }

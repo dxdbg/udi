@@ -69,7 +69,7 @@ extern const int REQ_ERROR;
 /** Failure to process request due to invalid arguments */
 extern const int REQ_FAILURE;
 
-// read and writing debugee memory
+// reading and writing debugee memory
 
 extern void *mem_access_addr;
 extern size_t mem_access_size;
@@ -92,12 +92,13 @@ int failed_mem_access_response(udi_request_type request_type, char *errmsg,
 
 typedef struct breakpoint_struct {
     unsigned char saved_bytes[8];
+    int instruction_length;
     udi_address address;
     int in_memory;
     struct breakpoint_struct *next_breakpoint;
 } breakpoint;
 
-breakpoint *create_breakpoint(udi_address breakpoint_addr);
+breakpoint *create_breakpoint(udi_address breakpoint_addr, int instruction_length);
 
 int install_breakpoint(breakpoint *bp, char *errmsg, 
         unsigned int errmsg_size);
@@ -110,9 +111,10 @@ int delete_breakpoint(breakpoint *bp, char *errmsg,
 
 breakpoint *find_breakpoint(udi_address breakpoint_addr);
 
-// architecture specific
+// architecture specific breakpoint handling
 int write_breakpoint_instruction(breakpoint *bp, char *errmsg,
         unsigned int errmsg_size);
+
 int write_saved_bytes(breakpoint *bp, char *errmsg,
         unsigned int errmsg_size);
 
