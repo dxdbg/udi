@@ -13,7 +13,4 @@ the dynamic linker
 
 [ ] intercept calls to block signals so the debugger can still intercept the signals 
 
-[ ] need to OS independent access to registers
-
-[ ] need architecture independent access to generic registers such as PC or stack pointer
-- primarily for breakpoint handling
+[ ] need thread support

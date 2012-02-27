@@ -15,6 +15,5 @@ int main(int argc, char *argv[]) {
     function1();
     bin_printf("After function1\n");
 
-    exit(EXIT_SUCCESS);
-    //return EXIT_SUCCESS;
+    return EXIT_FAILURE;
 }

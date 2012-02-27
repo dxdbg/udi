@@ -71,7 +71,7 @@ may not be as clean as a system call.
 operating system support to modify processor flags that enable single stepping.
 
 * Operations that require operating system support such as tracing all system
-calls are difficult, if not impossible.
+calls are difficult.
 
 * UDI will possibly require pre-loading the wrapper library into a running
 process or linking the wrapper library with the application under test.

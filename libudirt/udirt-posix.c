@@ -46,10 +46,10 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/mman.h>
-#include <ucontext.h>
 
-#include "udirt.h"
 #include "udi.h"
+#include "udirt.h"
+#include "udirt-posix.h"
 #include "udi-common.h"
 #include "udi-common-posix.h"
 
@@ -149,6 +149,20 @@ typedef int (*execve_type)(const char *, char *const *, char *const *);
 sigaction_type real_sigaction;
 fork_type real_fork;
 execve_type real_execve;
+
+// event breakpoints
+
+static breakpoint *exit_bp = NULL;
+
+// continue from breakpoint
+
+static breakpoint *continue_bp = NULL;
+
+// event handling
+typedef struct event_result_struct {
+    int failure;
+    int wait_for_request;
+} event_result;
 
 // request handling
 typedef int (*request_handler)(udi_request *, char *, unsigned int);
@@ -444,6 +458,21 @@ int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
         udi_printf("invalid signal specified %d\n", sig_val);
         return REQ_FAILURE;
     }
+
+    // special handling for a continue from a breakpoint
+    if ( continue_bp != NULL ) {
+        int install_result = install_breakpoint(continue_bp, errmsg, errmsg_size);
+        if ( install_result != 0 ) {
+            udi_printf("failed to install breakpoint for continue at 0x%lx\n",
+                    (unsigned long)continue_bp->address);
+            if ( install_result < REQ_ERROR ) {
+                install_result = REQ_ERROR;
+            }
+        }else{
+            udi_printf("installed breakpoint at 0x%lx for continue from breakpoint\n",
+                    (unsigned long)continue_bp->address);
+        }
+    }
     
     udi_response resp;
     resp.response_type = UDI_RESP_VALID;
@@ -595,6 +624,7 @@ int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
     return result;
 }
 
+/* to be used by system call library function wrappers
 static
 void wait_and_execute_command_with_response() {
     char errmsg[ERRMSG_SIZE];
@@ -623,6 +653,7 @@ void wait_and_execute_command_with_response() {
         }
     }
 }
+*/
 
 static 
 int create_udi_filesystem() {
@@ -781,7 +812,17 @@ int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
             break;
         }
 
-        breakpoint *exit_bp = create_breakpoint((udi_address)(unsigned long)exit);
+        int exit_inst_length = get_exit_inst_length(exit, errmsg, errmsg_size);
+        if ( exit_inst_length <= 0 ) {
+            udi_printf("%s\n", "failed to determine length of instruction for exit breakpoint");
+            errnum = -1;
+            break;
+        }
+
+        // Exit cannot be wrappped because Linux executables can call it
+        // directly and do not pass through the PLT
+        exit_bp = create_breakpoint((udi_address)(unsigned long)exit,
+                exit_inst_length);
         if ( exit_bp == NULL ) {
             udi_printf("%s\n", "failed to create exit breakpoint");
             errnum = -1;
@@ -801,7 +842,6 @@ int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
             errnum = errno;
             break;
         }
-
     }while(0);
 
     return errnum;
@@ -876,11 +916,16 @@ int handshake_with_debugger(int *output_enabled, char *errmsg,
 }
 
 static
-int decode_segv(const siginfo_t *siginfo, const ucontext_t *context,
+event_result decode_segv(const siginfo_t *siginfo, ucontext_t *context,
         char *errmsg, unsigned int errmsg_size)
 {
-    int errnum = 0;
+    event_result result;
+    result.failure = 0;
+    result.wait_for_request = 1;
+
     if ( performing_mem_access ) {
+        result.wait_for_request = 0;
+
         // if the error was due to permissions, change permissions temporarily
         // to allow mem access to complete
         if (siginfo->si_code == SEGV_ACCERR) {
@@ -898,15 +943,15 @@ int decode_segv(const siginfo_t *siginfo, const ucontext_t *context,
             if ( mprotect((void *)mem_access_addr_ul, mem_access_size,
                         PROT_READ | PROT_WRITE | PROT_EXEC) != 0 ) 
             {
-                errnum = errno;
+                result.failure = errno;
                 udi_printf("failed to modify permissions for memory access: %s\n",
-                        strerror(errnum));
+                        strerror(result.failure));
             }
         }else{
-            errnum = -1;
+            result.failure = -1;
         }
 
-        if (errnum != 0) {
+        if (result.failure != 0) {
             abort_mem_access = 1;
             failed_si_code = siginfo->si_code;
         }
@@ -914,34 +959,112 @@ int decode_segv(const siginfo_t *siginfo, const ucontext_t *context,
         // TODO create event and send to debugger
     }
 
-    if ( errnum > 0 ) {
-        strerror_r(errnum, errmsg, errmsg_size);
+    if ( result.failure > 0 ) {
+        strerror_r(result.failure, errmsg, errmsg_size);
     }
 
-    return errnum;
+    return result;
 }
 
 static
-int decode_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size)
-{
-    return 0;
+event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, unsigned int errmsg_size) {
+
+    event_result result;
+    result.failure = 0;
+    result.wait_for_request = 1;
+
+    exit_result exit_result = get_exit_argument(context, errmsg, errmsg_size);
+
+    if ( exit_result.failure ) {
+        result.failure = exit_result.failure;
+        return result;
+    }
+
+    udi_printf("exit entered with status %d\n", exit_result.status);
+
+    // create the event
+    udi_event_internal exit_event;
+    exit_event.event_type = UDI_EVENT_PROCESS_EXIT;
+    exit_event.length = sizeof(uint32_t);
+    exit_event.packed_data = udi_pack_data(exit_event.length,
+            UDI_DATATYPE_INT32, exit_result.status);
+
+    // Explicitly ignore errors as there is no way to report them
+    do {
+        if ( exit_event.packed_data == NULL ) {
+            result.failure = 1;
+            break;
+        }
+
+        result.failure = write_event(&exit_event);
+
+        udi_free(exit_event.packed_data);
+    }while(0);
+
+    if ( result.failure ) {
+        udi_printf("failed to report exit status with %d\n", exit_result.status);
+    }
+
+    return result;
 }
 
 static
-int decode_trap(const siginfo_t *siginfo, const ucontext_t *context,
+event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char *errmsg, unsigned int errmsg_size) {
+    event_result result;
+    result.failure = 0;
+    result.wait_for_request = 1;
+
+    // Before creating the event, need to remove the breakpoint and indicate that a breakpoint continue
+    // will be required after the next continue
+    int remove_result = remove_breakpoint(bp, errmsg, errmsg_size);
+    if ( remove_result != 0 ) {
+        udi_printf("failed to remove breakpoint at 0x%lx\n", (unsigned long)bp->address);
+        result.failure = remove_result;
+        return result;
+    }
+
+    rewind_pc(context);
+
+    if ( continue_bp == bp ) {
+        result.wait_for_request = 0;
+        continue_bp = NULL;
+
+        int delete_result = delete_breakpoint(bp, errmsg, errmsg_size);
+        if ( delete_result != 0 ) {
+            udi_printf("failed to delete breakpoint at 0x%lx\n", (unsigned long)bp->address);
+            result.failure = delete_result;
+        }
+
+        return result;
+    }
+
+    continue_bp = create_breakpoint(bp->address + bp->instruction_length, bp->instruction_length);
+
+    if ( bp == exit_bp ) {
+        return handle_exit_breakpoint(context, errmsg, errmsg_size);
+    }
+
+    // TODO handle user breakpoints
+
+    return result;
+}
+
+static
+event_result decode_trap(const siginfo_t *siginfo, ucontext_t *context,
         char *errmsg, unsigned int errmsg_size)
 {
-    int result = 0;
+    event_result result;
+    result.failure = 0;
+    result.wait_for_request = 1;
 
-    // TODO make this platform and architecture independent
-    udi_address trap_address = (udi_address)(unsigned long)context->uc_mcontext.gregs[REG_EIP] - 1;
+    udi_address trap_address = get_trap_address(context);
 
     // Check and see if it corresponds to a breakpoint
     breakpoint *bp = find_breakpoint(trap_address);
 
     if ( bp != NULL ) {
-        udi_printf("found breakpoint at %lx\n", trap_address);
-        result = decode_breakpoint(bp, errmsg, errmsg_size);
+        udi_printf("found breakpoint at %lx\n", (unsigned long)trap_address);
+        result = decode_breakpoint(bp, context, errmsg, errmsg_size);
     }else{
         // TODO create signal event
     }
@@ -951,7 +1074,6 @@ int decode_trap(const siginfo_t *siginfo, const ucontext_t *context,
 
 // Not static because need to pass around pointer to it
 void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
-    int failure = 0, request_error = 0;
     char errmsg[ERRMSG_SIZE];
     errmsg[ERRMSG_SIZE-1] = '\0';
 
@@ -983,15 +1105,22 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     // create event
     // Note: each decoder function will call write_event to avoid unnecessary
     // heap allocations
+
+    int request_error = 0;
+
+    event_result result;
+    result.failure = 0;
+    result.wait_for_request = 1;
+
     do {
         udi_event_internal event;
         switch(signal) {
             case SIGSEGV:
-                failure = decode_segv(siginfo, context, errmsg,
+                result = decode_segv(siginfo, context, errmsg,
                         ERRMSG_SIZE);
                 break;
             case SIGTRAP:
-                failure = decode_trap(siginfo, context, errmsg,
+                result = decode_trap(siginfo, context, errmsg,
                         ERRMSG_SIZE);
                 break;
             default:
@@ -999,13 +1128,13 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                 event.length = 0;
                 event.packed_data = NULL;
 
-                failure = write_event(&event);
+                result.failure = write_event(&event);
                 break;
         }
 
-        if ( failure != 0 ) {
-            if ( failure > 0 ) {
-                strncpy(errmsg, strerror(failure), ERRMSG_SIZE-1);
+        if ( result.failure != 0 ) {
+            if ( result.failure > 0 ) {
+                strncpy(errmsg, strerror(result.failure), ERRMSG_SIZE-1);
             }
 
             event.event_type = UDI_EVENT_ERROR;
@@ -1022,15 +1151,15 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                         errmsg);
             }
 
-            failure = 0;
+            result.failure = 0;
             break;
         }
     
         // wait for command
-        if ( !performing_mem_access ) {
+        if ( result.wait_for_request ) {
             int req_result = wait_and_execute_command(errmsg, ERRMSG_SIZE);
             if ( req_result != REQ_SUCCESS ) {
-                failure = 1;
+                result.failure = 1;
 
                 if ( req_result == REQ_FAILURE ) {
                     request_error = 0;
@@ -1045,7 +1174,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
         }
     }while(0);
 
-    if ( failure ) {
+    if ( result.failure ) {
         // A failed request most likely means the debugger is no longer around, so
         // don't try to send a response
         if ( !request_error ) {
@@ -1173,40 +1302,6 @@ int execve(const char *filename, char *const argv[],
     return real_execve(filename, argv, envp);
 }
 
-/*
-void exit(int status)
-{
-    udi_printf("Entering exit with exit code %d\n", status);
-
-    // create the event
-    udi_event_internal exit_event;
-    exit_event.event_type = UDI_EVENT_PROCESS_EXIT;
-    exit_event.length = sizeof(uint32_t);
-    exit_event.packed_data = udi_pack_data(exit_event.length,
-            UDI_DATATYPE_INT32, status);
-
-    // Explicitly ignore errors as there is no way to report them
-    int failure = 0;
-    do {
-        if ( exit_event.packed_data == NULL ) {
-            failure = 1;
-            break;
-        }
-
-        failure = write_event(&exit_event);
-
-        udi_free(exit_event.packed_data);
-    }while(0);
-
-    if ( failure ) {
-        udi_printf("failed to report exit status with %d\n", status);
-    }else{
-        wait_and_execute_command_with_response();
-    }
-
-    real_exit(status);
-}
-*/
 
 void init_udi_rt() UDI_CONSTRUCTOR;
 

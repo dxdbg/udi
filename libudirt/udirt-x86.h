@@ -26,37 +26,17 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _UDI_RT_PLATFORM_H
-#define _UDI_RT_PLATFORM_H 1
+// UDI debuggee implementation common between all platforms
+
+#ifndef _UDI_RT_POSIX_H
+#define _UDI_RT_POSIX_H 1
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if defined(LINUX)
-
-#define _XOPEN_SOURCE 700
-
-// Manually extracted from a system header, shouldn't change often
-#ifndef RTLD_NEXT
-#define RTLD_NEXT ((void *) -1L)
-#endif
-
-#ifndef REG_EIP
-#define REG_EIP 14
-#endif
-
-#ifndef REG_ESP
-#define REG_ESP 7
-#endif
-
-#ifndef MAX_SIGNAL_NUM
-#define MAX_SIGNAL_NUM 31
-#endif
-
-#else
-#error Unknown platform
-#endif
+// TODO
+// register access interface
 
 #ifdef __cplusplus
 } // extern C

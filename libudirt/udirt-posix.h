@@ -26,37 +26,31 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _UDI_RT_PLATFORM_H
-#define _UDI_RT_PLATFORM_H 1
+// UDI debuggee implementation common between all platforms
+
+#ifndef _UDI_RT_POSIX_H
+#define _UDI_RT_POSIX_H 1
+
+#include <ucontext.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if defined(LINUX)
+// breakpoint handling
+udi_address get_trap_address(const ucontext_t *context);
+void rewind_pc(ucontext_t *context);
 
-#define _XOPEN_SOURCE 700
+// event handling
 
-// Manually extracted from a system header, shouldn't change often
-#ifndef RTLD_NEXT
-#define RTLD_NEXT ((void *) -1L)
-#endif
+typedef struct exit_result_struct {
+    int status;
+    int failure;
+} exit_result;
 
-#ifndef REG_EIP
-#define REG_EIP 14
-#endif
+int get_exit_inst_length(void (*exit_func)(int), char *errmsg, unsigned int errmsg_size);
 
-#ifndef REG_ESP
-#define REG_ESP 7
-#endif
-
-#ifndef MAX_SIGNAL_NUM
-#define MAX_SIGNAL_NUM 31
-#endif
-
-#else
-#error Unknown platform
-#endif
+exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned int errmsg_size);
 
 #ifdef __cplusplus
 } // extern C
