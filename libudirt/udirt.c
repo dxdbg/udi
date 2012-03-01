@@ -49,36 +49,6 @@ size_t mem_access_size = 0;
 int abort_mem_access = 0;
 int performing_mem_access = 0;
 
-int failed_mem_access_response(udi_request_type request_type, char *errmsg,
-        unsigned int errmsg_size)
-{
-    udi_response resp;
-    resp.response_type = UDI_RESP_ERROR;
-    resp.request_type = request_type;
-
-    const char *errstr = get_mem_errstr();
-
-    resp.length = strlen(errstr);
-    resp.packed_data = udi_pack_data(resp.length, UDI_DATATYPE_BYTESTREAM,
-        resp.length, errstr);
-
-    int errnum = REQ_SUCCESS;
-    do {
-        if ( resp.packed_data == NULL ) {
-            snprintf(errmsg, errmsg_size, "%s", "failed to pack response data");
-            udi_printf("%s", "failed to pack response data for read request");
-            errnum = REQ_ERROR;
-            break;
-        }
-
-        errnum = write_response_to_request(&resp);
-    }while(0);
-
-    if ( resp.packed_data != NULL ) udi_free(resp.packed_data);
-
-    return errnum;
-}
-
 static
 int abortable_memcpy(void *dest, const void *src, size_t n) {
     /* slow as molasses, but gets the job done */
@@ -133,7 +103,7 @@ int write_memory(void *dest, const void *src, size_t num_bytes,
 
 static breakpoint *breakpoints = NULL;
 
-breakpoint *create_breakpoint(udi_address breakpoint_addr, int instruction_length) {
+breakpoint *create_breakpoint(udi_address breakpoint_addr, udi_length instruction_length) {
     if ( instruction_length <= 0 ) {
         udi_printf("invalid argument: instruction_length: %d\n", instruction_length);
         return NULL;
@@ -179,8 +149,9 @@ breakpoint *create_breakpoint(udi_address breakpoint_addr, int instruction_lengt
 
 int install_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     if ( bp->in_memory ) {
-        udi_printf("breakpoint at %llx already in memory, not installed\n",
+        snprintf(errmsg, errmsg_size, "breakpoint at %llx already in memory, not installed",
                 bp->address);
+        udi_printf("%s\n", errmsg);
         return 0;
     }
 
@@ -194,7 +165,12 @@ int install_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
 }
 
 int remove_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
-    if ( !bp->in_memory ) return 0;
+    if ( !bp->in_memory ) {
+        snprintf(errmsg, errmsg_size, "breakpoint at %llx already removed from memory",
+                bp->address);
+        udi_printf("%s\n", errmsg);
+        return 0;
+    }
 
     int result = write_saved_bytes(bp, errmsg, errmsg_size);
 
@@ -220,8 +196,9 @@ int delete_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     }
 
     if ( tmp_breakpoint == NULL || prev_breakpoint == NULL ) {
-        udi_printf("failed to delete breakpoint at %llx\n",
+        snprintf(errmsg, errmsg_size, "failed to delete breakpoint at %llx",
                 bp->address);
+        udi_printf("%s\n", errmsg);
         return -1;
     }
 

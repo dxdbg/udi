@@ -42,8 +42,8 @@ typedef struct udi_process_struct udi_process;
  * library error codes
  */
 typedef enum {
-    UDI_ERROR_LIBRARY,
-    UDI_ERROR_REQUEST,
+    UDI_ERROR_LIBRARY, // there was an internal library error
+    UDI_ERROR_REQUEST, // the request was invalid
     UDI_ERROR_NONE
 } udi_error_e;
 
@@ -172,10 +172,57 @@ const char *get_event_type_str(udi_event_type event_type);
  */
 void free_event_list(udi_event *event_list);
 
-/* Memory access interface */
+/**
+ *
+ * Creates a breakpoint in the specified process at the specified
+ * virtual address
+ *
+ * @param proc          the process handle
+ * @param addr          the address to place the breakpoint
+ * @param instr_length  the length of the instruction being replaced
+ * 
+ * @return the result of the operation
+ */
+udi_error_e create_breakpoint(udi_process *proc, udi_address addr,
+        udi_length instr_length);
 
 /**
- * Access unsigned long
+ *
+ * Install a previously created breakpoint into the specified process'
+ * memory
+ *
+ * @param proc          the process handle
+ * @param addr          the address of the breakpoint
+ *
+ * @return the result of the operation
+ */
+udi_error_e install_breakpoint(udi_process *proc, udi_address addr);
+
+/**
+ *
+ * Remove a previously installed breakpoint from the specified process'
+ * memory
+ *
+ * @param proc          the process handle
+ * @param addr          the address of the breakpoint
+ *
+ * @return the result of the operation
+ */
+udi_error_e remove_breakpoint(udi_process *proc, udi_address addr);
+
+/**
+ *
+ * Delete a previously created breakpoint for the specified process
+ *
+ * @param proc          the process handle
+ * @param addr          the address of the breakpoint
+ *
+ * @return the result of the operation
+ */
+udi_error_e delete_breakpoint(udi_process *proc, udi_address addr);
+
+/**
+ * Access memory in a process
  *
  * @param proc          the process handle
  * @param write         if non-zero, write to specified address

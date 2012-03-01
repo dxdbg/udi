@@ -77,28 +77,23 @@ extern size_t mem_access_size;
 extern int abort_mem_access;
 extern int performing_mem_access;
 
-const char *get_mem_errstr();
-
 int read_memory(void *dest, const void *src, size_t num_bytes,
         char *errmsg, unsigned int errmsg_size);
 
 int write_memory(void *dest, const void *src, size_t num_bytes,
         char *errmsg, unsigned int errmsg_size);
 
-int failed_mem_access_response(udi_request_type request_type, char *errmsg,
-        unsigned int errmsg_size);
-
 // breakpoint handling
 
 typedef struct breakpoint_struct {
     unsigned char saved_bytes[8];
-    int instruction_length;
+    udi_length instruction_length;
     udi_address address;
     int in_memory;
     struct breakpoint_struct *next_breakpoint;
 } breakpoint;
 
-breakpoint *create_breakpoint(udi_address breakpoint_addr, int instruction_length);
+breakpoint *create_breakpoint(udi_address breakpoint_addr, udi_length instruction_length);
 
 int install_breakpoint(breakpoint *bp, char *errmsg, 
         unsigned int errmsg_size);
