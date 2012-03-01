@@ -255,24 +255,6 @@ void log_error_msg(udi_response *resp, const char *error_file, int error_line) {
     if ( errmsg_local != NULL ) free(errmsg_local);
 }
 
-static const unsigned char X86_TRAP_INSTRUCT = 0xcc;
-
-udi_error_e set_breakpoint(udi_process *proc, udi_address breakpoint_addr) 
-{
-    switch(proc->architecture) {
-        case UDI_ARCH_X86:
-        case UDI_ARCH_X86_64: 
-        {
-            unsigned char trap_instruction = X86_TRAP_INSTRUCT;
-            return mem_access(proc, 1, &trap_instruction, 1, breakpoint_addr);
-        }
-        default:
-             break;
-    }
-
-    return UDI_ERROR_NONE;
-}
-
 udi_error_e continue_process(udi_process *proc) {
     udi_request req;
     req.request_type = UDI_REQ_CONTINUE;

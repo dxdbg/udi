@@ -124,11 +124,11 @@ void udi_set_malloc(malloc_type allocator) {
  *
  * Why the data types are not encoded in the data?
  *
- * There are two use cases with when retrieving data from a UDI-enabled 
+ * There are two important use cases when retrieving data from a UDI-enabled 
  * process:
  * 
  * 1) The debugger requests a block of memory and knows how to interpret the
- *    block of memory without the inferior UDI code needed to interpret the
+ *    block of memory without the inferior UDI code needing to interpret the
  *    data
  *
  * 2) The inferior UDI code passes back some structured data. This structure
@@ -138,7 +138,7 @@ void udi_set_malloc(malloc_type allocator) {
  * structure of data coming from the UDI code.
  *
  * The benefits of this approach are that:
- * 1) The debugger always knows the structure of data and thus can provide 
+ * 1) The debugger always knows the structure of data and thus 
  *    alleviate the burden on the user for knowing the structure of data
  * 2) It saves bandwidth between the debugger and debuggee because type 
  *    information is not present.

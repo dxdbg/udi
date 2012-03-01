@@ -1,16 +1,12 @@
 A list of enhancements/bugfixes for the future
 ----------------------------------------------
-[ ] modify the default udi root filesystem procedure to include the username somehow to allow
+* modify the default udi root filesystem procedure to include the username somehow to allow
 multiple users to run programs that use udi
 
-[ ] allow user to specify the runtime library to be loaded when creating processes in libudi
+* allow user to specify the runtime library to be loaded when creating processes in libudi
 
-[ ] Need to handle abnormal termination of debuggee (via debuggee library error or SIGKILL)
+* Need to handle abnormal termination of debuggee (via debuggee library error or SIGKILL)
 
-[ ] Need to catch implicit exit via libc (programs that return exit code from main)
--- this can be done by setting a breakpoint at exit's entry, address can be obtained from
-the dynamic linker
+* intercept calls to block signals so the debugger can still intercept the signals 
 
-[ ] intercept calls to block signals so the debugger can still intercept the signals 
-
-[ ] need thread support
+* need thread support
