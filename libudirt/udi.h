@@ -72,9 +72,10 @@ typedef enum
     UDI_REQ_WRITE_MEM,
     UDI_REQ_STATE,
     UDI_REQ_INIT,
-    UDI_REQ_MAX,
     UDI_REQ_INSTALL_BREAKPOINT,
+    UDI_REQ_DISABLE_BREAKPOINT,
     UDI_REQ_REMOVE_BREAKPOINT,
+    UDI_REQ_MAX,
     UDI_REQ_INVALID,
 } udi_request_type_e;
 
@@ -132,6 +133,16 @@ typedef enum
  * Request arguments:
  *      UDI_DATATYPE_ADDRESS - virtual memory address to write to
  *      UDI_DATATYPE_BYTESTREAM - bytes to write into target process
+ *
+ * Response values:
+ *      None
+ */
+
+/* Breakpoint install request and response
+ *
+ * Request arguments:
+ *      UDI_DATATYPE_ADDRESSS - virtual memory address to set the breakpoint
+ *      UDI_DATATYPE_LENGTH - the length of the instruction at the breakpoint
  *
  * Response values:
  *      None

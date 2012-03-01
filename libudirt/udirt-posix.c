@@ -172,7 +172,9 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 int state_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 int init_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
-int breakpoint_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
+int breakpoint_install_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
+int breakpoint_disable_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
+int breakpoint_remove_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 
 static
 request_handler req_handlers[] = {
@@ -181,7 +183,9 @@ request_handler req_handlers[] = {
     write_handler,
     state_handler,
     init_handler,
-    breakpoint_handler
+    breakpoint_install_handler,
+    breakpoint_disable_handler,
+    breakpoint_remove_handler
 };
 
 ////////////////////////////////////
@@ -584,10 +588,19 @@ int state_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
 }
 
 int init_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
+    // TODO need to reinitialize library on this request
     return REQ_SUCCESS;
 }
 
-int breakpoint_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
+int breakpoint_install_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
+    return REQ_SUCCESS;
+}
+
+int breakpoint_remove_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
+    return REQ_SUCCESS;
+}
+
+int breakpoint_disable_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     return REQ_SUCCESS;
 }
 
