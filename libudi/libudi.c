@@ -160,6 +160,116 @@ int get_proc_pid(udi_process *proc) {
     return proc->pid;
 }
 
+static
+udi_error_e submit_request(udi_process *proc,
+        udi_request *req, udi_response **resp,
+        const char *desc, const char *file, 
+        int line)
+{
+    udi_error_e error_code = UDI_ERROR_NONE;
+
+    do {
+        // Perform the request
+        if ( req->packed_data == NULL ) {
+            udi_printf("failed to pack data for %s\n", desc);
+            error_code = UDI_ERROR_LIBRARY;
+            break;
+        }
+
+        if ( write_request(req, proc) != 0 ) {
+            udi_printf("failed to write %s\n", desc);
+            error_code = UDI_ERROR_LIBRARY;
+            break;
+        }
+
+        // Get the response
+        *resp = read_response(proc);
+
+        if ( *resp == NULL ) {
+            udi_printf("failed to read response for %s\n", desc);
+            error_code = UDI_ERROR_LIBRARY;
+            break;
+        }
+
+        if ( (*resp)->response_type == UDI_RESP_ERROR ) {
+            log_error_msg(*resp, file, line);
+            error_code = UDI_ERROR_REQUEST;
+            break;
+        }
+    }while(0);
+
+    if ( req->packed_data != NULL ) free(req->packed_data);
+    if (    error_code != UDI_ERROR_NONE
+         && *resp != NULL ) 
+    {
+        free_response(*resp);
+        *resp = NULL;
+    }
+
+    return error_code;
+}
+
+static
+udi_error_e submit_request_noresp(udi_process *proc,
+        udi_request *req, const char *desc, const char *file,
+        int line)
+{
+    udi_response *resp = NULL;
+
+    udi_error_e error_code = submit_request(proc, req, &resp, desc,
+            file, line);
+
+    if ( resp != NULL ) free_response(resp);
+
+    return error_code;
+}
+
+udi_error_e create_breakpoint(udi_process *proc, udi_address addr,
+        udi_length instr_length)
+{
+    udi_request request;
+
+    request.request_type = UDI_REQ_CREATE_BREAKPOINT;
+    request.length = sizeof(udi_length) + sizeof(udi_address);
+    request.packed_data = udi_pack_data(request.length,
+            UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_LENGTH,
+            instr_length);
+
+    return submit_request_noresp(proc, &request, "breakpoint create request",
+            __FILE__, __LINE__);
+}
+
+static
+udi_error_e breakpoint_request(udi_process *proc, udi_address addr,
+        udi_request_type request_type,
+        const char *desc, const char *file, int line)
+{
+
+    udi_request request;
+    request.request_type = request_type;
+    request.length = sizeof(udi_address);
+    request.packed_data = udi_pack_data(request.length,
+            UDI_DATATYPE_ADDRESS, addr);
+
+    return submit_request_noresp(proc, &request, desc, file, line);
+}
+
+udi_error_e install_breakpoint(udi_process *proc, udi_address addr) {
+    return breakpoint_request(proc, addr, UDI_REQ_INSTALL_BREAKPOINT,
+            "breakpoint install request", __FILE__, __LINE__);
+}
+
+udi_error_e remove_breakpoint(udi_process *proc, udi_address addr) {
+    return breakpoint_request(proc, addr, UDI_REQ_REMOVE_BREAKPOINT,
+            "breakpoint remove request", __FILE__, __LINE__);
+
+}
+
+udi_error_e delete_breakpoint(udi_process *proc, udi_address addr) {
+    return breakpoint_request(proc, addr, UDI_REQ_DELETE_BREAKPOINT,
+            "breakpoint delete request", __FILE__, __LINE__);
+}
+
 udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length size, 
         udi_address addr) 
 {
@@ -180,36 +290,12 @@ udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length siz
                 UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_LENGTH, size);
     }
 
-    int errnum = 0;
     udi_response *resp = NULL;
     do{
-        // Perform the request
-        if ( request.packed_data == NULL ) {
-            udi_printf("%s\n", "failed to pack data for memory access request");
-            error_code = UDI_ERROR_LIBRARY;
-            break;
-        }
+        error_code = submit_request(proc, &request, &resp, "memory access request",
+                __FILE__, __LINE__);
 
-        if ( (errnum = write_request(&request, proc)) != 0 ) {
-            udi_printf("%s\n", "failed to perform memory access request");
-            error_code = UDI_ERROR_LIBRARY;
-            break;
-        }
-
-        // Get the response
-        resp = read_response(proc);
-        if ( resp == NULL ) {
-            udi_printf("%s\n", 
-                    "failed to receive response for memory access request");
-            error_code = UDI_ERROR_LIBRARY;
-            break;
-        }
-
-        if ( resp->response_type == UDI_RESP_ERROR ) {
-            log_error_msg(resp, __FILE__, __LINE__);
-            error_code = UDI_ERROR_REQUEST;
-            break;
-        }
+        if ( error_code != UDI_ERROR_NONE ) return error_code;
 
         if ( resp->request_type == UDI_REQ_READ_MEM ) {
             void *result;
@@ -230,10 +316,20 @@ udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length siz
         // There are no values to parse for a valid write request
     }while(0);
 
-    if ( request.packed_data != NULL ) free(request.packed_data);
     if ( resp != NULL ) free_response(resp);
 
     return error_code;
+}
+
+udi_error_e continue_process(udi_process *proc) {
+    udi_request req;
+    req.request_type = UDI_REQ_CONTINUE;
+    req.length = sizeof(uint32_t);
+    req.packed_data = udi_pack_data(req.length,
+            UDI_DATATYPE_INT32, 0);
+
+    return submit_request_noresp(proc, &req, "continue request",
+            __FILE__, __LINE__);
 }
 
 void log_error_msg(udi_response *resp, const char *error_file, int error_line) {
@@ -253,54 +349,6 @@ void log_error_msg(udi_response *resp, const char *error_file, int error_line) {
     }
 
     if ( errmsg_local != NULL ) free(errmsg_local);
-}
-
-udi_error_e continue_process(udi_process *proc) {
-    udi_request req;
-    req.request_type = UDI_REQ_CONTINUE;
-
-    req.length = sizeof(uint32_t);
-    req.packed_data = udi_pack_data(req.length,
-            UDI_DATATYPE_INT32, 0);
-
-    if ( req.packed_data == NULL ) {
-        udi_printf("failed to allocate memory for message: %s\n",
-                strerror(errno));
-        return UDI_ERROR_LIBRARY;
-    }
-
-    if ( write_request(&req, proc) != 0 ) {
-        udi_printf("%s\n", "failed to perform continue request");
-        free(req.packed_data);
-        return UDI_ERROR_LIBRARY;
-    }
-    free(req.packed_data);
-
-    udi_response *resp = read_response(proc);
-    if ( resp == NULL ) {
-        udi_printf("%s\n", "failed to receive response for continue request");
-        return UDI_ERROR_LIBRARY;
-    }
-
-    udi_error_e error_code = UDI_ERROR_NONE;
-    do {
-        if ( resp->response_type == UDI_RESP_ERROR ) {
-            log_error_msg(resp, __FILE__, __LINE__);
-            error_code = UDI_ERROR_REQUEST;
-            break;
-        }
-
-        if ( resp->request_type != UDI_REQ_CONTINUE ) {
-            udi_printf("Received unexpected request type: %d\n",
-                    resp->request_type);
-            error_code = UDI_ERROR_REQUEST;
-            break;
-        }
-    }while(0);
-
-    free_response(resp);
-
-    return error_code;
 }
 
 static

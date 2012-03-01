@@ -172,9 +172,10 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 int state_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 int init_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
+int breakpoint_create_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 int breakpoint_install_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
-int breakpoint_disable_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 int breakpoint_remove_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
+int breakpoint_delete_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 
 static
 request_handler req_handlers[] = {
@@ -183,9 +184,10 @@ request_handler req_handlers[] = {
     write_handler,
     state_handler,
     init_handler,
+    breakpoint_create_handler,
     breakpoint_install_handler,
-    breakpoint_disable_handler,
-    breakpoint_remove_handler
+    breakpoint_remove_handler,
+    breakpoint_delete_handler
 };
 
 ////////////////////////////////////
@@ -467,14 +469,14 @@ int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     if ( continue_bp != NULL ) {
         int install_result = install_breakpoint(continue_bp, errmsg, errmsg_size);
         if ( install_result != 0 ) {
-            udi_printf("failed to install breakpoint for continue at 0x%lx\n",
-                    (unsigned long)continue_bp->address);
+            udi_printf("failed to install breakpoint for continue at 0x%llx\n",
+                    continue_bp->address);
             if ( install_result < REQ_ERROR ) {
                 install_result = REQ_ERROR;
             }
         }else{
-            udi_printf("installed breakpoint at 0x%lx for continue from breakpoint\n",
-                    (unsigned long)continue_bp->address);
+            udi_printf("installed breakpoint at 0x%llx for continue from breakpoint\n",
+                    continue_bp->address);
         }
     }
     
@@ -517,7 +519,11 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
             errmsg, errmsg_size);
     if ( read_result != 0 ) {
         udi_free(memory_read);
-        return failed_mem_access_response(UDI_REQ_READ_MEM, errmsg, errmsg_size);
+
+        const char *mem_errstr = get_mem_errstr();
+        snprintf(errmsg, errmsg_size, "%s", mem_errstr);
+        udi_printf("failed memory read: %s\n", mem_errstr);
+        return REQ_FAILURE;
     }
 
     // Create the response
@@ -565,7 +571,11 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
             errmsg, errmsg_size);
     if ( write_result != 0 ) {
         udi_free(bytes_to_write);
-        return failed_mem_access_response(UDI_REQ_WRITE_MEM, errmsg, errmsg_size);
+
+        const char *mem_errstr = get_mem_errstr();
+        snprintf(errmsg, errmsg_size, "%s", mem_errstr);
+        udi_printf("failed write request: %s\n", mem_errstr);
+        return REQ_FAILURE;
     }
 
     // Create the response
@@ -592,15 +602,95 @@ int init_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     return REQ_SUCCESS;
 }
 
+int breakpoint_create_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
+    udi_address breakpoint_addr;
+    udi_length instr_length;
+
+    if ( udi_unpack_data(req->packed_data, req->length,
+                UDI_DATATYPE_ADDRESS, &breakpoint_addr,
+                UDI_DATATYPE_LENGTH, &instr_length) )
+    {
+        snprintf(errmsg, errmsg_size, "%s", "failed to parse breakpoint create request");
+        udi_printf("%s\n", "failed to unpack data for breakpoint create request");
+        return REQ_FAILURE;
+    }
+
+    breakpoint *bp = find_breakpoint(breakpoint_addr);
+
+    // A breakpoint already exists
+    if ( bp != NULL ) {
+        snprintf(errmsg, errmsg_size, "breakpoint already exists at 0x%llx", breakpoint_addr);
+        udi_printf("attempt to create duplicate breakpoint at 0x%llx\n", breakpoint_addr);
+        return REQ_FAILURE;
+    }
+
+    bp = create_breakpoint(breakpoint_addr, instr_length);
+
+    if ( bp == NULL ) {
+        snprintf(errmsg, errmsg_size, "failed to create breakpoint at 0x%llx", breakpoint_addr);
+        udi_printf("%s\n", errmsg);
+        return REQ_FAILURE;
+    }
+
+    udi_response resp;
+    resp.response_type = UDI_RESP_VALID;
+    resp.request_type = UDI_REQ_CREATE_BREAKPOINT;
+    resp.length = 0;
+    resp.packed_data = NULL;
+
+    return write_response_to_request(&resp);
+}
+
+static
+breakpoint *get_breakpoint_from_request(udi_request *req, char *errmsg, unsigned int errmsg_size)
+{
+    udi_address breakpoint_addr;
+
+    if ( udi_unpack_data(req->packed_data, req->length,
+                UDI_DATATYPE_ADDRESS, &breakpoint_addr) )
+    {
+        snprintf(errmsg, errmsg_size, "%s", "failed to parse breakpoint install request");
+        udi_printf("%s\n", "failed to unpack data for breakpoint install request");
+        return NULL;
+    }
+
+    breakpoint *bp = find_breakpoint(breakpoint_addr);
+
+    if ( bp == NULL ) {
+        snprintf(errmsg, errmsg_size, "no breakpoint exists at 0x%llx", breakpoint_addr);
+        udi_printf("%s\n", errmsg);
+    }
+
+    return bp;
+}
+
 int breakpoint_install_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
+    breakpoint *bp = get_breakpoint_from_request(req, errmsg, errmsg_size);
+
+    if ( bp == NULL ) return REQ_FAILURE;
+
+    if ( install_breakpoint(bp, errmsg, errmsg_size) ) return REQ_FAILURE;
+
     return REQ_SUCCESS;
 }
 
 int breakpoint_remove_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
+    breakpoint *bp = get_breakpoint_from_request(req, errmsg, errmsg_size);
+
+    if ( bp == NULL ) return REQ_FAILURE;
+
+    if ( remove_breakpoint(bp, errmsg, errmsg_size) ) return REQ_FAILURE;
+
     return REQ_SUCCESS;
 }
 
-int breakpoint_disable_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
+int breakpoint_delete_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
+    breakpoint *bp = get_breakpoint_from_request(req, errmsg, errmsg_size);
+
+    if ( bp == NULL ) return REQ_FAILURE;
+
+    if ( delete_breakpoint(bp, errmsg, errmsg_size) ) return REQ_FAILURE;
+
     return REQ_SUCCESS;
 }
 
@@ -1031,7 +1121,7 @@ event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char *errmsg
     // will be required after the next continue
     int remove_result = remove_breakpoint(bp, errmsg, errmsg_size);
     if ( remove_result != 0 ) {
-        udi_printf("failed to remove breakpoint at 0x%lx\n", (unsigned long)bp->address);
+        udi_printf("failed to remove breakpoint at 0x%llx\n", bp->address);
         result.failure = remove_result;
         return result;
     }
@@ -1044,7 +1134,7 @@ event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char *errmsg
 
         int delete_result = delete_breakpoint(bp, errmsg, errmsg_size);
         if ( delete_result != 0 ) {
-            udi_printf("failed to delete breakpoint at 0x%lx\n", (unsigned long)bp->address);
+            udi_printf("failed to delete breakpoint at 0x%llx\n", bp->address);
             result.failure = delete_result;
         }
 
@@ -1076,7 +1166,7 @@ event_result decode_trap(const siginfo_t *siginfo, ucontext_t *context,
     breakpoint *bp = find_breakpoint(trap_address);
 
     if ( bp != NULL ) {
-        udi_printf("found breakpoint at %lx\n", (unsigned long)trap_address);
+        udi_printf("found breakpoint at %llx\n", trap_address);
         result = decode_breakpoint(bp, context, errmsg, errmsg_size);
     }else{
         // TODO create signal event
@@ -1391,7 +1481,7 @@ void init_udi_rt() {
             // explicitly don't worry about return
             udi_response resp;
             resp.response_type = UDI_RESP_ERROR;
-            resp.request_type = UDI_REQ_INIT;
+            resp.request_type = UDI_REQ_INVALID;
             resp.length = strlen(errmsg) + 1;
             resp.packed_data = udi_pack_data(resp.length, 
                     UDI_DATATYPE_BYTESTREAM, resp.length, errmsg);

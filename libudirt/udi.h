@@ -72,9 +72,10 @@ typedef enum
     UDI_REQ_WRITE_MEM,
     UDI_REQ_STATE,
     UDI_REQ_INIT,
+    UDI_REQ_CREATE_BREAKPOINT,
     UDI_REQ_INSTALL_BREAKPOINT,
-    UDI_REQ_DISABLE_BREAKPOINT,
     UDI_REQ_REMOVE_BREAKPOINT,
+    UDI_REQ_DELETE_BREAKPOINT,
     UDI_REQ_MAX,
     UDI_REQ_INVALID,
 } udi_request_type_e;
@@ -138,11 +139,38 @@ typedef enum
  *      None
  */
 
-/* Breakpoint install request and response
+/* Breakpoint create request and response
  *
  * Request arguments:
  *      UDI_DATATYPE_ADDRESSS - virtual memory address to set the breakpoint
  *      UDI_DATATYPE_LENGTH - the length of the instruction at the breakpoint
+ *
+ * Response values:
+ *      None
+ */
+
+/* Breakpoint install request and response
+ * 
+ * Request arguments:
+ *      UDI_DATATYPE_ADDRESS - virtual memory address of the breakpoint to install
+ *
+ * Response values:
+ *      None
+ */
+
+/* Breakpoint delete request and response
+ *
+ * Request arguments:
+ *      UDI_DATATYPE_ADDRESS - virtual memory address of the breakpoint to remove
+ *
+ * Response values:
+ *      None
+ */
+
+/* Breakpoint remove request and response
+ *
+ * Request arguments:
+ *      UDI_DATATYPE_ADDRESS - virtual memory address of the breakpoint to disable
  *
  * Response values:
  *      None

@@ -7,6 +7,12 @@ multiple users to run programs that use udi
 
 * Need to handle abnormal termination of debuggee (via debuggee library error or SIGKILL)
 
-* intercept calls to block signals so the debugger can still intercept the signals 
+* intercept calls to block signals so the debugger can still intercept the signals
+
+* add file to UDI interface to allow multiple users to cooperate via file locking
+
+* handle case where user creates breakpoint at exit function
+
+* create re-entrant malloc for exclusive use by udirt
 
 * need thread support
