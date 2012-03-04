@@ -26,53 +26,26 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
-#include <sstream>
+#ifndef _TEST_LIB_H_
+#define _TEST_LIB_H_ 1
 
 #include "libudi.h"
-#include "libuditest.h"
-#include "test_bins.h"
-#include "test_lib.h"
 
-using std::cout;
-using std::endl;
-using std::stringstream;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-class test_create : public UDITestCase {
-    public:
-        test_create()
-            : UDITestCase(std::string("test_create")) {}
-        virtual ~test_create() {}
+/**
+ * Waits for the specified process to exit
+ *
+ * @param proc  the process to wait for
+ *
+ * @return True, if an exit event was seen; False otherwise
+ */
+bool wait_for_exit(udi_process *proc);
 
-        bool operator()(void);
-};
+#ifdef __cplusplus
+} // extern C
+#endif
 
-static const char *TEST_BINARY = SIMPLE_BINARY_PATH;
-
-static test_create testInstance;
-
-bool test_create::operator()(void) {
-    if ( init_libudi() != 0 ) {
-        cout << "Failed to initialize libudi" << endl;
-        return false;
-    }
-
-    char *argv[] = { NULL };
-
-    udi_process *proc = create_process(TEST_BINARY, argv, NULL);
-    if ( proc == NULL ) {
-        cout << "Failed to create process" << endl;
-        return false;
-    }
-
-    udi_error_e result = continue_process(proc);
-
-    if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to continue process " << get_error_message(result) << endl;
-        return false;
-    }
-
-    return wait_for_exit(proc);
-}
+#endif

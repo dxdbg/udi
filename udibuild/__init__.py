@@ -63,6 +63,20 @@ nm = LocateExecutable("nm")
 
 objdump = LocateExecutable("objdump")
 
+def GetSymbolInfoObjdump(program, binary, symbol):
+    proc = subprocess.Popen([program, '-t', binary], shell=False, stdout=subprocess.PIPE)
+    lines = proc.communicate()[0].splitlines()
+
+    for line in lines:
+        fields = re.split('\s+', line)
+        if len(fields) == 6:
+            if fields[5] == symbol:
+                return (fields[0], fields[4])
+
+    symErrStr = 'Failed to locate symbol ' + symbol + ' in binary ' + binary + ' with program ' + program
+
+    raise SCons.Errors.BuildError(errstr=symErrStr)
+
 def GetSymbolAddressReadelf(program, binary, symbol):
     proc = subprocess.Popen([program, '-s', binary], shell=False, stdout=subprocess.PIPE)
     lines = proc.communicate()[0].splitlines()
@@ -96,3 +110,50 @@ def GetSymbolAddress(binary, symbol):
         return GetSymbolAddressObjdump(objdump, binary, symbol)
     else:
         raise SCons.Errors.BuildError(errstr='Failed to locate symbol program')
+
+def GetInstructionLengthObjdump(program, binary, symbol):
+    # First get the length of the function
+    (symaddr, symlength) = GetSymbolInfoObjdump(program, binary, symbol)
+
+    addr = int(symaddr, 16)
+    length = int(symlength, 16)
+
+    stopaddr = addr + length
+
+    arguments = [program, 
+            '-d',
+            '--start-address={0}'.format(hex(addr)),
+            '--stop-address={0}'.format(hex(stopaddr)),
+            binary]
+
+    proc = subprocess.Popen(arguments, shell=False, stdout=subprocess.PIPE)
+    lines = proc.communicate()[0].splitlines()
+
+    nextline = False
+    for line in lines:
+        if not nextline:
+            if re.match('^\S+ <\S+>:$', line) is not None:
+                nextline = True
+        else:
+            fields = re.split('\s+', line)
+            if len(fields) >= 4:
+                start = 2
+                while start < len(fields):
+                    if re.match('^[0-9a-e]+$', fields[start]) is not None:
+                        start += 1
+                    else:
+                        return start - 2
+
+    instErrStr = 'Failed to determine instruction length for ' + symbol +\
+        ' in binary ' + binary
+
+    raise SCons.Errors.BuildError(errstr=instErrStr)
+
+def GetInstructionLength(binary, symbol):
+    '''
+    Gets the length of the instruction at the specified symbol
+    '''
+    if objdump is not None:
+        return GetInstructionLengthObjdump(objdump, binary, symbol)
+
+    raise SCons.Errors.BuildError(errstr='Failed to locate disassembly program')

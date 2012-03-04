@@ -40,20 +40,22 @@ using std::cout;
 using std::endl;
 using std::stringstream;
 
-class test_create : public UDITestCase {
+class test_breakpoint : public UDITestCase {
     public:
-        test_create()
-            : UDITestCase(std::string("test_create")) {}
-        virtual ~test_create() {}
+        test_breakpoint()
+            : UDITestCase(std::string("test_breakpoint")) {}
+        virtual ~test_breakpoint() {}
 
         bool operator()(void);
 };
 
 static const char *TEST_BINARY = SIMPLE_BINARY_PATH;
+static unsigned long TEST_FUNCTION = SIMPLE_FUNCTION1;
+static int TEST_FUNCTION_INST = SIMPLE_FUNCTION1_INST_LENGTH;
 
-static test_create testInstance;
+static test_breakpoint testInstance;
 
-bool test_create::operator()(void) {
+bool test_breakpoint::operator()(void) {
     if ( init_libudi() != 0 ) {
         cout << "Failed to initialize libudi" << endl;
         return false;
@@ -66,6 +68,8 @@ bool test_create::operator()(void) {
         cout << "Failed to create process" << endl;
         return false;
     }
+
+    // Create and install breakpoint
 
     udi_error_e result = continue_process(proc);
 

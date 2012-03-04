@@ -31,6 +31,9 @@ def build_binary_header(target, source, env):
 
         target_file.write("#define SIMPLE_FUNCTION1 0x{0}\n".format(udibuild.GetSymbolAddress(bin_dir + 'simple', 'function1')))
 
+        # instruction lengths
+        target_file.write("#define SIMPLE_FUNCTION1_INST_LENGTH {0}\n".format(udibuild.GetInstructionLength(bin_dir + 'simple', 'function1')))
+
         # create the trailing part of the header
         target_file.write("#endif\n")
 
@@ -48,7 +51,14 @@ bins = dict()
 
 bin_env.Append(CPPPATH = ['#/build/tests/udi_tests'])
 
+lib_file = 'test_lib.cxx'
+
+lib_file_obj = bin_env.Object(lib_file)
+
 for source in sources:
+    if source == lib_file:
+        continue
+
     bins[udibuild.GetFilename(source)] = bin_env.Object(source)
 
 libs = ['udi', 'uditest']
@@ -56,9 +66,9 @@ libs = ['udi', 'uditest']
 libpath = [ '#/build/libudi', '#/build/tests/libuditest' ]
 
 for binary,source in bins.items():
-    bin_env.Program(binary, source, LIBS=libs, LIBPATH=libpath)
+    bin_env.Program(binary, [source, lib_file_obj], LIBS=libs, LIBPATH=libpath)
 
-bin_env.Program('all_libudi_tests', bins.values(), LIBS=libs, LIBPATH=libpath)
+bin_env.Program('all_libudi_tests', [bins.values(), lib_file_obj], LIBS=libs, LIBPATH=libpath)
 
 test_bins_h = bin_env.BinaryHeaderBuilder('test_bins.h', sources)
 
