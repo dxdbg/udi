@@ -26,53 +26,62 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <sstream>
 
 #include "libudi.h"
-#include "libuditest.h"
-#include "test_bins.h"
 #include "test_lib.h"
 
 using std::cout;
 using std::endl;
 using std::stringstream;
 
-class test_create : public UDITestCase {
-    public:
-        test_create()
-            : UDITestCase(std::string("test_create")) {}
-        virtual ~test_create() {}
+bool wait_for_exit(udi_process *proc) {
+    udi_event *events = wait_for_events(&proc, 1);
 
-        bool operator()(void);
-};
+    udi_event *iter = events;
 
-static const char *TEST_BINARY = SIMPLE_BINARY_PATH;
+    bool saw_exit_event = false;
+    while ( iter != NULL ) {
+        if ( iter->proc != proc ) {
+            cout << "Received event for unknown process " << get_proc_pid(iter->proc) << endl;
+            return false;
+        }
 
-static test_create testInstance;
+        if ( iter->event_type != UDI_EVENT_PROCESS_EXIT ) {
+            cout << "Received unexpected event " << get_event_type_str(iter->event_type) << endl;
+            return false;
+        }
 
-bool test_create::operator()(void) {
-    if ( init_libudi() != 0 ) {
-        cout << "Failed to initialize libudi" << endl;
+        saw_exit_event = true;
+        udi_event_process_exit *proc_exit = (udi_event_process_exit *)iter->event_data;
+        if ( proc_exit->exit_code != EXIT_FAILURE ) {
+            cout << "Process unexpectedly exited with " << proc_exit->exit_code << " exit code" << endl;
+            return false;
+        }
+
+        udi_error_e result = continue_process(proc);
+
+        if ( result != UDI_ERROR_NONE ) {
+            cout << "Failed to continue process " << get_error_message(result) << endl;
+            return false;
+        }
+        iter = iter->next_event;
+    }
+
+    if ( events != NULL ) {
+        free_event_list(events);
+    }
+
+    if ( !saw_exit_event ) {
+        cout << "Failed to observe exit event for process " << get_proc_pid(proc) << endl;
         return false;
     }
 
-    char *argv[] = { NULL };
+    free_process(proc);
 
-    udi_process *proc = create_process(TEST_BINARY, argv, NULL);
-    if ( proc == NULL ) {
-        cout << "Failed to create process" << endl;
-        return false;
-    }
-
-    udi_error_e result = continue_process(proc);
-
-    if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to continue process " << get_error_message(result) << endl;
-        return false;
-    }
-
-    return wait_for_exit(proc);
+    return true;
 }

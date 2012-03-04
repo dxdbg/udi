@@ -132,6 +132,13 @@ udi_process *create_process(const char *executable, char * const argv[],
     return proc;
 }
 
+int free_process(udi_process *proc) {
+    // TODO detach from the process, etc.
+    free(proc);
+
+    return 1;
+}
+
 int set_udi_root_dir(const char *root_dir) {
     if ( processes_created > 0 ) return -1;
 

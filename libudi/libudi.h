@@ -91,6 +91,15 @@ udi_process *create_process(const char *executable, char * const argv[],
         char * const envp[]);
 
 /**
+ * Tells the library that resources allocated for the process can be released
+ *
+ * @param proc          the process handle
+ *
+ * @return 1, if the resources are released successfully; 0, otherwise
+ */
+int free_process(udi_process *proc);
+
+/**
  * Continue a stopped UDI process
  *
  * @param proc          the process handle
