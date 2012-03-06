@@ -31,10 +31,6 @@
 
 #include "libudi.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * Waits for the specified process to exit
  *
@@ -44,8 +40,13 @@ extern "C" {
  */
 bool wait_for_exit(udi_process *proc);
 
-#ifdef __cplusplus
-} // extern C
-#endif
+/**
+ * Waits for the specified process to hit the expected breakpoint
+ *
+ * @param proc  the process to wait on
+ *
+ * @return True, if an breakpoint event was seen; False otherwise
+ */
+bool wait_for_breakpoint(udi_process *proc, udi_address breakpoint);
 
 #endif

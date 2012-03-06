@@ -39,6 +39,47 @@ using std::cout;
 using std::endl;
 using std::stringstream;
 
+bool wait_for_breakpoint(udi_process *proc, udi_address breakpoint) {
+    udi_event *events = wait_for_events(&proc, 1);
+
+    udi_event *iter = events;
+
+    // TODO refactor this to be shared among other functions
+    bool saw_breakpoint_event = false;
+    while (iter != NULL) {
+        if ( iter->proc != proc ) {
+            cout << "Received event for unknown process " << get_proc_pid(iter->proc) << endl;
+            return false;
+        }
+
+        if ( iter->event_type != UDI_EVENT_BREAKPOINT ) {
+            cout << "Received unexpected event " << get_event_type_str(iter->event_type) << endl;
+            return false;
+        }
+
+        udi_event_breakpoint *proc_breakpoint = (udi_event_breakpoint *)iter->event_data;
+        if ( proc_breakpoint->breakpoint_addr != breakpoint ) {
+            cout << "Observed unexpected breakpoint at 0x" << std::hex
+                 << proc_breakpoint->breakpoint_addr << " (expected " << breakpoint
+                 << ")" << std::dec << endl;
+            return false;
+        }
+
+        iter = iter->next_event;
+    }
+
+    if ( events != NULL ) {
+        free_event_list(events);
+    }
+
+    if ( !saw_breakpoint_event ) {
+        cout << "Failed to observe breakpoint event for process " << get_proc_pid(proc) << endl;
+        return false;
+    }
+
+    return true;
+}
+
 bool wait_for_exit(udi_process *proc) {
     udi_event *events = wait_for_events(&proc, 1);
 
@@ -63,13 +104,14 @@ bool wait_for_exit(udi_process *proc) {
             return false;
         }
 
-        udi_error_e result = continue_process(proc);
-
-        if ( result != UDI_ERROR_NONE ) {
-            cout << "Failed to continue process " << get_error_message(result) << endl;
-            return false;
-        }
         iter = iter->next_event;
+    }
+
+    udi_error_e result = continue_process(proc);
+
+    if ( result != UDI_ERROR_NONE ) {
+        cout << "Failed to continue process " << get_error_message(result) << endl;
+        return false;
     }
 
     if ( events != NULL ) {

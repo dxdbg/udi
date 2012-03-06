@@ -50,8 +50,8 @@ class test_breakpoint : public UDITestCase {
 };
 
 static const char *TEST_BINARY = SIMPLE_BINARY_PATH;
-static unsigned long TEST_FUNCTION = SIMPLE_FUNCTION1;
-static int TEST_FUNCTION_INST = SIMPLE_FUNCTION1_INST_LENGTH;
+static udi_address TEST_FUNCTION = SIMPLE_FUNCTION1;
+static udi_length TEST_FUNCTION_INST = SIMPLE_FUNCTION1_INST_LENGTH;
 
 static test_breakpoint testInstance;
 
@@ -70,13 +70,28 @@ bool test_breakpoint::operator()(void) {
     }
 
     // Create and install breakpoint
+    udi_error_e result = create_breakpoint(proc, TEST_FUNCTION, TEST_FUNCTION_INST);
 
-    udi_error_e result = continue_process(proc);
+    if ( result != UDI_ERROR_NONE ) {
+        cout << "Failed to create breakpoint " << get_error_message(result) << endl;
+        return false;
+    }
+
+    result = install_breakpoint(proc, TEST_FUNCTION);
+
+    if ( result != UDI_ERROR_NONE ) {
+        cout << "Failed to install breakpoint " << get_error_message(result) << endl;
+        return false;
+    }
+
+    result = continue_process(proc);
 
     if ( result != UDI_ERROR_NONE ) {
         cout << "Failed to continue process " << get_error_message(result) << endl;
         return false;
     }
+
+
 
     return wait_for_exit(proc);
 }
