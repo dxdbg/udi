@@ -134,6 +134,14 @@ typedef struct udi_event_process_exit_struct {
 } udi_event_process_exit;
 
 /**
+ * When udi_event.event_type == UDI_EVENT_BREAKPOINT
+ * typeof(udi_event.event_data) == udi_event_breakpoint
+ */
+typedef struct udi_event_breakpoint_struct {
+    udi_address breakpoint_addr;
+} udi_event_breakpoint;
+
+/**
  * Wait for events to occur in the specified processes.
  *
  * @param procs         the processes

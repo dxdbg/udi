@@ -261,6 +261,8 @@ int udi_packer(int pack, unsigned char *data, udi_length length, va_list ap) {
                     void **output_data = va_arg(ap, void **);
                     *output_data = data_allocator(next_arg_size);
                     if ( *output_data == NULL ) {
+                        // TODO this will cause a memory leak if multiple BYTESTREAM
+                        // types in the same unpack call
                         return -1;
                     }
 

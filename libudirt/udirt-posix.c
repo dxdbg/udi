@@ -1147,7 +1147,30 @@ event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char *errmsg
         return handle_exit_breakpoint(context, errmsg, errmsg_size);
     }
 
-    // TODO handle user breakpoints
+    udi_printf("user breakpoint at 0x%llx\n", bp->address);
+
+    // create the event
+    udi_event_internal brkpt_event;
+    brkpt_event.event_type = UDI_EVENT_BREAKPOINT;
+    brkpt_event.length = sizeof(udi_address);
+    brkpt_event.packed_data = udi_pack_data(brkpt_event.length,
+            UDI_DATATYPE_ADDRESS, bp->address);
+
+    // Explicitly ignore errors as there is no way to report them
+    do {
+        if ( brkpt_event.packed_data == NULL ) {
+            result.failure = 1;
+            break;
+        }
+
+        result.failure = write_event(&brkpt_event);
+
+        udi_free(brkpt_event.packed_data);
+    }while(0);
+
+    if ( result.failure ) {
+        udi_printf("failed to report breakpoint at 0x%llx\n", bp->address);
+    }
 
     return result;
 }
