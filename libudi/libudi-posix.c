@@ -130,6 +130,7 @@ char **insert_rt_library(char * const envp[]) {
                     1; // the \0 terminating character
 
         envp_copy[num_elements-2] = (char *)malloc(sizeof(char)*(str_size));
+        memset(envp_copy[num_elements-2], 0, str_size);
 
         strncpy(envp_copy[num_elements-2], "LD_PRELOAD=", strlen("LD_PRELOAD="));
         strncat(envp_copy[num_elements-2], DEFAULT_UDI_RT_LIB_NAME, strlen(DEFAULT_UDI_RT_LIB_NAME));
