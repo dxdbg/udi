@@ -449,6 +449,18 @@ const char *get_mem_errstr() {
 // Handler functions //
 ///////////////////////
 
+static
+int send_valid_response(udi_request_type req_type) {
+
+    udi_response resp;
+    resp.response_type = UDI_RESP_VALID;
+    resp.request_type = req_type;
+    resp.length = 0;
+    resp.packed_data = NULL;
+
+    return write_response_to_request(&resp);
+}
+
 int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     uint32_t sig_val;
     if ( udi_unpack_data(req->packed_data, req->length,
@@ -480,13 +492,7 @@ int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
         }
     }
     
-    udi_response resp;
-    resp.response_type = UDI_RESP_VALID;
-    resp.request_type = UDI_REQ_CONTINUE;
-    resp.length = 0;
-    resp.packed_data = NULL;
-
-    int result = write_response_to_request(&resp);
+    int result = send_valid_response(UDI_REQ_CONTINUE);
 
     if ( result == REQ_SUCCESS ) {
         pass_signal = sig_val;
@@ -578,14 +584,7 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
         return REQ_FAILURE;
     }
 
-    // Create the response
-    udi_response resp;
-    resp.response_type = UDI_RESP_VALID;
-    resp.request_type = UDI_REQ_WRITE_MEM;
-    resp.length = 0;
-    resp.packed_data = NULL;
-
-    write_result = write_response_to_request(&resp);
+    write_result = send_valid_response(UDI_REQ_WRITE_MEM);
 
     udi_free(bytes_to_write);
 
@@ -632,13 +631,7 @@ int breakpoint_create_handler(udi_request *req, char *errmsg, unsigned int errms
         return REQ_FAILURE;
     }
 
-    udi_response resp;
-    resp.response_type = UDI_RESP_VALID;
-    resp.request_type = UDI_REQ_CREATE_BREAKPOINT;
-    resp.length = 0;
-    resp.packed_data = NULL;
-
-    return write_response_to_request(&resp);
+    return send_valid_response(UDI_REQ_CREATE_BREAKPOINT);
 }
 
 static
@@ -671,7 +664,7 @@ int breakpoint_install_handler(udi_request *req, char *errmsg, unsigned int errm
 
     if ( install_breakpoint(bp, errmsg, errmsg_size) ) return REQ_FAILURE;
 
-    return REQ_SUCCESS;
+    return send_valid_response(UDI_REQ_INSTALL_BREAKPOINT);
 }
 
 int breakpoint_remove_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
@@ -681,7 +674,7 @@ int breakpoint_remove_handler(udi_request *req, char *errmsg, unsigned int errms
 
     if ( remove_breakpoint(bp, errmsg, errmsg_size) ) return REQ_FAILURE;
 
-    return REQ_SUCCESS;
+    return send_valid_response(UDI_REQ_REMOVE_BREAKPOINT);
 }
 
 int breakpoint_delete_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
@@ -691,12 +684,62 @@ int breakpoint_delete_handler(udi_request *req, char *errmsg, unsigned int errms
 
     if ( delete_breakpoint(bp, errmsg, errmsg_size) ) return REQ_FAILURE;
 
-    return REQ_SUCCESS;
+    return send_valid_response(UDI_REQ_DELETE_BREAKPOINT);
 }
 
 ///////////////////////////
 // End handler functions //
 ///////////////////////////
+
+void *pre_mem_access_hook() {
+
+    // Unblock the SIGSEGV to allow the write to complete
+    sigset_t *original_set = (sigset_t *)udi_malloc(sizeof(sigset_t));
+
+    if ( original_set == NULL ) {
+        udi_printf("failed to allocate sigset_t: %s\n", strerror(errno));
+        return NULL;
+    }
+
+    int result = 0;
+    do {
+        if ( setsigmask(SIG_BLOCK, NULL, original_set) != 0 ) {
+            udi_printf("failed to change signal mask: %s\n", strerror(errno));
+            result = -1;
+            break;
+        }
+
+        sigset_t segv_set = *original_set;
+        sigdelset(&segv_set, SIGSEGV);
+        if ( setsigmask(SIG_SETMASK, &segv_set, original_set) != 0 ) {
+            udi_printf("failed to unblock SIGSEGV: %s\n", strerror(errno));
+            result = -1;
+            break;
+        }
+    }while(0);
+
+    if ( result ) {
+        udi_free(original_set);
+        original_set = NULL;
+    }
+
+    return original_set;
+}
+
+int post_mem_access_hook(void *hook_arg) {
+
+    sigset_t *original_set = (sigset_t *)hook_arg;
+
+    int result = 0;
+    if ( setsigmask(SIG_SETMASK, original_set, NULL) != 0 ) {
+        udi_printf("failed to reset signal mask: %s\n", strerror(errno));
+        result = -1;
+    }
+
+    udi_free(original_set);
+
+    return result;
+}
 
 static
 int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
@@ -898,23 +941,7 @@ static
 int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
     int errnum = 0;
     
-    sigset_t original_set;
     do {
-        // Unblock the SIGSEGV to allow the write to complete
-        if ( (errnum = setsigmask(SIG_BLOCK, NULL, &original_set)) != 0 ) {
-            udi_printf("failed to change signal mask: %s\n", strerror(errno));
-            errnum = errno;
-            break;
-        }
-
-        sigset_t segv_set = original_set;
-        sigdelset(&segv_set, SIGSEGV);
-        if ( (errnum = setsigmask(SIG_SETMASK, &segv_set, &original_set)) != 0 ) {
-            udi_printf("failed to unblock SIGSEGV: %s\n", strerror(errno));
-            errnum = errno;
-            break;
-        }
-
         int exit_inst_length = get_exit_inst_length(exit, errmsg, errmsg_size);
         if ( exit_inst_length <= 0 ) {
             udi_printf("%s\n", "failed to determine length of instruction for exit breakpoint");
@@ -937,12 +964,6 @@ int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
         if ( errnum != 0 ) {
             udi_printf("%s\n", "failed to install exit breakpoint");
             errnum = -1;
-            break;
-        }
-
-        if ( (errnum = setsigmask(SIG_SETMASK, &original_set, NULL)) != 0 ) {
-            udi_printf("failed to reset signal mask: %s\n", strerror(errno));
-            errnum = errno;
             break;
         }
     }while(0);
@@ -1189,7 +1210,7 @@ event_result decode_trap(const siginfo_t *siginfo, ucontext_t *context,
     breakpoint *bp = find_breakpoint(trap_address);
 
     if ( bp != NULL ) {
-        udi_printf("found breakpoint at %llx\n", trap_address);
+        udi_printf("found breakpoint at 0x%llx\n", trap_address);
         result = decode_breakpoint(bp, context, errmsg, errmsg_size);
     }else{
         // TODO create signal event

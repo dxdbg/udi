@@ -74,9 +74,19 @@ int udi_memcpy(void *dest, const void *src, size_t num_bytes,
 {
     int mem_result = 0;
 
+    void *pre_access_result = pre_mem_access_hook();
+
+    if ( pre_access_result == NULL ) {
+        return -1;
+    }
+
     performing_mem_access = 1;
     mem_result = abortable_memcpy(dest, src, num_bytes);
     performing_mem_access = 0;
+
+    if ( post_mem_access_hook(pre_access_result) ) {
+        return -1;
+    }
 
     return mem_result;
 }
@@ -148,12 +158,7 @@ breakpoint *create_breakpoint(udi_address breakpoint_addr, udi_length instructio
 }
 
 int install_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
-    if ( bp->in_memory ) {
-        snprintf(errmsg, errmsg_size, "breakpoint at %llx already in memory, not installed",
-                bp->address);
-        udi_printf("%s\n", errmsg);
-        return 0;
-    }
+    if ( bp->in_memory ) return 0;
 
     int result = write_breakpoint_instruction(bp, errmsg, errmsg_size);
 
@@ -165,12 +170,7 @@ int install_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
 }
 
 int remove_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
-    if ( !bp->in_memory ) {
-        snprintf(errmsg, errmsg_size, "breakpoint at %llx already removed from memory",
-                bp->address);
-        udi_printf("%s\n", errmsg);
-        return 0;
-    }
+    if ( !bp->in_memory ) return 0;
 
     int result = write_saved_bytes(bp, errmsg, errmsg_size);
 

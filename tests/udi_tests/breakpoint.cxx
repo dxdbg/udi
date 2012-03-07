@@ -80,18 +80,29 @@ bool test_breakpoint::operator()(void) {
     result = install_breakpoint(proc, TEST_FUNCTION);
 
     if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to install breakpoint " << get_error_message(result) << endl;
+        cout << "Failed to install breakpoint: " << get_error_message(result) << endl;
         return false;
     }
 
     result = continue_process(proc);
 
     if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to continue process " << get_error_message(result) << endl;
+        cout << "Failed to continue process: " << get_error_message(result) << endl;
         return false;
     }
 
+    if ( !wait_for_breakpoint(proc, TEST_FUNCTION) ) {
+        cout << "Failed to wait for breakpoint at 0x" << std::hex
+             << TEST_FUNCTION << std::dec << endl;
+        return false;
+    }
 
+    result = continue_process(proc);
+
+    if ( result != UDI_ERROR_NONE ) {
+        cout << "Failed to continue process: " << get_error_message(result) << endl;
+        return false;
+    }
 
     return wait_for_exit(proc);
 }
