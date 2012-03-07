@@ -65,6 +65,8 @@ bool wait_for_breakpoint(udi_process *proc, udi_address breakpoint) {
             return false;
         }
 
+        saw_breakpoint_event = true;
+
         iter = iter->next_event;
     }
 
