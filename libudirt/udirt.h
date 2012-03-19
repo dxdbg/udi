@@ -39,18 +39,24 @@
 extern "C" {
 #endif
 
-// platform independent settings */
+// global variables
 extern char *UDI_ROOT_DIR;
 extern int udi_enabled;
 extern int udi_debug_on;
 extern int udi_in_sig_handler;
 
-// platform specific functions
+// UDI RT internal malloc
 
+void udi_set_max_mem_size(unsigned long max_size);
 void udi_free(void *ptr);
 void *udi_malloc(size_t length);
 
-// platform independent functions
+int udi_critical_start();
+int udi_critical_end();
+unsigned char *map_mem(size_t length);
+int unmap_mem(void *addr, size_t length);
+
+// request handling
 
 int write_response(udi_response *response);
 int write_response_to_request(udi_response *response);
@@ -58,15 +64,13 @@ int write_event(udi_event_internal *event);
 udi_request *read_request();
 void free_request(udi_request *request);
 
-// request handling
-
-/** Request processed successfully */
+// Request processed successfully
 extern const int REQ_SUCCESS;
 
-/** Failure to process request due to environment/OS error, unrecoverable */
+// Failure to process request due to environment/OS error, unrecoverable
 extern const int REQ_ERROR;
 
-/** Failure to process request due to invalid arguments */
+// Failure to process request due to invalid arguments
 extern const int REQ_FAILURE;
 
 // reading and writing debugee memory

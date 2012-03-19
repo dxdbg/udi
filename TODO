@@ -15,6 +15,6 @@ multiple users to run programs that use udi
 
 * make udirt command execution re-entrant
 
-* create re-entrant malloc for exclusive use by udirt
+* create malloc for exclusive use by udirt
 
 * need thread support

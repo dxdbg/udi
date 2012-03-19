@@ -69,6 +69,7 @@ extern int testing_udirt(void) __attribute__((weak));
 // constants
 static const unsigned int ERRMSG_SIZE = 4096;
 static const unsigned int PID_STR_LEN = 10;
+static const unsigned long UDIRT_HEAP_SIZE = 1048576; // 1 MB
 
 // file paths
 static char *basedir_name;
@@ -212,7 +213,6 @@ void disable_debugging() {
     udi_printf("%s\n", "Disabled debugging");
 }
 
-static
 int setsigmask(int how, const sigset_t *new_set, sigset_t *old_set) {
     // Only use pthread_sigmask when it is available
     if ( pthread_sigmask ) {
@@ -285,16 +285,6 @@ void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context) {
         udi_printf("failed to reset blocked signals after application handler: %s\n",
                 strerror(errno));
     }
-}
-
-// library memory allocation -- wrappers for now
-
-void udi_free(void *ptr) {
-    free(ptr);
-}
-
-void *udi_malloc(size_t length) {
-    return malloc(length);
 }
 
 // request-response handling
@@ -1379,6 +1369,9 @@ void global_variable_initialization() {
 
     // set allocator used for packing data
     udi_set_malloc(udi_malloc);
+
+    // initialize the malloc implementation
+    udi_set_max_mem_size(UDIRT_HEAP_SIZE);
 
     // Define the default sigaction for the library
     memset(&default_lib_action, 0, sizeof(struct sigaction));

@@ -10,10 +10,11 @@ lib_env = topenv.Clone()
 
 lib_env.Append(CPPPATH = ['#/libudicommon', '#/libudirt'])
 
-sources = ['udirt.c']
+sources = ['udirt.c', 'udirt-malloc.c']
 
 if udibuild.IsUnix():
     sources.append('udirt-posix.c')
+    sources.append('udirt-malloc-posix.c')
 
 if udibuild.IsX86():
     sources.append('udirt-x86.c')
