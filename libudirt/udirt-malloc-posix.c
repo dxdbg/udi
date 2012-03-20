@@ -32,22 +32,6 @@
 #include <sys/mman.h>
 #include <signal.h>
 
-extern int setsigmask(int how, const sigset_t *new_set, sigset_t *old_set);
-
-static
-sigset_t saved_sigset;
-
-int udi_critical_start() {
-    sigset_t all_signals;
-    sigfillset(&all_signals);
-
-    return setsigmask(SIG_SETMASK, &all_signals, &saved_sigset);
-}
-
-int udi_critical_end() {
-    return setsigmask(SIG_SETMASK, &saved_sigset, NULL);
-}
-
 unsigned char *map_mem(size_t length) {
     return (unsigned char *)mmap(NULL, length, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS, -1, 0);
 }

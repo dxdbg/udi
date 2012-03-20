@@ -213,6 +213,21 @@ void disable_debugging() {
     udi_printf("%s\n", "Disabled debugging");
 }
 
+void udi_abort(const char *file, unsigned int line) {
+    udi_printf("udi_abort at %s[%d]\n", file, line);
+
+    struct sigaction default_action;
+    memset(&default_action, 0, sizeof(struct sigaction));
+    default_action.sa_handler = SIG_DFL;
+
+    // Need to avoid any user handlers
+    real_sigaction(SIGABRT, (struct sigaction *)&default_action, NULL);
+
+    disable_debugging();
+
+    abort();
+}
+
 int setsigmask(int how, const sigset_t *new_set, sigset_t *old_set) {
     // Only use pthread_sigmask when it is available
     if ( pthread_sigmask ) {
