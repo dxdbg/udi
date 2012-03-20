@@ -45,14 +45,15 @@ extern int udi_enabled;
 extern int udi_debug_on;
 extern int udi_in_sig_handler;
 
+// General platform-specific functions
+void udi_abort(const char *file, unsigned int line);
+
 // UDI RT internal malloc
 
 void udi_set_max_mem_size(unsigned long max_size);
 void udi_free(void *ptr);
 void *udi_malloc(size_t length);
 
-int udi_critical_start();
-int udi_critical_end();
 unsigned char *map_mem(size_t length);
 int unmap_mem(void *addr, size_t length);
 
@@ -97,7 +98,7 @@ typedef struct breakpoint_struct {
     unsigned char saved_bytes[8];
     udi_length instruction_length;
     udi_address address;
-    int in_memory;
+    unsigned char in_memory;
     struct breakpoint_struct *next_breakpoint;
 } breakpoint;
 
