@@ -31,10 +31,11 @@
 #include <cerrno>
 #include <cstring>
 
-// XXX POSIX ONLY
+#ifdef UNIX
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
+#endif
 
 #include "udirt.h"
 #include "libuditest.h"
@@ -53,7 +54,7 @@ class test_read_request : public UDITestCase {
 
 static test_read_request testInstance;
 
-// XXX POSIX ONLY
+#ifdef UNIX
 extern "C" {
 extern udi_request *read_request_from_fd(int fd);
 }
@@ -132,6 +133,11 @@ static bool test_read_request_platform() {
 
     return true;
 }
+#else
+static bool test_read_request_platform() {
+    return false;
+}
+#endif
 
 bool test_read_request::operator()(void) {
     return test_read_request_platform();

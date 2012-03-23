@@ -171,7 +171,7 @@ void udi_free(void *in_ptr) {
     // Need to add the chunk to the free list
     chunk *tmp = parent_segment->free_list;
     chunk *last_chunk = tmp;
-    while (tmp != NULL && (chunk_addr < ((unsigned long)tmp))) {
+    while (tmp != NULL && (chunk_addr > ((unsigned long)tmp))) {
         last_chunk = tmp;
         tmp = tmp->next_chunk;
     }
@@ -261,7 +261,7 @@ void *udi_malloc(size_t length) {
         // Case 2: the found chunk is greater than size requested and there is
         // enough space left over for another chunk
         }else{
-            // create new chunk
+            // create new chunk and allocate tmp_chunk
             chunk new_chunk;
             new_chunk.size = tmp_chunk->size - length - sizeof(chunk);
             new_chunk.parent_segment = tmp_segment;
@@ -271,7 +271,14 @@ void *udi_malloc(size_t length) {
             memcpy((void *)new_chunk_addr, &new_chunk, sizeof(chunk));
 
             // link in new chunk
-            last_chunk->next_chunk = (chunk *)new_chunk_addr;
+            if ( tmp_chunk != last_chunk ) {
+                last_chunk->next_chunk = (chunk *)new_chunk_addr;
+            }
+
+            if ( tmp_chunk == tmp_segment->free_list ) {
+                tmp_segment->free_list = (chunk *)new_chunk_addr;
+            }
+
             tmp_segment->free_space -= sizeof(chunk) + new_chunk.size;
         }
         

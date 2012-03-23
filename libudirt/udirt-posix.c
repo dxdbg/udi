@@ -1375,13 +1375,16 @@ int setup_signal_handlers() {
 }
 
 static
-void global_variable_initialization() {
+void enable_debug_logging() {
     // turn on debugging, if necessary
     if (getenv(UDI_DEBUG_ENV) != NULL) {
         udi_debug_on = 1;
         udi_printf("%s\n", "UDI rt debug logging enabled");
     }
+}
 
+static
+void global_variable_initialization() {
     // set allocator used for packing data
     udi_set_malloc(udi_malloc);
 
@@ -1466,6 +1469,8 @@ void init_udi_rt() {
 
     // initialize error message
     errmsg[ERRMSG_SIZE-1] = '\0';
+
+    enable_debug_logging();
 
     if ( testing_udirt != NULL ) return;
 
