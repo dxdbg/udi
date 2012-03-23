@@ -26,25 +26,50 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <iostream>
+#include <cstdlib>
+#include <cerrno>
+#include <cstring>
+
 #include "udirt.h"
+#include "libuditest.h"
 
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <signal.h>
-#include <string.h>
-#include <errno.h>
+using std::cout;
+using std::endl;
 
-unsigned char *map_mem(size_t length) {
-    void * ret = mmap(NULL, length, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+class test_malloc : public UDITestCase {
+    public:
+        test_malloc()
+            : UDITestCase(std::string("test_malloc")) {}
+        virtual ~test_malloc() {}
+        
+        bool operator()(void);
+};
 
-    if ( ret == MAP_FAILED ) {
-        udi_printf("mmap failed: %s\n", strerror(errno));
-        return NULL;
+static test_malloc testInstance;
+
+bool test_malloc::operator()(void) {
+
+    int **ptr = (int **)udi_malloc(sizeof(int *)*10);
+
+    int i;
+    for (i = 0; i < 10; ++i) {
+        ptr[i] = (int *)udi_malloc(sizeof(int));
+        *(ptr[i]) = i;
     }
 
-    return ret;
-}
+    for (i = 0; i < 10; ++i) {
+        if ( *(ptr[i]) != i ) {
+            cout << "Unexpected value in integer array: ( "
+                 << *(ptr[i]) << " !=  " << i << endl;
+            return false;
+        }
+    }
 
-int unmap_mem(void *addr, size_t length) {
-    return munmap(addr, length);
+    for (i = 0; i < 10; ++i) {
+        udi_free(ptr[i]);
+    }
+    udi_free(ptr);
+
+    return true;
 }
