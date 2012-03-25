@@ -813,14 +813,14 @@ int create_udi_filesystem() {
     do {
         // get root directory
         if ((UDI_ROOT_DIR = getenv(UDI_ROOT_DIR_ENV)) == NULL) {
-            UDI_ROOT_DIR = (char *)udi_malloc(strlen(DEFAULT_UDI_ROOT_DIR));
+            UDI_ROOT_DIR = (char *)udi_malloc(strlen(DEFAULT_UDI_ROOT_DIR)+1);
             strncpy(UDI_ROOT_DIR, DEFAULT_UDI_ROOT_DIR,
-                    strlen(DEFAULT_UDI_ROOT_DIR));
+                    strlen(DEFAULT_UDI_ROOT_DIR)+1);
         }
 
         // create the directory for this process
         size_t basedir_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN +
-                                DS_LEN;
+                                DS_LEN + 1;
         basedir_name = (char *)udi_malloc(basedir_length);
         if (basedir_name == NULL) {
             udi_printf("malloc failed: %s\n", strerror(errno));
@@ -839,7 +839,7 @@ int create_udi_filesystem() {
 
         // create the udi files
         size_t requestfile_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN
-                                    + strlen(REQUEST_FILE_NAME) + DS_LEN*2;
+                                    + strlen(REQUEST_FILE_NAME) + DS_LEN*2 + 1;
         requestfile_name = (char *)udi_malloc(requestfile_length);
         if (requestfile_name == NULL) {
             udi_printf("malloc failed: %s\n", strerror(errno));
@@ -858,7 +858,7 @@ int create_udi_filesystem() {
         }
 
         size_t responsefile_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN
-                                     + strlen(RESPONSE_FILE_NAME) + DS_LEN*2;
+                                     + strlen(RESPONSE_FILE_NAME) + DS_LEN*2 + 1;
         responsefile_name = (char *)udi_malloc(responsefile_length);
         if (responsefile_name == NULL) {
             udi_printf("malloc failed: %s\n",
@@ -878,7 +878,7 @@ int create_udi_filesystem() {
         }
 
         size_t eventsfile_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN
-                                   + strlen(EVENTS_FILE_NAME) + DS_LEN*2;
+                                   + strlen(EVENTS_FILE_NAME) + DS_LEN*2 + 1;
         eventsfile_name = (char *)udi_malloc(eventsfile_length);
         if (eventsfile_name == NULL) {
             udi_printf("malloc failed: %s\n",

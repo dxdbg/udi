@@ -13,8 +13,6 @@ multiple users to run programs that use udi
 
 * handle case where user creates breakpoint at exit function
 
-* make udirt command execution re-entrant
-
 * create malloc for exclusive use by udirt
 
 * need thread support
