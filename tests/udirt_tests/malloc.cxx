@@ -48,8 +48,8 @@ class test_malloc : public UDITestCase {
 
 static test_malloc testInstance;
 
-bool test_malloc::operator()(void) {
-
+static
+bool basic_test() {
     int **ptr = (int **)udi_malloc(sizeof(int *)*10);
 
     int i;
@@ -72,4 +72,59 @@ bool test_malloc::operator()(void) {
     udi_free(ptr);
 
     return true;
+}
+
+static
+void set_all_chars(char *str, int length) {
+    char value = (char)length;
+
+    int i;
+    for (i = 0; i < length; ++i) {
+        str[i] = value;
+    }
+}
+
+static
+bool fragment_test() {
+    const int malloc_size = 16;
+
+    char *last_alloc = (char *)udi_malloc(sizeof(char)*malloc_size);
+    set_all_chars(last_alloc, malloc_size);
+
+    char *current_alloc = (char *)udi_malloc(sizeof(char)*malloc_size);
+    set_all_chars(current_alloc, malloc_size);
+
+    int i;
+    for (i = 1;  i < 10; ++i) {
+        udi_free(last_alloc);
+
+        char value = (char)(i*malloc_size);
+
+        int j;
+        for (j = 0; j < (i*malloc_size); ++j) {
+            if ( current_alloc[j] != value ) {
+                cout << "Unexpected value found in allocated string ( "
+                     << (unsigned int)(current_alloc[j]) << " != "
+                     << (unsigned int)(value) << " )" << endl;
+                return false;
+            }
+        }
+
+        last_alloc = current_alloc;
+        current_alloc = (char *)udi_malloc(sizeof(char)*malloc_size*(i+1));
+        set_all_chars(current_alloc, malloc_size*(i+1));
+    }
+
+    udi_free(current_alloc);
+
+    return true;
+}
+
+bool test_malloc::operator()(void) {
+
+    bool result = basic_test();
+
+    if ( !result ) return result;
+
+    return fragment_test();
 }

@@ -284,5 +284,32 @@ void *udi_malloc(size_t length) {
         
         return (void *)(((unsigned char *)tmp_chunk) + sizeof(chunk));
     }while(1);
+}
 
+/** Debugging function */
+static
+void dump_heap() {
+    fprintf(stderr, "Num segments: %d\n", heap.num_segments);
+    fprintf(stderr, "Last segment: %p\n", heap.last_segment);
+
+    segment *seg_ptr = heap.segment_list;
+    while (seg_ptr != NULL) {
+        fprintf(stderr, "Segment: %p\n", seg_ptr);
+        fprintf(stderr, "Next segment: %p\n", seg_ptr->next_segment);
+        fprintf(stderr, "Prev segment: %p\n", seg_ptr->prev_segment);
+        fprintf(stderr, "Free space: %d\n", seg_ptr->free_space);
+        fprintf(stderr, "Free list: %p\n", seg_ptr->free_list);
+
+        chunk *chunk_ptr =  seg_ptr->free_list;
+        while (chunk_ptr != NULL) {
+            fprintf(stderr, "\tChunk: %p\n", chunk_ptr);
+            fprintf(stderr, "\tParent segment: %p\n", chunk_ptr->parent_segment);
+            fprintf(stderr, "\tSize: %d\n", chunk_ptr->size);
+            fprintf(stderr, "\tNext chunk: %p\n", chunk_ptr->next_chunk);
+
+            chunk_ptr = chunk_ptr->next_chunk;
+        }
+
+        seg_ptr = seg_ptr->next_segment;
+    }
 }
