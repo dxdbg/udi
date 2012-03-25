@@ -77,8 +77,8 @@ static bool test_read_request_platform() {
         return false;
     }
 
-    udi_length length = udi_length_hton(strlen(TESTPAYLOAD));
-    udi_length exp_length = strlen(TESTPAYLOAD);
+    udi_length length = udi_length_hton(strlen(TESTPAYLOAD) + 1);
+    udi_length exp_length = strlen(TESTPAYLOAD) + 1;
     if ( write(fd, &length, sizeof(udi_length)) == -1 ) {
         cout << "Failed to write length: " << strerror(errno) << endl;
         return false;
@@ -120,7 +120,7 @@ static bool test_read_request_platform() {
          std::string(TESTPAYLOAD) )
     {
         cout << "Unexpected value in request ( '"
-             << result->packed_data
+             << (char *)result->packed_data
              << "' != '" << TESTPAYLOAD << "' ) " << endl;
         return false;
     }
