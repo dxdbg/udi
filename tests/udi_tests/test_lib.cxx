@@ -125,7 +125,10 @@ bool wait_for_exit(udi_process *proc) {
         return false;
     }
 
-    free_process(proc);
+    if ( free_process(proc) ) {
+        cout << "Failed to free process " << get_proc_pid(proc) << endl;
+        return false;
+    }
 
     return true;
 }

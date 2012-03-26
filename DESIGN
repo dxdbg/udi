@@ -84,11 +84,10 @@ using UDI's approach.
 3 Debugger Interface Details
 
 The debugger interface will be constructed using named pipes (or some similar
-mechanism). These named pipes will be used to create a pseudo-filesystem
-modeled after the full-featured /proc filesystem in Plan 9 and Solaris. The UDI
+mechanism). These named pipes will be used to create a pseudo-filesystem. The UDI
 library creates the following file hierarchy:
 
-.../udi/<pid>/:
+.../udi/<username>/<pid>/:
     request     All requests are written into this file
     response    Receive responses from requests
     events      Used to wait for events to occur in the target process

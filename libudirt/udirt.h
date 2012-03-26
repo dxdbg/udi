@@ -122,6 +122,8 @@ int write_breakpoint_instruction(breakpoint *bp, char *errmsg,
 int write_saved_bytes(breakpoint *bp, char *errmsg,
         unsigned int errmsg_size);
 
+udi_arch_e get_architecture();
+
 // error logging
 #define udi_printf(format, ...) \
     do {\

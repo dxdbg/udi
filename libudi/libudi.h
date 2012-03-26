@@ -95,7 +95,7 @@ udi_process *create_process(const char *executable, char * const argv[],
  *
  * @param proc          the process handle
  *
- * @return 1, if the resources are released successfully; 0, otherwise
+ * @return 0, if the resources are released successfully; non-zero, otherwise
  */
 int free_process(udi_process *proc);
 
@@ -176,6 +176,15 @@ void *get_user_data(udi_process *proc);
  * @return the pid for the process
  */
 int get_proc_pid(udi_process *proc);
+
+/**
+ * Gets the architecture for the specified process
+ *
+ * @param proc          the process handle
+ *
+ * @return the architecture for the process
+ */
+udi_arch_e get_proc_architecture(udi_process *proc);
 
 /**
  * @return a string representation of the specified event type
