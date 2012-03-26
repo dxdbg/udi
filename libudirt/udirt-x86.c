@@ -66,3 +66,7 @@ int write_saved_bytes(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
 
     return result;
 }
+
+udi_arch_e get_architecture() {
+    return UDI_ARCH_X86;
+}

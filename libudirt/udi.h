@@ -57,6 +57,21 @@ typedef enum {
     UDI_DATATYPE_BYTESTREAM // encoded as a length and a following byte stream
 } udi_data_type_e;
 
+/**
+ * architecture of debuggee
+ */
+typedef enum {
+    UDI_ARCH_X86,
+    UDI_ARCH_X86_64
+} udi_arch_e;
+
+/**
+ * The version of the protocol
+ */
+typedef enum {
+    UDI_PROTOCOL_VERSION = 0
+} udi_version_e;
+
 /* 
  * Request specification:
  *
@@ -107,7 +122,8 @@ typedef enum
  *      None
  *
  * Response values:
- *      None
+ *      UDI_DATATYPE_INT32 - the UDI protocol version
+ *      UDI_DATATYPE_INT32 - the architecture of the debuggee
  */
 
 /* Continue request and response

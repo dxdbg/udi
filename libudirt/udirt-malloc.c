@@ -287,7 +287,6 @@ void *udi_malloc(size_t length) {
 }
 
 /** Debugging function */
-static
 void dump_heap() {
     fprintf(stderr, "Num segments: %d\n", heap.num_segments);
     fprintf(stderr, "Last segment: %p\n", heap.last_segment);

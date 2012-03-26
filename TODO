@@ -1,8 +1,5 @@
 A list of enhancements/bugfixes for the future
 ----------------------------------------------
-* modify the default udi root filesystem procedure to include the username somehow to allow
-multiple users to run programs that use udi
-
 * allow user to specify the runtime library to be loaded when creating processes in libudi
 
 * Need to handle abnormal termination of debuggee (via debuggee library error or SIGKILL)
@@ -13,6 +10,14 @@ multiple users to run programs that use udi
 
 * handle case where user creates breakpoint at exit function
 
-* create malloc for exclusive use by udirt
+* thread support
 
-* need thread support
+* revamp libudi error handling to be maintained per-process
+
+* implement register interface
+
+* implement state command
+
+* implement debuggee-side conditional breakpoints
+
+* header comments for internal functions

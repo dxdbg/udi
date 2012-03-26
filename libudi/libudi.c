@@ -136,7 +136,7 @@ int free_process(udi_process *proc) {
     // TODO detach from the process, etc.
     free(proc);
 
-    return 1;
+    return 0;
 }
 
 int set_udi_root_dir(const char *root_dir) {
@@ -165,6 +165,10 @@ void *get_user_data(udi_process *proc) {
 
 int get_proc_pid(udi_process *proc) {
     return proc->pid;
+}
+
+udi_arch_e get_proc_architecture(udi_process *proc) {
+    return proc->architecture;
 }
 
 static

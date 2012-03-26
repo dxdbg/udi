@@ -45,6 +45,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <pwd.h>
 #include <sys/mman.h>
 
 #include "udi.h"
@@ -70,6 +71,7 @@ extern int testing_udirt(void) __attribute__((weak));
 static const unsigned int ERRMSG_SIZE = 4096;
 static const unsigned int PID_STR_LEN = 10;
 static const unsigned long UDIRT_HEAP_SIZE = 1048576; // 1 MB
+static const unsigned int USER_STR_LEN = 25;
 
 // file paths
 static char *basedir_name;
@@ -602,7 +604,7 @@ int state_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
 }
 
 int init_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
-    // TODO need to reinitialize library on this request
+    // TODO need to reinitialize library on this request if not already initialized
     return REQ_SUCCESS;
 }
 
@@ -819,8 +821,8 @@ int create_udi_filesystem() {
         }
 
         // create the directory for this process
-        size_t basedir_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN +
-                                DS_LEN + 1;
+        size_t basedir_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN 
+            + USER_STR_LEN + 2*DS_LEN + 1;
         basedir_name = (char *)udi_malloc(basedir_length);
         if (basedir_name == NULL) {
             udi_printf("malloc failed: %s\n", strerror(errno));
@@ -828,9 +830,17 @@ int create_udi_filesystem() {
             break;
         }
 
+        uid_t user_id = geteuid();
+        struct passwd *passwd_info = getpwuid(user_id);
+        if (passwd_info == NULL) {
+            udi_printf("getpwuid failed: %s\n", strerror(errno));
+            errnum = errno;
+            break;
+        }
+
         basedir_name[basedir_length-1] = '\0';
-        snprintf(basedir_name, basedir_length-1, "%s/%d", UDI_ROOT_DIR,
-                 getpid());
+        snprintf(basedir_name, basedir_length-1, "%s/%s/%d", UDI_ROOT_DIR,
+                 passwd_info->pw_name, getpid());
         if (mkdir(basedir_name, S_IRWXG | S_IRWXU) == -1) {
             udi_printf("error creating basedir: %s\n", strerror(errno));
             errnum = errno;
@@ -838,8 +848,8 @@ int create_udi_filesystem() {
         }
 
         // create the udi files
-        size_t requestfile_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN
-                                    + strlen(REQUEST_FILE_NAME) + DS_LEN*2 + 1;
+        size_t requestfile_length = basedir_length
+                                    + strlen(REQUEST_FILE_NAME) + DS_LEN;
         requestfile_name = (char *)udi_malloc(requestfile_length);
         if (requestfile_name == NULL) {
             udi_printf("malloc failed: %s\n", strerror(errno));
@@ -848,8 +858,8 @@ int create_udi_filesystem() {
         }
 
         requestfile_name[requestfile_length-1] = '\0';
-        snprintf(requestfile_name, requestfile_length-1, "%s/%d/%s",
-                 UDI_ROOT_DIR, getpid(), REQUEST_FILE_NAME);
+        snprintf(requestfile_name, requestfile_length-1, "%s/%s/%d/%s",
+                 UDI_ROOT_DIR, passwd_info->pw_name, getpid(), REQUEST_FILE_NAME);
         if (mkfifo(requestfile_name, S_IRWXG | S_IRWXU) == -1) {
             udi_printf("error creating request file fifo: %s\n",
                        strerror(errno));
@@ -857,8 +867,8 @@ int create_udi_filesystem() {
             break;
         }
 
-        size_t responsefile_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN
-                                     + strlen(RESPONSE_FILE_NAME) + DS_LEN*2 + 1;
+        size_t responsefile_length = basedir_length +
+                               strlen(RESPONSE_FILE_NAME) + DS_LEN;
         responsefile_name = (char *)udi_malloc(responsefile_length);
         if (responsefile_name == NULL) {
             udi_printf("malloc failed: %s\n",
@@ -868,8 +878,8 @@ int create_udi_filesystem() {
         }
 
         responsefile_name[responsefile_length-1] = '\0';
-        snprintf(responsefile_name, responsefile_length-1, "%s/%d/%s",
-                 UDI_ROOT_DIR, getpid(), RESPONSE_FILE_NAME);
+        snprintf(responsefile_name, responsefile_length-1, "%s/%s/%d/%s",
+                 UDI_ROOT_DIR, passwd_info->pw_name, getpid(), RESPONSE_FILE_NAME);
         if (mkfifo(responsefile_name, S_IRWXG | S_IRWXU) == -1) {
             udi_printf("error creating response file fifo: %s\n",
                        strerror(errno));
@@ -877,8 +887,8 @@ int create_udi_filesystem() {
             break;
         }
 
-        size_t eventsfile_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN
-                                   + strlen(EVENTS_FILE_NAME) + DS_LEN*2 + 1;
+        size_t eventsfile_length = basedir_length +
+                             strlen(EVENTS_FILE_NAME) + DS_LEN;
         eventsfile_name = (char *)udi_malloc(eventsfile_length);
         if (eventsfile_name == NULL) {
             udi_printf("malloc failed: %s\n",
@@ -888,8 +898,8 @@ int create_udi_filesystem() {
         }
 
         eventsfile_name[eventsfile_length-1] = '\0';
-        snprintf(eventsfile_name, eventsfile_length-1, "%s/%d/%s",
-                 UDI_ROOT_DIR, getpid(), EVENTS_FILE_NAME);
+        snprintf(eventsfile_name, eventsfile_length-1, "%s/%s/%d/%s",
+                 UDI_ROOT_DIR, passwd_info->pw_name, getpid(), EVENTS_FILE_NAME);
         if (mkfifo(eventsfile_name, S_IRWXG | S_IRWXU) == -1) {
             udi_printf("error creating event file fifo: %s\n",
                        strerror(errno));
@@ -1031,8 +1041,17 @@ int handshake_with_debugger(int *output_enabled, char *errmsg,
         udi_response init_response;
         init_response.response_type = UDI_RESP_VALID;
         init_response.request_type = UDI_REQ_INIT;
-        init_response.length = 0;
-        init_response.packed_data = NULL;
+        init_response.length = sizeof(uint32_t);
+        init_response.packed_data = udi_pack_data(init_response.length,
+                UDI_DATATYPE_INT32, UDI_PROTOCOL_VERSION,
+                UDI_DATATYPE_INT32, get_architecture());
+
+        if ( init_response.packed_data == NULL ) {
+            udi_printf("failed to create init response: %s\n",
+                    strerror(errno));
+            errnum = errno;
+            break;
+        }
 
         errnum = write_response(&init_response);
         if ( errnum ) {

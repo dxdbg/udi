@@ -40,27 +40,32 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/select.h>
+#include <pwd.h>
 
 const int INVALID_UDI_PID = -1;
 
 static const char *DEFAULT_UDI_RT_LIB_NAME = "libudirt.so";
 
+static const unsigned int PID_STR_LEN = 10;
+static const unsigned int USER_STR_LEN = 25;
+
 extern char **environ;
 
-int create_root_udi_filesystem() {
-    if (mkdir(udi_root_dir, S_IRWXG | S_IRWXU) == -1) {
+static
+int mkdir_with_check(const char *dir) {
+    if (mkdir(dir, S_IRWXG | S_IRWXU) == -1) {
         if ( errno == EEXIST ) {
             // Make sure it is a directory
             struct stat dirstat;
-            if ( stat(udi_root_dir, &dirstat) != 0 ) {
+            if ( stat(dir, &dirstat) != 0 ) {
                 udi_printf("failed to stat file %s: %s\n",
-                        udi_root_dir, strerror(errno));
+                        dir, strerror(errno));
                 return -1;
             }
 
             if (!S_ISDIR(dirstat.st_mode)) {
                 udi_printf("UDI root dir %s exists and is not a directory\n",
-                        udi_root_dir);
+                        dir);
                 return -1;
             }
             // It exists and it is a directory
@@ -72,6 +77,34 @@ int create_root_udi_filesystem() {
     }
 
     return 0;
+}
+
+int create_root_udi_filesystem() {
+    int result = mkdir_with_check(udi_root_dir);
+    if ( result ) return result;
+
+    uid_t user_id = geteuid();
+    struct passwd *passwd_info = getpwuid(user_id);
+    if ( passwd_info == NULL ) {
+        udi_printf("failed to create user udi dir: %s\n",
+                strerror(errno));
+        return -1;
+    }
+
+    size_t user_dir_length = strlen(udi_root_dir) + DS_LEN + USER_STR_LEN + 1;
+    char *user_udi_dir = (char *)malloc(sizeof(char)*user_dir_length);
+    if ( user_udi_dir == NULL ) {
+        udi_printf("failed to create user udi dir: %s\n",
+                strerror(errno));
+        return -1;
+    }
+
+    snprintf(user_udi_dir, user_dir_length, "%s/%s", udi_root_dir, 
+            passwd_info->pw_name);
+    result = mkdir_with_check(user_udi_dir);
+    free(user_udi_dir);
+
+    return result;
 }
 
 char * const* get_environment() {
@@ -268,34 +301,32 @@ udi_pid fork_process(const char *executable, char * const argv[],
     exit(-1);
 }
 
-static const unsigned int PID_STR_LEN = 10;
 
 int initialize_process(udi_process *proc) 
 {
+    uid_t uid = geteuid();
+    struct passwd *passwd_info = getpwuid(uid);
+
+    size_t basedir_length = strlen(udi_root_dir) + PID_STR_LEN + USER_STR_LEN
+        + DS_LEN*2 + 1;
+
     // define paths to UDI debuggee files
-    size_t events_file_length = strlen(udi_root_dir) + PID_STR_LEN + DS_LEN*2 +
-        strlen(EVENTS_FILE_NAME);
+    size_t events_file_length = basedir_length + DS_LEN + strlen(EVENTS_FILE_NAME);
     char *events_file_path = (char *)malloc(events_file_length);
-    snprintf(events_file_path, events_file_length, "%s/%u/%s",
-            udi_root_dir, proc->pid, EVENTS_FILE_NAME);
+    snprintf(events_file_path, events_file_length, "%s/%s/%u/%s",
+            udi_root_dir, passwd_info->pw_name, proc->pid, EVENTS_FILE_NAME);
 
-    size_t request_file_length = strlen(udi_root_dir) + PID_STR_LEN + DS_LEN*2
-        + strlen(REQUEST_FILE_NAME);
+    size_t request_file_length = basedir_length + DS_LEN + strlen(REQUEST_FILE_NAME);
     char *request_file_path = (char *)malloc(request_file_length);
-    snprintf(request_file_path, request_file_length, "%s/%u/%s",
-            udi_root_dir, proc->pid, REQUEST_FILE_NAME);
+    snprintf(request_file_path, request_file_length, "%s/%s/%u/%s",
+            udi_root_dir, passwd_info->pw_name, proc->pid, REQUEST_FILE_NAME);
 
-    size_t response_file_length = strlen(udi_root_dir) + PID_STR_LEN + DS_LEN*2
-        + strlen(RESPONSE_FILE_NAME);
+    size_t response_file_length = basedir_length + DS_LEN + strlen(RESPONSE_FILE_NAME);
     char *response_file_path = (char *)malloc(response_file_length);
-    snprintf(response_file_path, response_file_length, "%s/%u/%s",
-            udi_root_dir, proc->pid, RESPONSE_FILE_NAME);
-
-    // TODO retrieve this from the debuggee
-    proc->architecture = UDI_ARCH_X86;
+    snprintf(response_file_path, response_file_length, "%s/%s/%u/%s",
+            udi_root_dir, passwd_info->pw_name, proc->pid, RESPONSE_FILE_NAME);
 
     int errnum = 0;
-
     do {
         if (    events_file_path == NULL
              || request_file_path == NULL
@@ -391,7 +422,24 @@ int initialize_process(udi_process *proc)
 
             if ( init_response->request_type != UDI_REQ_INIT ) {
                 udi_printf("%s\n", "invalid init response recieved");
-                errnum = 1;
+                errnum = -1;
+                break;
+            }
+
+            uint32_t protocol_version;
+
+            if ( udi_unpack_data(init_response->packed_data, init_response->length,
+                        UDI_DATATYPE_INT32, &protocol_version,
+                        UDI_DATATYPE_INT32, &(proc->architecture)) )
+            {
+                udi_printf("%s\n", "failed to unpack init response");
+                errnum = -1;
+                break;
+            }
+
+            if ( protocol_version != UDI_PROTOCOL_VERSION ) {
+                udi_printf("%s\n", "debuggee uses incompatible protocol version");
+                errnum = -1;
                 break;
             }
         }while(0);

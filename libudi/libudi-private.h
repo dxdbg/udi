@@ -43,11 +43,6 @@ typedef pid_t udi_pid;
 #error Unknown platform
 #endif
 
-typedef enum {
-    UDI_ARCH_X86,
-    UDI_ARCH_X86_64
-} udi_arch_e;
-
 extern const udi_pid INVALID_UDI_PID;
 struct udi_process_struct {
     udi_pid pid;
