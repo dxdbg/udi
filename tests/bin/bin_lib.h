@@ -39,6 +39,8 @@ extern int bin_debug_enable;
 
 void init_bin();
 
+long udi_get_thread_id(int pid);
+
 #define bin_printf(format, ...) \
     do {\
         if ( bin_debug_enable ) {\
