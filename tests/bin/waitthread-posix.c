@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
     init_bin();
 
     if( 2 != argc ) {
-        bin_printf("Usage: %s <num. of threads>\n", argv[0]);
+        printf("Usage: %s <num. of threads>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
