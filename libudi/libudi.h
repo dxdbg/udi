@@ -36,80 +36,43 @@
 extern "C" {
 #endif
 
+// Note: functions comments are with the implementation
+
+// Opaque process handle
 typedef struct udi_process_struct udi_process;
 
 /**
  * library error codes
  */
 typedef enum {
-    UDI_ERROR_LIBRARY, // there was an internal library error
-    UDI_ERROR_REQUEST, // the request was invalid
+    UDI_ERROR_LIBRARY, /// there was an internal library error
+    UDI_ERROR_REQUEST, /// the request was invalid
     UDI_ERROR_NONE
 } udi_error_e;
 
-/**
- * Get a message describing the passed error code
- *
- * Note: this may be dependent on the result of the most recent operation
- *
- * @param error_code the error code
- */
+// Global state functions //
 const char *get_error_message(udi_error_e error_code);
-
-/**
- * Initializes the library
- *
- * @return zero on success, non-zero on success
- */
 int init_libudi();
-
-/**
- * Sets the directory to be used for the root of the UDI filesystem
- * 
- * Will be created if it doesn't exist
- * 
- * Cannot be set if processes already created
- *
- * @param root_dir the directory to set as the root
- * @return zero on success, non-zero on success
- */
 int set_udi_root_dir(const char *root_dir);
 
-/**
- * Create UDI-controlled process
- * 
- * @param executable   the full path to the executable
- * @param argv         the arguments
- * @param envp         the environment, if NULL, the newly created process will
- *                     inherit the environment for this process
- *
- * @return a handle to the created process
- *
- * @see execve on a UNIX system
- */
+// Process management //
 udi_process *create_process(const char *executable, char * const argv[],
         char * const envp[]);
-
-/**
- * Tells the library that resources allocated for the process can be released
- *
- * @param proc          the process handle
- *
- * @return 0, if the resources are released successfully; non-zero, otherwise
- */
 int free_process(udi_process *proc);
-
-/**
- * Continue a stopped UDI process
- *
- * @param proc          the process handle
- *
- * @return the result of the operation
- */
 udi_error_e continue_process(udi_process *proc);
 
-/* Event handling interface */
+// Process properties //
+void set_user_data(udi_process *proc, void *user_data);
+void *get_user_data(udi_process *proc);
+int get_proc_pid(udi_process *proc);
+udi_arch_e get_proc_architecture(udi_process *proc);
+int get_multithread_capable(udi_process *proc);
 
+// Event handling interface //
+
+/**
+ * Encapsulates an event in the debuggee
+ */
 typedef struct udi_event_struct {
     udi_event_type event_type;
     udi_process *proc;
@@ -141,132 +104,18 @@ typedef struct udi_event_breakpoint_struct {
     udi_address breakpoint_addr;
 } udi_event_breakpoint;
 
-/**
- * Wait for events to occur in the specified processes.
- *
- * @param procs         the processes
- * @param num_procs     the number of processes
- *
- * @return a list of events that occurred in the processes, NULL on failure
- */
 udi_event *wait_for_events(udi_process *procs[], int num_procs);
-
-/**
- * Sets the user data stored with the internal process structure
- *
- * @param proc          the process handle
- * @param user_data     the user data to associated with the process handle
- */
-void set_user_data(udi_process *proc, void *user_data);
-
-/**
- * Gets the user data stored with the internal process structure
- *
- * @param proc          the process handle
- *
- * @return the user data
- */
-void *get_user_data(udi_process *proc);
-
-/**
- * Gets the process identifier for the specified process
- *
- * @param proc          the process handle
- *
- * @return the pid for the process
- */
-int get_proc_pid(udi_process *proc);
-
-/**
- * Gets the architecture for the specified process
- *
- * @param proc          the process handle
- *
- * @return the architecture for the process
- */
-udi_arch_e get_proc_architecture(udi_process *proc);
-
-/**
- * Gets whether the specified process is multithread capable
- *
- * @param proc          the process handle
- *
- * @return non-zero if the process is multithread capable
- */
-int get_multithread_capable(udi_process *proc);
-
-/**
- * @return a string representation of the specified event type
- */
 const char *get_event_type_str(udi_event_type event_type);
-
-/**
- * Frees a event list returned by wait_for_events
- *
- * @param event_list the event list to free
- */
 void free_event_list(udi_event *event_list);
 
-/**
- *
- * Creates a breakpoint in the specified process at the specified
- * virtual address
- *
- * @param proc          the process handle
- * @param addr          the address to place the breakpoint
- * @param instr_length  the length of the instruction being replaced
- * 
- * @return the result of the operation
- */
+// Breakpoint interface //
 udi_error_e create_breakpoint(udi_process *proc, udi_address addr,
         udi_length instr_length);
-
-/**
- *
- * Install a previously created breakpoint into the specified process'
- * memory
- *
- * @param proc          the process handle
- * @param addr          the address of the breakpoint
- *
- * @return the result of the operation
- */
 udi_error_e install_breakpoint(udi_process *proc, udi_address addr);
-
-/**
- *
- * Remove a previously installed breakpoint from the specified process'
- * memory
- *
- * @param proc          the process handle
- * @param addr          the address of the breakpoint
- *
- * @return the result of the operation
- */
 udi_error_e remove_breakpoint(udi_process *proc, udi_address addr);
-
-/**
- *
- * Delete a previously created breakpoint for the specified process
- *
- * @param proc          the process handle
- * @param addr          the address of the breakpoint
- *
- * @return the result of the operation
- */
 udi_error_e delete_breakpoint(udi_process *proc, udi_address addr);
 
-/**
- * Access memory in a process
- *
- * @param proc          the process handle
- * @param write         if non-zero, write to specified address
- * @param value         pointer to the value to read/write
- * @param size          the size of the data block pointed to by value
- * @param addr          the location in memory to read/write
- *
- * @return the result of the operation
- */
+// Memory access interface //
 udi_error_e mem_access(udi_process *proc, int write, void *value, 
         udi_length size, udi_address addr);
 

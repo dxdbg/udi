@@ -48,6 +48,13 @@ const char *udi_root_dir = NULL;
 const unsigned int ERRMSG_SIZE = 4096;
 char errmsg[4096];
 
+/**
+ * Get a message describing the passed error code
+ *
+ * Note: this may be dependent on the result of the most recent operation
+ *
+ * @param error_code the error code
+ */
 const char *get_error_message(udi_error_e error_code) 
 {
     switch(error_code) {
@@ -64,6 +71,11 @@ const char *get_error_message(udi_error_e error_code)
 // Library functions //
 ///////////////////////
 
+/**
+ * Initializes the library
+ *
+ * @return zero on success, non-zero on success
+ */
 int init_libudi() {
     if ( udi_root_dir == NULL ) {
         udi_root_dir = DEFAULT_UDI_ROOT_DIR;
@@ -74,6 +86,18 @@ int init_libudi() {
     return 0;
 }
 
+/**
+ * Create UDI-controlled process
+ * 
+ * @param executable   the full path to the executable
+ * @param argv         the arguments
+ * @param envp         the environment, if NULL, the newly created process will
+ *                     inherit the environment for this process
+ *
+ * @return a handle to the created process
+ *
+ * @see execve on a UNIX system
+ */
 udi_process *create_process(const char *executable, char * const argv[],
         char * const envp[])
 {
@@ -132,6 +156,13 @@ udi_process *create_process(const char *executable, char * const argv[],
     return proc;
 }
 
+/**
+ * Tells the library that resources allocated for the process can be released
+ *
+ * @param proc          the process handle
+ *
+ * @return 0, if the resources are released successfully; non-zero, otherwise
+ */
 int free_process(udi_process *proc) {
     // TODO detach from the process, etc.
     free(proc);
@@ -139,6 +170,16 @@ int free_process(udi_process *proc) {
     return 0;
 }
 
+/**
+ * Sets the directory to be used for the root of the UDI filesystem
+ * 
+ * Will be created if it doesn't exist
+ * 
+ * Cannot be set if processes already created
+ *
+ * @param root_dir the directory to set as the root
+ * @return zero on success, non-zero on success
+ */
 int set_udi_root_dir(const char *root_dir) {
     if ( processes_created > 0 ) return -1;
 
@@ -155,22 +196,56 @@ int set_udi_root_dir(const char *root_dir) {
     return 0;
 }
 
+/**
+ * Sets the user data stored with the internal process structure
+ *
+ * @param proc          the process handle
+ * @param user_data     the user data to associated with the process handle
+ */
 void set_user_data(udi_process *proc, void *user_data) {
     proc->user_data = user_data;
 }
 
+/**
+ * Gets the user data stored with the internal process structure
+ *
+ * @param proc          the process handle
+ *
+ * @return the user data
+ */
 void *get_user_data(udi_process *proc) {
     return proc->user_data;
 }
 
+/**
+ * Gets the process identifier for the specified process
+ *
+ * @param proc          the process handle
+ *
+ * @return the pid for the process
+ */
 int get_proc_pid(udi_process *proc) {
     return proc->pid;
 }
 
+/**
+ * Gets the architecture for the specified process
+ *
+ * @param proc          the process handle
+ *
+ * @return the architecture for the process
+ */
 udi_arch_e get_proc_architecture(udi_process *proc) {
     return proc->architecture;
 }
 
+/**
+ * Gets whether the specified process is multithread capable
+ *
+ * @param proc          the process handle
+ *
+ * @return non-zero if the process is multithread capable
+ */
 int get_multithread_capable(udi_process *proc) {
     return proc->multithread_capable;
 }
@@ -239,6 +314,16 @@ udi_error_e submit_request_noresp(udi_process *proc,
     return error_code;
 }
 
+/**
+ * Creates a breakpoint in the specified process at the specified
+ * virtual address
+ *
+ * @param proc          the process handle
+ * @param addr          the address to place the breakpoint
+ * @param instr_length  the length of the instruction being replaced
+ * 
+ * @return the result of the operation
+ */
 udi_error_e create_breakpoint(udi_process *proc, udi_address addr,
         udi_length instr_length)
 {
@@ -269,22 +354,62 @@ udi_error_e breakpoint_request(udi_process *proc, udi_address addr,
     return submit_request_noresp(proc, &request, desc, file, line);
 }
 
+/**
+ *
+ * Install a previously created breakpoint into the specified process'
+ * memory
+ *
+ * @param proc          the process handle
+ * @param addr          the address of the breakpoint
+ *
+ * @return the result of the operation
+ */
 udi_error_e install_breakpoint(udi_process *proc, udi_address addr) {
     return breakpoint_request(proc, addr, UDI_REQ_INSTALL_BREAKPOINT,
             "breakpoint install request", __FILE__, __LINE__);
 }
 
+/**
+ *
+ * Remove a previously installed breakpoint from the specified process'
+ * memory
+ *
+ * @param proc          the process handle
+ * @param addr          the address of the breakpoint
+ *
+ * @return the result of the operation
+ */
 udi_error_e remove_breakpoint(udi_process *proc, udi_address addr) {
     return breakpoint_request(proc, addr, UDI_REQ_REMOVE_BREAKPOINT,
             "breakpoint remove request", __FILE__, __LINE__);
 
 }
 
+/**
+ *
+ * Delete a previously created breakpoint for the specified process
+ *
+ * @param proc          the process handle
+ * @param addr          the address of the breakpoint
+ *
+ * @return the result of the operation
+ */
 udi_error_e delete_breakpoint(udi_process *proc, udi_address addr) {
     return breakpoint_request(proc, addr, UDI_REQ_DELETE_BREAKPOINT,
             "breakpoint delete request", __FILE__, __LINE__);
 }
 
+/**
+ * Access memory in a process
+ *
+ * @param proc          the process handle
+ * @param write         if non-zero, write to specified address
+ * @param value         pointer to the value to read/write
+ * @param size          the size of the data block pointed to by value
+ * @param addr          the location in memory to read/write
+ *
+ * @return the result of the operation
+ */
 udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length size, 
         udi_address addr) 
 {
@@ -336,6 +461,13 @@ udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length siz
     return error_code;
 }
 
+/**
+ * Continue a stopped UDI process
+ *
+ * @param proc          the process handle
+ *
+ * @return the result of the operation
+ */
 udi_error_e continue_process(udi_process *proc) {
     udi_request req;
     req.request_type = UDI_REQ_CONTINUE;
@@ -388,6 +520,11 @@ void free_event(udi_event *event) {
     free(event);
 }
 
+/**
+ * Frees a event list returned by wait_for_events
+ *
+ * @param event_list the event list to free
+ */
 void free_event_list(udi_event *event_list) {
     udi_event *current_event = event_list;
     while ( current_event != NULL ) {
@@ -407,6 +544,9 @@ void free_event_internal(udi_event_internal *event) {
     free(event);
 }
 
+/**
+ * @return a string representation of the specified event type
+ */
 const char *get_event_type_str(udi_event_type event_type) {
     return event_type_str(event_type);
 }
