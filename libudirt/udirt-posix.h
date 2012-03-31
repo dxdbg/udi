@@ -54,6 +54,7 @@ exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned 
 
 // pthreads support
 int get_multithread_capable();
+int setsigmask(int how, const sigset_t *new_set, sigset_t *old_set);
 
 #ifdef __cplusplus
 } // extern C

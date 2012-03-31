@@ -134,8 +134,6 @@ static int signal_map[MAX_SIGNAL_NUM];
 
 static struct sigaction default_lib_action;
 
-extern int pthread_sigmask(int how, const sigset_t *new_set, sigset_t *old_set) __attribute__((weak));
-
 static int pass_signal = 0;
 
 // wrapper function types
@@ -228,16 +226,6 @@ void udi_abort(const char *file, unsigned int line) {
     disable_debugging();
 
     abort();
-}
-
-int setsigmask(int how, const sigset_t *new_set, sigset_t *old_set) {
-    // Only use pthread_sigmask when it is available
-    if ( pthread_sigmask ) {
-        // TODO block signals for all threads
-        return pthread_sigmask(how, new_set, old_set);
-    }
-
-    return sigprocmask(how, new_set, old_set);
 }
 
 static
