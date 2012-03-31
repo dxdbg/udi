@@ -51,6 +51,15 @@ static const unsigned int USER_STR_LEN = 25;
 
 extern char **environ;
 
+/**
+ * Attempts to make the specified directory with some interpretation
+ * of results of the make operation. It is okay if directory already
+ * exists
+ *
+ * @param dir   the full path to directory to create
+ *
+ * @return zero on success; non-zero otherwise
+ */
 static
 int mkdir_with_check(const char *dir) {
     if (mkdir(dir, S_IRWXG | S_IRWXU) == -1) {
@@ -64,13 +73,13 @@ int mkdir_with_check(const char *dir) {
             }
 
             if (!S_ISDIR(dirstat.st_mode)) {
-                udi_printf("UDI root dir %s exists and is not a directory\n",
+                udi_printf("%s exists and is not a directory\n",
                         dir);
                 return -1;
             }
             // It exists and it is a directory
         }else{
-            udi_printf("error creating udi root dir: %s\n",
+            udi_printf("error creating dir %s: %s\n", dir,
                 strerror(errno));
             return -1;
         }    
@@ -79,6 +88,12 @@ int mkdir_with_check(const char *dir) {
     return 0;
 }
 
+/**
+ * Creates the root UDI filesystem for the current
+ * effective user
+ * 
+ * @return zero on success; non-zero otherwise
+ */
 int create_root_udi_filesystem() {
     int result = mkdir_with_check(udi_root_dir);
     if ( result ) return result;
@@ -107,10 +122,16 @@ int create_root_udi_filesystem() {
     return result;
 }
 
+/**
+ * @return the environment for this process
+ */
 char * const* get_environment() {
     return environ;
 }
 
+/**
+ * Turns on debug logging if the appropriate environ. var is set
+ */
 void check_debug_logging() {
     if ( getenv(UDI_DEBUG_ENV) != NULL ) {
         udi_debug_on = 1;
@@ -118,6 +139,18 @@ void check_debug_logging() {
     }
 }
 
+/**
+ * Adds the UDI RT library into the LD_PRELOAD environ. var. It is
+ * created at the end of the array if it does not already exist
+ *
+ * @param the current environment
+ *
+ * @return the new copy of the environment
+ *
+ * Note: the returned pointer should be free'd by the user. Additionally,
+ * the user should free the last element of the array the new LD_PRELOAD
+ * environment variable.
+ */
 static
 char **insert_rt_library(char * const envp[]) {
     // Look for the LD_PRELOAD value in the specified environment
@@ -185,6 +218,11 @@ char **insert_rt_library(char * const envp[]) {
     return envp_copy;
 }
 
+/**
+ * Frees the array created by the insert_rt_library function
+ *
+ * @param envp_copy     the array to free
+ */
 static
 void free_envp_copy(char **envp_copy) {
     // Free the allocated string for LD_PRELOAD
@@ -199,6 +237,14 @@ void free_envp_copy(char **envp_copy) {
     free(envp_copy);
 }
 
+/**
+ * Forks a new process and executes the specified executable, arguments
+ * and environment
+ *
+ * @param executable    the executable to exec
+ * @param argv          the arguments to the new process
+ * @param envp          the environment for the new process
+ */
 udi_pid fork_process(const char *executable, char * const argv[],
         char * const envp[])
 {
@@ -301,7 +347,15 @@ udi_pid fork_process(const char *executable, char * const argv[],
     exit(-1);
 }
 
-
+/**
+ * Initializes the specified process. This includes created all file descriptors
+ * for files in the UDI filesystem as well as performing the initial handshake
+ * with the debugee
+ *
+ * @param proc the process handle
+ *
+ * @return 0 on success, non-zero on failure; if result > 0, it is errno
+ */
 int initialize_process(udi_process *proc) 
 {
     uid_t uid = geteuid();
@@ -455,6 +509,14 @@ int initialize_process(udi_process *proc)
     return errnum;
 }
 
+/**
+ * Writes a request to the specified process
+ *
+ * @param req           the request
+ * @param proc          the process handle
+ *
+ * @return 0 on success, non-zero on failure; if result > 0, it is errno
+ */
 int write_request(udi_request *req, udi_process *proc)
 {
     int errnum = 0;
@@ -480,6 +542,13 @@ int write_request(udi_request *req, udi_process *proc)
     return errnum;
 }
 
+/**
+ * Reads a response from the specified process
+ *
+ * @param proc  the process handle
+ *
+ * @return 0 on success, non-zero on failure; if result > 0, it is errno
+ */
 udi_response *read_response(udi_process *proc) 
 {
     int errnum = 0;
@@ -531,6 +600,13 @@ udi_response *read_response(udi_process *proc)
     return response;
 }
 
+/**
+ * Reads an event from the specified process
+ *
+ * @param proc  the process handle
+ *
+ * @return 0 on success, non-zero on failure; if result > 0, it is errno
+ */
 udi_event *read_event(udi_process *proc) {
     udi_event_internal *event = (udi_event_internal *)
         malloc(sizeof(udi_event_internal));
