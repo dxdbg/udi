@@ -32,6 +32,11 @@
 #include <vector>
 #include <string>
 
+/**
+ * Abstract class that represents a test case.
+ *
+ * Provides global tracking of all created test cases
+ */
 class UDITestCase {
     private:
         static std::vector<UDITestCase *> testCases_;
@@ -39,10 +44,9 @@ class UDITestCase {
         const std::string testName_;
 
     public:
-        UDITestCase(std::string iTestName);
+        UDITestCase(std::string testName);
         virtual ~UDITestCase();
 
-        // Execute all linked tests
         static int executeTests(int argc, char *argv[]);
 
         virtual bool operator()(void) = 0;

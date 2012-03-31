@@ -36,18 +36,33 @@ using std::vector;
 using std::cout;
 using std::endl;
 
+/** Globally maintained list of test cases */
 vector<UDITestCase *> UDITestCase::testCases_;
 
-UDITestCase::UDITestCase(std::string iTestName) 
-    : testName_(iTestName)
+/**
+ * Constructor.
+ *
+ * @param testName      the name of this test
+ */
+UDITestCase::UDITestCase(std::string testName) 
+    : testName_(testName)
 {
     testCases_.push_back(this);
 }
 
+/**
+ * Destructor
+ */
 UDITestCase::~UDITestCase() {
     // Don't actually do anything because all allocation done statically
 }
 
+/**
+ * Executes all registered test cases
+ *
+ * @param argc  the argc argument to the main function (currently unused)
+ * @param argv  the argv argument to the main function (currently unused)
+ */
 int UDITestCase::executeTests(int /*argc*/, char ** /*argv[]*/) {
     for (vector<UDITestCase *>::iterator i = testCases_.begin();
             i != testCases_.end(); ++i)
@@ -66,11 +81,16 @@ int UDITestCase::executeTests(int /*argc*/, char ** /*argv[]*/) {
     return EXIT_SUCCESS;
 }
 
+/**
+ * @return the name for this test case
+ */
 const std::string &UDITestCase::name() const {
     return testName_;
 }
 
-// main entry point of test framework
+/**
+ * Entry point for running tests
+ */
 int main(int argc, char *argv[]) {
     return UDITestCase::executeTests(argc, argv);
 }
