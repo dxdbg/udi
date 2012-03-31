@@ -52,6 +52,9 @@ int get_exit_inst_length(void (*exit_func)(int), char *errmsg, unsigned int errm
 
 exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned int errmsg_size);
 
+// pthreads support
+int get_multithread_capable();
+
 #ifdef __cplusplus
 } // extern C
 #endif

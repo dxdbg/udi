@@ -171,6 +171,10 @@ udi_arch_e get_proc_architecture(udi_process *proc) {
     return proc->architecture;
 }
 
+int get_multithread_capable(udi_process *proc) {
+    return proc->multithread_capable;
+}
+
 static
 udi_error_e submit_request(udi_process *proc,
         udi_request *req, udi_response **resp,

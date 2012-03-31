@@ -426,18 +426,18 @@ int initialize_process(udi_process *proc)
                 break;
             }
 
-            uint32_t protocol_version;
 
             if ( udi_unpack_data(init_response->packed_data, init_response->length,
-                        UDI_DATATYPE_INT32, &protocol_version,
-                        UDI_DATATYPE_INT32, &(proc->architecture)) )
+                        UDI_DATATYPE_INT32, &(proc->protocol_version),
+                        UDI_DATATYPE_INT32, &(proc->architecture),
+                        UDI_DATATYPE_INT32, &(proc->multithread_capable)) )
             {
                 udi_printf("%s\n", "failed to unpack init response");
                 errnum = -1;
                 break;
             }
 
-            if ( protocol_version != UDI_PROTOCOL_VERSION ) {
+            if ( proc->protocol_version != UDI_PROTOCOL_VERSION ) {
                 udi_printf("%s\n", "debuggee uses incompatible protocol version");
                 errnum = -1;
                 break;

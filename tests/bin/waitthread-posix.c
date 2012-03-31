@@ -54,6 +54,8 @@ void usr1_handle(int sig) {
     long lwp_id = udi_get_thread_id(getpid());
 
     bin_printf("Received %d on thread %ld\n", sig, lwp_id);
+
+    pause();
 }
 
 static const char *FIFO_NAME = "/tmp/waitthread";
