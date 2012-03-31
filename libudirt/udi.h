@@ -124,6 +124,7 @@ typedef enum
  * Response values:
  *      UDI_DATATYPE_INT32 - the UDI protocol version
  *      UDI_DATATYPE_INT32 - the architecture of the debuggee
+ *      UDI_DATATYPE_INT32 - whether the debuggee is multi-thread capable
  */
 
 /* Continue request and response

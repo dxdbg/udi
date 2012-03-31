@@ -26,74 +26,20 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _LIBUDI_PRIVATE_H
-#define _LIBUDI_PRIVATE_H 1
+// Thread support for pthreads
 
-#include "libudi.h"
+#include "udi.h"
+#include "udirt.h"
+#include "udirt-posix.h"
 #include "udi-common.h"
+#include "udi-common-posix.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifdef UNIX
-typedef int udi_handle;
-typedef pid_t udi_pid;
-#else
-#error Unknown platform
-#endif
-
-extern const udi_pid INVALID_UDI_PID;
-struct udi_process_struct {
-    udi_pid pid;
-    udi_handle request_handle;
-    udi_handle response_handle;
-    udi_handle events_handle;
-    udi_arch_e architecture;
-    uint32_t protocol_version;
-    int multithread_capable;
-    void *user_data;
-};
-
-extern const char *udi_root_dir;
-extern int processes_created;
-
-int create_root_udi_filesystem();
-
-udi_pid fork_process(const char *executable, char * const argv[],
-        char * const envp[]);
-
-char * const *get_environment();
-void check_debug_logging();
-
-int initialize_process(udi_process *proc);
-
-int write_request(udi_request *req, udi_process *proc);
-
-udi_response *read_response(udi_process *proc);
-void free_response(udi_response *resp);
-
-udi_event *read_event(udi_process *proc);
-udi_event *decode_event(udi_process *proc, udi_event_internal *event);
-void free_event_internal(udi_event_internal *event);
-
-void log_error_msg(udi_response *resp, const char *error_file, int error_line);
-
-// error logging
-extern int udi_debug_on;
-extern const unsigned int ERRMSG_SIZE;
-extern char errmsg[4096];
-
-#define udi_printf(format, ...) \
-    do {\
-        if ( udi_debug_on ) {\
-            fprintf(stderr, "%s[%d]: " format, __FILE__, __LINE__,\
-                        ## __VA_ARGS__);\
-        }\
-    }while(0)
-
-#ifdef __cplusplus
-} // "C"
-#endif
-
-#endif
+/**
+ * Determine if the debuggee is multithread capable (i.e., linked
+ * against pthreads).
+ * 
+ * @return non-zero if the debugee is multithread capable
+ */
+int get_multithread_capable() {
+    return 0;
+}

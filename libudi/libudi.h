@@ -187,6 +187,15 @@ int get_proc_pid(udi_process *proc);
 udi_arch_e get_proc_architecture(udi_process *proc);
 
 /**
+ * Gets whether the specified process is multithread capable
+ *
+ * @param proc          the process handle
+ *
+ * @return non-zero if the process is multithread capable
+ */
+int get_multithread_capable(udi_process *proc);
+
+/**
  * @return a string representation of the specified event type
  */
 const char *get_event_type_str(udi_event_type event_type);

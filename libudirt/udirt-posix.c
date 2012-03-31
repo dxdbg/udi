@@ -1041,10 +1041,11 @@ int handshake_with_debugger(int *output_enabled, char *errmsg,
         udi_response init_response;
         init_response.response_type = UDI_RESP_VALID;
         init_response.request_type = UDI_REQ_INIT;
-        init_response.length = sizeof(uint32_t);
+        init_response.length = sizeof(uint32_t)*3;
         init_response.packed_data = udi_pack_data(init_response.length,
                 UDI_DATATYPE_INT32, UDI_PROTOCOL_VERSION,
-                UDI_DATATYPE_INT32, get_architecture());
+                UDI_DATATYPE_INT32, get_architecture(),
+                UDI_DATATYPE_INT32, get_multithread_capable());
 
         if ( init_response.packed_data == NULL ) {
             udi_printf("failed to create init response: %s\n",

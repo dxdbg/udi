@@ -15,6 +15,7 @@ sources = ['udirt.c', 'udirt-malloc.c']
 if udibuild.IsUnix():
     sources.append('udirt-posix.c')
     sources.append('udirt-malloc-posix.c')
+    sources.append('udirt-posix-pthreads.c')
 
 if udibuild.IsX86():
     sources.append('udirt-x86.c')
