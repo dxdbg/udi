@@ -250,6 +250,19 @@ int get_multithread_capable(udi_process *proc) {
     return proc->multithread_capable;
 }
 
+/**
+ * Submits the specified request to the specified process
+ *
+ * @param proc          the process handle
+ * @param req           the request
+ * @param resp          the resulting response
+ * @param desc          the description of the request
+ * @param file          the file of the call to this function
+ * @param line          the line of the call to this function
+ *
+ * @return the result of the operation, if UDI_ERROR_NONE then
+ * the resp parameter will be populated with the response
+ */
 static
 udi_error_e submit_request(udi_process *proc,
         udi_request *req, udi_response **resp,
@@ -299,6 +312,17 @@ udi_error_e submit_request(udi_process *proc,
     return error_code;
 }
 
+/**
+ * Submits a request where a no-op response is expected
+ *
+ * @param proc          the process handle
+ * @param req           the request
+ * @param desc          a description of the request
+ * @param file          the file of the call to this function
+ * @param line          the line of the call to this function
+ *
+ * @return the result of the operation
+ */
 static
 udi_error_e submit_request_noresp(udi_process *proc,
         udi_request *req, const char *desc, const char *file,
@@ -339,6 +363,18 @@ udi_error_e create_breakpoint(udi_process *proc, udi_address addr,
             __FILE__, __LINE__);
 }
 
+/**
+ * Sends a breakpoint request to the specified process
+ *
+ * @param proc          the process handle
+ * @param addr          the address of the breakpoint
+ * @param request_type  the request type
+ * @param desc          a description of the request
+ * @param file          the file of the call to this function
+ * @param line          the line of the call to this function
+ *
+ * @return the result of the operation
+ */      
 static
 udi_error_e breakpoint_request(udi_process *proc, udi_address addr,
         udi_request_type request_type,
@@ -479,6 +515,13 @@ udi_error_e continue_process(udi_process *proc) {
             __FILE__, __LINE__);
 }
 
+/**
+ * Sets the global error message and logs it
+ *
+ * @param resp          the response containing the error message
+ * @param error_file    the file at which the error message was encountered
+ * @param error_line    the line at which the error message was encountered
+ */
 void log_error_msg(udi_response *resp, const char *error_file, int error_line) {
     char *errmsg_local;
     udi_length errmsg_size;
@@ -498,6 +541,11 @@ void log_error_msg(udi_response *resp, const char *error_file, int error_line) {
     if ( errmsg_local != NULL ) free(errmsg_local);
 }
 
+/**
+ * Frees an exported event
+ *
+ * @param event the exported event
+ */
 static
 void free_event(udi_event *event) {
     if (event->event_data != NULL ) {
@@ -534,11 +582,21 @@ void free_event_list(udi_event *event_list) {
     }
 }
 
+/**
+ * Frees the specified response
+ *
+ * @param resp the response
+ */
 void free_response(udi_response *resp) {
     if ( resp->packed_data != NULL ) free(resp->packed_data);
     free(resp);
 }
 
+/**
+ * Frees an internal event
+ *
+ * @param event the internal event
+ */
 void free_event_internal(udi_event_internal *event) {
     if ( event->packed_data != NULL ) free(event->packed_data);
     free(event);
@@ -551,6 +609,15 @@ const char *get_event_type_str(udi_event_type event_type) {
     return event_type_str(event_type);
 }
 
+/**
+ * Decodes a udi_event_internal event for the specified process
+ * into an exportable udi_event
+ *
+ * @param proc          process handle
+ * @param event         the internal event
+ *
+ * @return the new event
+ */
 udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
     udi_event *ret_event = (udi_event *)malloc(sizeof(udi_event));
 
