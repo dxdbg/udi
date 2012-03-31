@@ -34,6 +34,8 @@
 #include "udi-common.h"
 #include "udi-common-posix.h"
 
+extern int pthread_sigmask(int how, const sigset_t *new_set, sigset_t *old_set) __attribute__((weak));
+
 /**
  * Determine if the debuggee is multithread capable (i.e., linked
  * against pthreads).
@@ -42,4 +44,19 @@
  */
 int get_multithread_capable() {
     return 0;
+}
+
+/**
+ * Sets the signal mask for all threads in this process
+ *
+ * @return 0, on success; non-zero on failure
+ */
+int setsigmask(int how, const sigset_t *new_set, sigset_t *old_set) {
+    // Only use pthread_sigmask when it is available
+    if ( pthread_sigmask ) {
+        // TODO block signals for all threads
+        return pthread_sigmask(how, new_set, old_set);
+    }
+
+    return sigprocmask(how, new_set, old_set);
 }
