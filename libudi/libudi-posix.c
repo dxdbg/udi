@@ -583,6 +583,14 @@ udi_event *read_event(udi_process *proc) {
     return ret_event;
 }
 
+/**
+ * Wait for events to occur in the specified processes.
+ *
+ * @param procs         the processes
+ * @param num_procs     the number of processes
+ *
+ * @return a list of events that occurred in the processes, NULL on failure
+ */
 udi_event *wait_for_events(udi_process *procs[], int num_procs) {
     fd_set read_set;
     FD_ZERO(&read_set);
