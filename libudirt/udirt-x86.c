@@ -33,6 +33,15 @@
 
 static const unsigned char BREAKPOINT_INSN = 0xcc;
 
+/**
+ * Writes the breakpoint instruction for the specified breakpoint
+ *
+ * @param bp the breakpoint
+ * @param errmsg the errmsg populated by the memory access
+ * @param errmsg_size the maximum size of the error message
+ *
+ * @return non-zero on failure
+ */
 int write_breakpoint_instruction(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     if ( bp->in_memory ) return 0;
 
@@ -54,6 +63,15 @@ int write_breakpoint_instruction(breakpoint *bp, char *errmsg, unsigned int errm
     return result;
 }
 
+/**
+ * Writes the saved bytes for the breakpoint into memory
+ *
+ * @param bp the breakpoint that stores the saved bytes
+ * @param errmsg the error message populated by the memory access
+ * @param errmsg_size the maximum size of the error message
+ *
+ * @return non-zero on failure
+ */
 int write_saved_bytes(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     if ( !bp->in_memory ) return 0;
 
@@ -67,6 +85,11 @@ int write_saved_bytes(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     return result;
 }
 
+/**
+ * Gets the architecture of this process
+ *
+ * @return the architecture enum
+ */
 udi_arch_e get_architecture() {
     return UDI_ARCH_X86;
 }

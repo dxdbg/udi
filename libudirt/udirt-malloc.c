@@ -72,6 +72,12 @@ typedef struct heap_structure {
 
 static heap_struct heap = { 0, NULL, NULL};
 
+/**
+ * Sets the maximum size of the heap
+ *
+ * @param max_size the maximum size to set (rounded up to the size of chunk
+ * allocated from the OS)
+ */
 void udi_set_max_mem_size(unsigned long max_size) {
     unsigned long tmp_max_size = max_size;
 
@@ -86,6 +92,11 @@ void udi_set_max_mem_size(unsigned long max_size) {
     global_max_size = max_size;
 }
 
+/**
+ * Allocates a segment by asking the OS for mapped memory
+ *
+ * @return the new segment, NULL on failure
+ */
 static
 segment *allocate_segment() {
     // Don't count overhead of segments
@@ -127,6 +138,9 @@ segment *allocate_segment() {
     return ret;
 }
 
+/**
+ * Internal UDI RT heap free
+ */
 void udi_free(void *in_ptr) {
     if (in_ptr == NULL || heap.segment_list == NULL) return;
 
@@ -209,6 +223,13 @@ void udi_free(void *in_ptr) {
     }
 }
 
+/**
+ * Internal UDI RT heap allocate
+ *
+ * @param length the size in bytes of the allocation
+ *
+ * @return the allocated memory, NULL on failure
+ */
 void *udi_malloc(size_t length) {
     if ( length > (ALLOC_SIZE - sizeof(chunk)) ) {
         errno = ENOMEM;

@@ -34,6 +34,13 @@
 #include <string.h>
 #include <errno.h>
 
+/**
+ * Gets mapped memory from the OS
+ *
+ * @param length the size of memory area to map (in bytes)
+ *
+ * @return the mapped memory
+ */
 unsigned char *map_mem(size_t length) {
     void * ret = mmap(NULL, length, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 
@@ -45,6 +52,14 @@ unsigned char *map_mem(size_t length) {
     return ret;
 }
 
+/**
+ * Returns a mapped memory region to the OS
+ *
+ * @param addr the address of the mapped memory region
+ * @param length the size of the memory area to map (in bytes)
+ *
+ * @return non-zero on failure
+ */
 int unmap_mem(void *addr, size_t length) {
     return munmap(addr, length);
 }
