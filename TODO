@@ -23,3 +23,5 @@ A list of enhancements/bugfixes for the future
 * header comments for internal functions
 
 * breakout udirt POSIX implementation into multiple files
+
+* add Doxygen documentation

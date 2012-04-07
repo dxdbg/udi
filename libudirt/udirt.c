@@ -33,9 +33,9 @@
 #include <string.h>
 #include <errno.h>
 
-const int REQ_SUCCESS = 0;
-const int REQ_ERROR = -1;
-const int REQ_FAILURE = -2;
+const int REQ_SUCCESS = 0; ///< Request processed successfully
+const int REQ_ERROR = -1; ///< Unrecoverable failure caused by environment/OS error
+const int REQ_FAILURE = -2; ///< Failure to process request due to invalid arguments
 
 char *UDI_ROOT_DIR;
 int udi_debug_on = 0;
@@ -49,7 +49,20 @@ size_t mem_access_size = 0;
 int abort_mem_access = 0;
 int performing_mem_access = 0;
 
-static
+
+/**
+ * Copy memory byte to byte to allow a signal handler to abort
+ * the copy
+ *
+ * @param dest the destination memory address
+ * @param src the source memory address
+ * @param n the number of bytes to copy
+ *
+ * @return 0 on success; non-zero otherwise
+ *
+ * @see memcpy
+ */
+static 
 int abortable_memcpy(void *dest, const void *src, size_t n) {
     /* slow as molasses, but gets the job done */
     unsigned char *uc_dest = (unsigned char *)dest;
@@ -68,6 +81,18 @@ int abortable_memcpy(void *dest, const void *src, size_t n) {
     return 0;
 }
 
+/**
+ * Copy memory with hooks before and after the copy to allow
+ * for example changing permissions on pages in memory.
+ *
+ * @param dest the destination memory address
+ * @param src the source memory address
+ * @param num_bytes the number of bytes
+ * @param errmsg the error message populated by this method
+ * @param errmsg_size the maximum size of the error message
+ *
+ * @return 0 on success; non-zero otherwise
+ */
 static
 int udi_memcpy(void *dest, const void *src, size_t num_bytes,
         char *errmsg, unsigned int errmsg_size)
@@ -91,6 +116,18 @@ int udi_memcpy(void *dest, const void *src, size_t num_bytes,
     return mem_result;
 }
 
+/**
+ * Reads memory from the specified source into the specified
+ * destination
+ *
+ * @param dest the destination memory address
+ * @param src the source memory address
+ * @param num_bytes the number of bytes to read
+ * @param errmsg the error message possibly populated by this function
+ * @param errmsg_size the maximum size of the error message
+ *
+ * @return 0, success; non-zero otherwise
+ */
 int read_memory(void *dest, const void *src, size_t num_bytes,
         char *errmsg, unsigned int errmsg_size)
 {
@@ -100,6 +137,16 @@ int read_memory(void *dest, const void *src, size_t num_bytes,
     return udi_memcpy(dest, src, num_bytes, errmsg, errmsg_size);
 }
 
+/**
+ * Writes into the specified memory address using the specified
+ * source.
+ *
+ * @param dest the destination of the write
+ * @param src the source of the write
+ * @param num_bytes the number of bytes to write
+ * @param errmsg the error message set by this function
+ * @param errmsg_size the maximum size of the error message
+ */
 int write_memory(void *dest, const void *src, size_t num_bytes,
         char *errmsg, unsigned int errmsg_size)
 {
@@ -113,6 +160,14 @@ int write_memory(void *dest, const void *src, size_t num_bytes,
 
 static breakpoint *breakpoints = NULL;
 
+/**
+ * Creates a breakpoint at the specified address
+ *
+ * @param breakpoint_addr the breakpoint address
+ * @param instruction_length the length of the instruction at the breakpoint address
+ *
+ * @return the created breakpoint, NULL on failure
+ */
 breakpoint *create_breakpoint(udi_address breakpoint_addr, udi_length instruction_length) {
     if ( instruction_length <= 0 ) {
         udi_printf("invalid argument: instruction_length: %d\n", instruction_length);
@@ -157,6 +212,15 @@ breakpoint *create_breakpoint(udi_address breakpoint_addr, udi_length instructio
     return new_breakpoint;
 }
 
+/**
+ * Installs the breakpoint into memory
+ *
+ * @param bp the breakpoint to install
+ * @param errmsg the errmsg populated by the memory access
+ * @param errmsg_size the maximum size of the error message
+ *
+ * @return 0 on success; non-zero otherwise
+ */
 int install_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     if ( bp->in_memory ) return 0;
 
@@ -169,6 +233,15 @@ int install_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     return result;
 }
 
+/**
+ * Removes the breakpoint from memory
+ *
+ * @param bp the breakpoint to remove
+ * @param errmsg the errmsg populated by the memory access
+ * @param errmsg_size the maximum size of the error message
+ *
+ * @return 0 on success; non-zero otherwise
+ */
 int remove_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     if ( !bp->in_memory ) return 0;
 
@@ -181,6 +254,15 @@ int remove_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     return result;
 }
 
+/**
+ * Deletes the breakpoint
+ *
+ * @param bp the breakpoint to delete
+ * @param errmsg the errmsg populated by the memory access
+ * @param errmsg_size the maximum size of the error message
+ *
+ * @return 0 on success; non-zero otherwise
+ */
 int delete_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     int remove_result = remove_breakpoint(bp, errmsg, errmsg_size);
 
@@ -208,6 +290,13 @@ int delete_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     return 0;
 }
 
+/**
+ * Finds an existing breakpoint, given its address
+ *
+ * @param breakpoint_addr
+ *
+ * @return the found breakpoint (NULL if not found)
+ */
 breakpoint *find_breakpoint(udi_address breakpoint_addr) {
     breakpoint *tmp_breakpoint = breakpoints;
 

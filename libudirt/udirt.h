@@ -58,24 +58,17 @@ unsigned char *map_mem(size_t length);
 int unmap_mem(void *addr, size_t length);
 
 // request handling
-
 int write_response(udi_response *response);
 int write_response_to_request(udi_response *response);
 int write_event(udi_event_internal *event);
 udi_request *read_request();
 void free_request(udi_request *request);
 
-// Request processed successfully
 extern const int REQ_SUCCESS;
-
-// Failure to process request due to environment/OS error, unrecoverable
 extern const int REQ_ERROR;
-
-// Failure to process request due to invalid arguments
 extern const int REQ_FAILURE;
 
 // reading and writing debugee memory
-
 extern void *mem_access_addr;
 extern size_t mem_access_size;
 
