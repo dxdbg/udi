@@ -38,14 +38,38 @@
 #include "udirt-posix.h"
 #include "udirt-x86.h"
 
+static const unsigned char PUSH_EBP = 0x55;
+
+/**
+ * Given the context, rewinds the PC to account for a hit breakpoint
+ *
+ * @param context the context containing the current PC value
+ */
 void rewind_pc(ucontext_t *context) {
     context->uc_mcontext.gregs[REG_EIP]--;
 }
 
+/**
+ * Given the context, calculates the address at which a trap occurred at.
+ *
+ * @param context the context containing the current PC value
+ *
+ * @return the computed address
+ */
 udi_address get_trap_address(const ucontext_t *context) {
     return (udi_address)(unsigned long)context->uc_mcontext.gregs[REG_EIP] - 1;
 }
 
+/**
+ * Determines the instruction length of the first instruction of the specified
+ * exit function
+ *
+ * @param exit_func a pointer to the exit function
+ * @param errmsg the errmsg populated by the memory access
+ * @param errmsg_size the maximum size of the error message
+ *
+ * @return positive value on success; non-positive otherwise
+ */
 int get_exit_inst_length(void (*exit_func)(int), char *errmsg, unsigned int errmsg_size) {
     // Use heuristics to determine the instruction length
 
@@ -59,13 +83,23 @@ int get_exit_inst_length(void (*exit_func)(int), char *errmsg, unsigned int errm
         return -1;
     }
 
-    if ( possible_inst[0] == 0x55 ) {
+    if ( possible_inst[0] == PUSH_EBP ) {
         return 1;
     }
 
     return -1;
 }
 
+/**
+ * Determines the argument to the exit function, given the context at which the exit breakpoint
+ * was hit
+ *
+ * @param context the current context
+ * @param errmsg the error message populated by the memory access
+ * @param errmsg_size the maximum size of the error message
+ *
+ * @return the exit result
+ */
 exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned int errmsg_size) {
     exit_result ret;
     ret.failure = 0;

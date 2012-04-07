@@ -49,7 +49,6 @@ extern int udi_in_sig_handler;
 void udi_abort(const char *file, unsigned int line);
 
 // UDI RT internal malloc
-
 void udi_set_max_mem_size(unsigned long max_size);
 void udi_free(void *ptr);
 void *udi_malloc(size_t length);
@@ -86,7 +85,6 @@ int write_memory(void *dest, const void *src, size_t num_bytes,
 int post_mem_access_hook(void *hook_arg);
 
 // breakpoint handling
-
 typedef struct breakpoint_struct {
     unsigned char saved_bytes[8];
     udi_length instruction_length;
