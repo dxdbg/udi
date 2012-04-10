@@ -37,9 +37,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <signal.h>
 #include <stdlib.h>
-#include <dlfcn.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -90,80 +88,11 @@ static int failed_si_code = 0;
 // write failure handling
 static int pipe_write_failure = 0;
 
-// Signal handling
-static
-int signals[] = {
-    SIGHUP,
-    SIGINT,
-    SIGQUIT,
-    SIGILL,
-    SIGTRAP,
-    SIGABRT,
-    SIGBUS,
-    SIGFPE,
-    SIGUSR1,
-    SIGSEGV,
-    SIGUSR2,
-    SIGPIPE,
-    SIGALRM,
-    SIGTERM,
-    SIGSTKFLT,
-    SIGCHLD,
-    SIGCONT,
-    SIGTSTP,
-    SIGTTIN,
-    SIGTTOU,
-    SIGURG,
-    SIGXCPU,
-    SIGXFSZ,
-    SIGVTALRM,
-    SIGPROF,
-    SIGWINCH,
-    SIGIO,
-    SIGPWR,
-    SIGSYS
-};
-
-// This is the number of elements in the signals array
-#define NUM_SIGNALS 29
-
-static struct sigaction app_actions[NUM_SIGNALS];
-
-// Used to map signals to their application action
-static int signal_map[MAX_SIGNAL_NUM];
-
-static struct sigaction default_lib_action;
-
+// Continue handling
 static int pass_signal = 0;
 
-// wrapper function types
-
-typedef int (*sigaction_type)(int, const struct sigaction *, 
-        struct sigaction *);
-
-typedef pid_t (*fork_type)(void);
-
-typedef int (*execve_type)(const char *, char *const *, char *const *);
-
-// wrapper function pointers
-
-sigaction_type real_sigaction;
-fork_type real_fork;
-execve_type real_execve;
-
-// event breakpoints
-
-static breakpoint *exit_bp = NULL;
-
 // continue from breakpoint
-
 static breakpoint *continue_bp = NULL;
-
-// event handling
-typedef struct event_result_struct {
-    int failure;
-    int wait_for_request;
-} event_result;
 
 // request handling
 typedef int (*request_handler)(udi_request *, char *, unsigned int);
@@ -261,39 +190,7 @@ void handle_pipe_write_failure() {
     pipe_write_failure = 0;
 }
 
-static
-void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context) {
-    int signal_index = signal_map[(signal % MAX_SIGNAL_NUM)];
-
-    if ( (void *)app_actions[signal_index].sa_sigaction == (void *)SIG_IGN ) {
-        udi_printf("Signal %d ignored, not passing to application\n", signal);
-        return;
-    }
-
-    if ( (void *)app_actions[signal_index].sa_sigaction == (void *)SIG_DFL ) {
-        // TODO need to emulate the default action
-        return;
-    }
-
-    sigset_t cur_set;
-
-    if ( setsigmask(SIG_SETMASK, &app_actions[signal_index].sa_mask, 
-            &cur_set) != 0 )
-    {
-        udi_printf("failed to adjust blocked signals for application handler: %s\n",
-                strerror(errno));
-    }
-
-    app_actions[signal_index].sa_sigaction(signal, siginfo, v_context);
-
-    if ( setsigmask(SIG_SETMASK, &cur_set, NULL) != 0 ) {
-        udi_printf("failed to reset blocked signals after application handler: %s\n",
-                strerror(errno));
-    }
-}
-
 // request-response handling
-
 void free_request(udi_request *request) {
     if ( request->packed_data != NULL ) udi_free(request->packed_data);
     udi_free(request);
@@ -687,7 +584,6 @@ int breakpoint_delete_handler(udi_request *req, char *errmsg, unsigned int errms
 ///////////////////////////
 
 void *pre_mem_access_hook() {
-
     // Unblock the SIGSEGV to allow the write to complete
     sigset_t *original_set = (sigset_t *)udi_malloc(sizeof(sigset_t));
 
@@ -765,293 +661,6 @@ int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
     return result;
 }
 
-/* to be used by system call library function wrappers
-static
-void wait_and_execute_command_with_response() {
-    char errmsg[ERRMSG_SIZE];
-    errmsg[ERRMSG_SIZE-1] = '\0';
-
-    int req_result = wait_and_execute_command(errmsg, ERRMSG_SIZE);
-
-    if ( req_result != REQ_SUCCESS ) {
-        if ( req_result > REQ_SUCCESS ) {
-            strncpy(errmsg, strerror(req_result), ERRMSG_SIZE-1);
-        }
-
-        udi_printf("failed to process command: %s\n", errmsg);
-
-        udi_response resp;
-        resp.response_type = UDI_RESP_ERROR;
-        resp.request_type = UDI_REQ_INVALID;
-        resp.length = strlen(errmsg) + 1;
-        resp.packed_data = udi_pack_data(resp.length, 
-                UDI_DATATYPE_BYTESTREAM, resp.length, errmsg);
-
-        if ( resp.packed_data != NULL ) {
-            // explicitly ignore errors
-            write_response(&resp);
-            udi_free(resp.packed_data);
-        }
-    }
-}
-*/
-
-static 
-int create_udi_filesystem() {
-    int errnum = 0;
-
-    do {
-        // get root directory
-        if ((UDI_ROOT_DIR = getenv(UDI_ROOT_DIR_ENV)) == NULL) {
-            UDI_ROOT_DIR = (char *)udi_malloc(strlen(DEFAULT_UDI_ROOT_DIR)+1);
-            strncpy(UDI_ROOT_DIR, DEFAULT_UDI_ROOT_DIR,
-                    strlen(DEFAULT_UDI_ROOT_DIR)+1);
-        }
-
-        // create the directory for this process
-        size_t basedir_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN 
-            + USER_STR_LEN + 2*DS_LEN + 1;
-        basedir_name = (char *)udi_malloc(basedir_length);
-        if (basedir_name == NULL) {
-            udi_printf("malloc failed: %s\n", strerror(errno));
-            errnum = errno;
-            break;
-        }
-
-        uid_t user_id = geteuid();
-        struct passwd *passwd_info = getpwuid(user_id);
-        if (passwd_info == NULL) {
-            udi_printf("getpwuid failed: %s\n", strerror(errno));
-            errnum = errno;
-            break;
-        }
-
-        basedir_name[basedir_length-1] = '\0';
-        snprintf(basedir_name, basedir_length-1, "%s/%s/%d", UDI_ROOT_DIR,
-                 passwd_info->pw_name, getpid());
-        if (mkdir(basedir_name, S_IRWXG | S_IRWXU) == -1) {
-            udi_printf("error creating basedir: %s\n", strerror(errno));
-            errnum = errno;
-            break;
-        }
-
-        // create the udi files
-        size_t requestfile_length = basedir_length
-                                    + strlen(REQUEST_FILE_NAME) + DS_LEN;
-        requestfile_name = (char *)udi_malloc(requestfile_length);
-        if (requestfile_name == NULL) {
-            udi_printf("malloc failed: %s\n", strerror(errno));
-            errnum = errno;
-            break;
-        }
-
-        requestfile_name[requestfile_length-1] = '\0';
-        snprintf(requestfile_name, requestfile_length-1, "%s/%s/%d/%s",
-                 UDI_ROOT_DIR, passwd_info->pw_name, getpid(), REQUEST_FILE_NAME);
-        if (mkfifo(requestfile_name, S_IRWXG | S_IRWXU) == -1) {
-            udi_printf("error creating request file fifo: %s\n",
-                       strerror(errno));
-            errnum = errno;
-            break;
-        }
-
-        size_t responsefile_length = basedir_length +
-                               strlen(RESPONSE_FILE_NAME) + DS_LEN;
-        responsefile_name = (char *)udi_malloc(responsefile_length);
-        if (responsefile_name == NULL) {
-            udi_printf("malloc failed: %s\n",
-                       strerror(errno));
-            errnum = errno;
-            break;
-        }
-
-        responsefile_name[responsefile_length-1] = '\0';
-        snprintf(responsefile_name, responsefile_length-1, "%s/%s/%d/%s",
-                 UDI_ROOT_DIR, passwd_info->pw_name, getpid(), RESPONSE_FILE_NAME);
-        if (mkfifo(responsefile_name, S_IRWXG | S_IRWXU) == -1) {
-            udi_printf("error creating response file fifo: %s\n",
-                       strerror(errno));
-            errnum = errno;
-            break;
-        }
-
-        size_t eventsfile_length = basedir_length +
-                             strlen(EVENTS_FILE_NAME) + DS_LEN;
-        eventsfile_name = (char *)udi_malloc(eventsfile_length);
-        if (eventsfile_name == NULL) {
-            udi_printf("malloc failed: %s\n",
-                       strerror(errno));
-            errnum = errno;
-            break;
-        }
-
-        eventsfile_name[eventsfile_length-1] = '\0';
-        snprintf(eventsfile_name, eventsfile_length-1, "%s/%s/%d/%s",
-                 UDI_ROOT_DIR, passwd_info->pw_name, getpid(), EVENTS_FILE_NAME);
-        if (mkfifo(eventsfile_name, S_IRWXG | S_IRWXU) == -1) {
-            udi_printf("error creating event file fifo: %s\n",
-                       strerror(errno));
-            errnum = errno;
-            break;
-        }
-    }while(0);
-
-    return errnum;
-}
-
-static
-int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
-    int errnum = 0;
-    char *errmsg_tmp;
-
-    // reset dlerror()
-    dlerror();
-
-    do {
-        // locate symbols for wrapper functions
-        real_sigaction = (sigaction_type) dlsym(RTLD_NEXT, "sigaction");
-        errmsg_tmp = dlerror();
-        if (errmsg_tmp != NULL) {
-            udi_printf("symbol lookup error: %s\n", errmsg_tmp);
-            strncpy(errmsg, errmsg_tmp, errmsg_size-1);
-            errnum = -1;
-            break;
-        }
-
-        real_fork = (fork_type) dlsym(RTLD_NEXT, "fork");
-        errmsg_tmp = dlerror();
-        if (errmsg_tmp != NULL) {
-            udi_printf("symbol lookup error: %s\n", errmsg_tmp);
-            strncpy(errmsg, errmsg_tmp, errmsg_size-1);
-            errnum = -1;
-            break;
-        }
-
-        real_execve = (execve_type) dlsym(RTLD_NEXT, "execve");
-        errmsg_tmp = dlerror();
-        if (errmsg_tmp != NULL) {
-            udi_printf("symbol lookup error: %s\n", errmsg_tmp);
-            strncpy(errmsg, errmsg_tmp, errmsg_size-1);
-            errnum = -1;
-            break;
-        }
-    }while(0);
-
-    return errnum;
-}
-
-static
-int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
-    int errnum = 0;
-    
-    do {
-        int exit_inst_length = get_exit_inst_length(exit, errmsg, errmsg_size);
-        if ( exit_inst_length <= 0 ) {
-            udi_printf("%s\n", "failed to determine length of instruction for exit breakpoint");
-            errnum = -1;
-            break;
-        }
-
-        // Exit cannot be wrappped because Linux executables can call it
-        // directly and do not pass through the PLT
-        exit_bp = create_breakpoint((udi_address)(unsigned long)exit,
-                exit_inst_length);
-        if ( exit_bp == NULL ) {
-            udi_printf("%s\n", "failed to create exit breakpoint");
-            errnum = -1;
-            break;
-        }
-
-        errnum = install_breakpoint(exit_bp, errmsg, errmsg_size);
-
-        if ( errnum != 0 ) {
-            udi_printf("%s\n", "failed to install exit breakpoint");
-            errnum = -1;
-            break;
-        }
-    }while(0);
-
-    return errnum;
-}
-
-static
-int handshake_with_debugger(int *output_enabled, char *errmsg, 
-        unsigned int errmsg_size)
-{
-    int errnum = 0;
-
-    do {
-        if ((request_handle = open(requestfile_name, O_RDONLY))
-                == -1 ) {
-            udi_printf("error opening request file fifo: %s\n",
-                       strerror(errno));
-            errnum = errno;
-            break;
-        }
-
-        udi_request *init_request = read_request();
-        if ( init_request == NULL ) {
-            snprintf(errmsg, errmsg_size-1, "%s", 
-                    "failed reading init request");
-            udi_printf("%s\n", "failed reading init request");
-            errnum = -1;
-            break;
-        }
-        
-        if ( init_request->request_type != UDI_REQ_INIT ) {
-            udi_printf("%s\n",
-                    "invalid init request received, proceeding anyways...");
-        }
-
-        free_request(init_request);
-
-        if ((response_handle = open(responsefile_name, O_WRONLY))
-                == -1 ) {
-            udi_printf("error open response file fifo: %s\n",
-                       strerror(errno));
-            errnum = errno;
-            break;
-        }
-        *output_enabled = 1;
-
-        if ((events_handle = open(eventsfile_name, O_WRONLY))
-                == -1 ) {
-            udi_printf("error open response file fifo: %s\n",
-                       strerror(errno));
-            errnum = errno;
-            break;
-        }
-
-        // after sending init response, any debugging operations are valid
-        udi_enabled = 1;
-
-        // create the init response
-        udi_response init_response;
-        init_response.response_type = UDI_RESP_VALID;
-        init_response.request_type = UDI_REQ_INIT;
-        init_response.length = sizeof(uint32_t)*3;
-        init_response.packed_data = udi_pack_data(init_response.length,
-                UDI_DATATYPE_INT32, UDI_PROTOCOL_VERSION,
-                UDI_DATATYPE_INT32, get_architecture(),
-                UDI_DATATYPE_INT32, get_multithread_capable());
-
-        if ( init_response.packed_data == NULL ) {
-            udi_printf("failed to create init response: %s\n",
-                    strerror(errno));
-            errnum = errno;
-            break;
-        }
-
-        errnum = write_response(&init_response);
-        if ( errnum ) {
-            udi_printf("%s\n", "failed to write init response");
-            *output_enabled = 0;
-        }
-    }while(0);
-
-    return errnum;
-}
-
 static
 event_result decode_segv(const siginfo_t *siginfo, ucontext_t *context,
         char *errmsg, unsigned int errmsg_size)
@@ -1098,48 +707,6 @@ event_result decode_segv(const siginfo_t *siginfo, ucontext_t *context,
 
     if ( result.failure > 0 ) {
         strerror_r(result.failure, errmsg, errmsg_size);
-    }
-
-    return result;
-}
-
-static
-event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, unsigned int errmsg_size) {
-
-    event_result result;
-    result.failure = 0;
-    result.wait_for_request = 1;
-
-    exit_result exit_result = get_exit_argument(context, errmsg, errmsg_size);
-
-    if ( exit_result.failure ) {
-        result.failure = exit_result.failure;
-        return result;
-    }
-
-    udi_printf("exit entered with status %d\n", exit_result.status);
-
-    // create the event
-    udi_event_internal exit_event;
-    exit_event.event_type = UDI_EVENT_PROCESS_EXIT;
-    exit_event.length = sizeof(uint32_t);
-    exit_event.packed_data = udi_pack_data(exit_event.length,
-            UDI_DATATYPE_INT32, exit_result.status);
-
-    // Explicitly ignore errors as there is no way to report them
-    do {
-        if ( exit_event.packed_data == NULL ) {
-            result.failure = 1;
-            break;
-        }
-
-        result.failure = write_event(&exit_event);
-
-        udi_free(exit_event.packed_data);
-    }while(0);
-
-    if ( result.failure ) {
-        udi_printf("failed to report exit status with %d\n", exit_result.status);
     }
 
     return result;
@@ -1232,7 +799,6 @@ event_result decode_trap(const siginfo_t *siginfo, ucontext_t *context,
     return result;
 }
 
-// Not static because need to pass around pointer to it
 void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     char errmsg[ERRMSG_SIZE];
     errmsg[ERRMSG_SIZE-1] = '\0';
@@ -1362,27 +928,6 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
 }
 
 static
-int setup_signal_handlers() {
-    int errnum = 0;
-
-    // Sanity check
-    if ( (sizeof(signals) / sizeof(int)) != NUM_SIGNALS ) {
-        udi_printf("%s\n", "ASSERT FAIL: signals array length != NUM_SIGNALS");
-        return -1;
-    }
-
-    int i;
-    for(i = 0; i < NUM_SIGNALS; ++i) {
-        if ( real_sigaction(signals[i], &default_lib_action, &app_actions[i]) != 0 ) {
-            errnum = errno;
-            break;
-        }
-    }
-
-    return errnum;
-}
-
-static
 void enable_debug_logging() {
     // turn on debugging, if necessary
     if (getenv(UDI_DEBUG_ENV) != NULL) {
@@ -1415,59 +960,186 @@ void global_variable_initialization() {
     }
 }
 
-// wrapper function implementations
+static 
+int create_udi_filesystem() {
+    int errnum = 0;
 
-int sigaction(int signum, const struct sigaction *act,
-        struct sigaction *oldact)
-{
-    // Block signals while doing this to avoid a race where a signal is delivered
-    // while validating the arguments
-    sigset_t full_set, orig_set;
-    sigfillset(&full_set);
+    do {
+        // get root directory
+        if ((UDI_ROOT_DIR = getenv(UDI_ROOT_DIR_ENV)) == NULL) {
+            UDI_ROOT_DIR = (char *)udi_malloc(strlen(DEFAULT_UDI_ROOT_DIR)+1);
+            strncpy(UDI_ROOT_DIR, DEFAULT_UDI_ROOT_DIR,
+                    strlen(DEFAULT_UDI_ROOT_DIR)+1);
+        }
 
-    int block_result = setsigmask(SIG_SETMASK, &full_set, &orig_set);
-    if ( block_result != 0 ) return EINVAL;
+        // create the directory for this process
+        size_t basedir_length = strlen(UDI_ROOT_DIR) + PID_STR_LEN 
+            + USER_STR_LEN + 2*DS_LEN + 1;
+        basedir_name = (char *)udi_malloc(basedir_length);
+        if (basedir_name == NULL) {
+            udi_printf("malloc failed: %s\n", strerror(errno));
+            errnum = errno;
+            break;
+        }
 
-    // Validate the arguments
-    int result = real_sigaction(signum, act, oldact);
-    if ( result != 0 ) return result;
+        uid_t user_id = geteuid();
+        struct passwd *passwd_info = getpwuid(user_id);
+        if (passwd_info == NULL) {
+            udi_printf("getpwuid failed: %s\n", strerror(errno));
+            errnum = errno;
+            break;
+        }
 
-    // Reset action back to library default
-    result = real_sigaction(signum, &default_lib_action, NULL);
-    if ( result != 0 ) return result;
+        basedir_name[basedir_length-1] = '\0';
+        snprintf(basedir_name, basedir_length-1, "%s/%s/%d", UDI_ROOT_DIR,
+                 passwd_info->pw_name, getpid());
+        if (mkdir(basedir_name, S_IRWXG | S_IRWXU) == -1) {
+            udi_printf("error creating basedir: %s\n", strerror(errno));
+            errnum = errno;
+            break;
+        }
 
-    // Store new application action for future use
-    int signal_index = signal_map[(signum % MAX_SIGNAL_NUM)];
-    if ( oldact != NULL ) {
-        *oldact = app_actions[signal_index];
-    }
+        // create the udi files
+        size_t requestfile_length = basedir_length
+                                    + strlen(REQUEST_FILE_NAME) + DS_LEN;
+        requestfile_name = (char *)udi_malloc(requestfile_length);
+        if (requestfile_name == NULL) {
+            udi_printf("malloc failed: %s\n", strerror(errno));
+            errnum = errno;
+            break;
+        }
 
-    if ( act != NULL ) {
-        app_actions[signal_index] = *act;
-    }
+        requestfile_name[requestfile_length-1] = '\0';
+        snprintf(requestfile_name, requestfile_length-1, "%s/%s/%d/%s",
+                 UDI_ROOT_DIR, passwd_info->pw_name, getpid(), REQUEST_FILE_NAME);
+        if (mkfifo(requestfile_name, S_IRWXG | S_IRWXU) == -1) {
+            udi_printf("error creating request file fifo: %s\n",
+                       strerror(errno));
+            errnum = errno;
+            break;
+        }
 
-    // Unblock signals
-    block_result = setsigmask(SIG_SETMASK, &orig_set, NULL);
-    if ( block_result != 0 ) return EINVAL;
+        size_t responsefile_length = basedir_length +
+                               strlen(RESPONSE_FILE_NAME) + DS_LEN;
+        responsefile_name = (char *)udi_malloc(responsefile_length);
+        if (responsefile_name == NULL) {
+            udi_printf("malloc failed: %s\n",
+                       strerror(errno));
+            errnum = errno;
+            break;
+        }
 
-    return 0;
+        responsefile_name[responsefile_length-1] = '\0';
+        snprintf(responsefile_name, responsefile_length-1, "%s/%s/%d/%s",
+                 UDI_ROOT_DIR, passwd_info->pw_name, getpid(), RESPONSE_FILE_NAME);
+        if (mkfifo(responsefile_name, S_IRWXG | S_IRWXU) == -1) {
+            udi_printf("error creating response file fifo: %s\n",
+                       strerror(errno));
+            errnum = errno;
+            break;
+        }
+
+        size_t eventsfile_length = basedir_length +
+                             strlen(EVENTS_FILE_NAME) + DS_LEN;
+        eventsfile_name = (char *)udi_malloc(eventsfile_length);
+        if (eventsfile_name == NULL) {
+            udi_printf("malloc failed: %s\n",
+                       strerror(errno));
+            errnum = errno;
+            break;
+        }
+
+        eventsfile_name[eventsfile_length-1] = '\0';
+        snprintf(eventsfile_name, eventsfile_length-1, "%s/%s/%d/%s",
+                 UDI_ROOT_DIR, passwd_info->pw_name, getpid(), EVENTS_FILE_NAME);
+        if (mkfifo(eventsfile_name, S_IRWXG | S_IRWXU) == -1) {
+            udi_printf("error creating event file fifo: %s\n",
+                       strerror(errno));
+            errnum = errno;
+            break;
+        }
+    }while(0);
+
+    return errnum;
 }
 
-pid_t fork()
+static
+int handshake_with_debugger(int *output_enabled, char *errmsg, 
+        unsigned int errmsg_size)
 {
-    // TODO wrapper function stuff
+    int errnum = 0;
 
-    return real_fork();
+    do {
+        if ((request_handle = open(requestfile_name, O_RDONLY))
+                == -1 ) {
+            udi_printf("error opening request file fifo: %s\n",
+                       strerror(errno));
+            errnum = errno;
+            break;
+        }
+
+        udi_request *init_request = read_request();
+        if ( init_request == NULL ) {
+            snprintf(errmsg, errmsg_size-1, "%s", 
+                    "failed reading init request");
+            udi_printf("%s\n", "failed reading init request");
+            errnum = -1;
+            break;
+        }
+        
+        if ( init_request->request_type != UDI_REQ_INIT ) {
+            udi_printf("%s\n",
+                    "invalid init request received, proceeding anyways...");
+        }
+
+        free_request(init_request);
+
+        if ((response_handle = open(responsefile_name, O_WRONLY))
+                == -1 ) {
+            udi_printf("error open response file fifo: %s\n",
+                       strerror(errno));
+            errnum = errno;
+            break;
+        }
+        *output_enabled = 1;
+
+        if ((events_handle = open(eventsfile_name, O_WRONLY))
+                == -1 ) {
+            udi_printf("error open response file fifo: %s\n",
+                       strerror(errno));
+            errnum = errno;
+            break;
+        }
+
+        // after sending init response, any debugging operations are valid
+        udi_enabled = 1;
+
+        // create the init response
+        udi_response init_response;
+        init_response.response_type = UDI_RESP_VALID;
+        init_response.request_type = UDI_REQ_INIT;
+        init_response.length = sizeof(uint32_t)*3;
+        init_response.packed_data = udi_pack_data(init_response.length,
+                UDI_DATATYPE_INT32, UDI_PROTOCOL_VERSION,
+                UDI_DATATYPE_INT32, get_architecture(),
+                UDI_DATATYPE_INT32, get_multithread_capable());
+
+        if ( init_response.packed_data == NULL ) {
+            udi_printf("failed to create init response: %s\n",
+                    strerror(errno));
+            errnum = errno;
+            break;
+        }
+
+        errnum = write_response(&init_response);
+        if ( errnum ) {
+            udi_printf("%s\n", "failed to write init response");
+            *output_enabled = 0;
+        }
+    }while(0);
+
+    return errnum;
 }
-
-int execve(const char *filename, char *const argv[],
-        char *const envp[])
-{
-    // TODO wrapper function stuff
-
-    return real_execve(filename, argv, envp);
-}
-
 
 void init_udi_rt() UDI_CONSTRUCTOR;
 

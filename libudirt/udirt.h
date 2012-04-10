@@ -75,14 +75,13 @@ extern int abort_mem_access;
 extern int performing_mem_access;
 
 void *pre_mem_access_hook();
+int post_mem_access_hook(void *hook_arg);
 
 int read_memory(void *dest, const void *src, size_t num_bytes,
         char *errmsg, unsigned int errmsg_size);
 
 int write_memory(void *dest, const void *src, size_t num_bytes,
         char *errmsg, unsigned int errmsg_size);
-
-int post_mem_access_hook(void *hook_arg);
 
 // breakpoint handling
 typedef struct breakpoint_struct {

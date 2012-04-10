@@ -32,25 +32,64 @@
 #define _UDI_RT_POSIX_H 1
 
 #include <ucontext.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <string.h>
+#include <dlfcn.h>
+
+#include "udirt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// breakpoint handling
-udi_address get_trap_address(const ucontext_t *context);
-void rewind_pc(ucontext_t *context);
-
 // event handling
+typedef struct event_result_struct {
+    int failure;
+    int wait_for_request;
+} event_result;
 
+// syscall events
+typedef int (*sigaction_type)(int, const struct sigaction *, 
+        struct sigaction *);
+typedef pid_t (*fork_type)(void);
+typedef int (*execve_type)(const char *, char *const *, char *const *);
+
+extern sigaction_type real_sigaction;
+extern fork_type real_fork;
+extern execve_type real_execve;
+
+int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size);
+int install_event_breakpoints(char *errmsg, unsigned int errmsg_size);
+
+// exit event handling
 typedef struct exit_result_struct {
     int status;
     int failure;
 } exit_result;
 
-int get_exit_inst_length(void (*exit_func)(int), char *errmsg, unsigned int errmsg_size);
+extern breakpoint *exit_bp;
 
+int get_exit_inst_length(void (*exit_func)(int), char *errmsg, unsigned int errmsg_size);
 exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned int errmsg_size);
+event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, unsigned int errmsg_size);
+
+// breakpoint handling
+udi_address get_trap_address(const ucontext_t *context);
+void rewind_pc(ucontext_t *context);
+
+// signal handling
+
+// This is the number of elements in the signals array
+#define NUM_SIGNALS 29
+
+extern struct sigaction default_lib_action;
+extern int signal_map[];
+extern int signals[];
+extern struct sigaction app_actions[];
+
+int setup_signal_handlers();
+void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context);
 
 // pthreads support
 int get_multithread_capable();
