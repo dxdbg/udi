@@ -24,4 +24,4 @@ A list of enhancements/bugfixes for the future
 
 * breakout udirt POSIX implementation into multiple files
 
-* add Doxygen documentation
+* add Doxygen documentation generation

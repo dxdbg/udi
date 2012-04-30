@@ -124,8 +124,10 @@ request_handler req_handlers[] = {
 // Functions
 ////////////////////////////////////
 
-static
-void disable_debugging() {
+/**
+ * Disables this library
+ */
+static void disable_debugging() {
     udi_enabled = 0;
 
     // Replace the library signal handler with the application signal handlers
@@ -142,6 +144,9 @@ void disable_debugging() {
     udi_printf("%s\n", "Disabled debugging");
 }
 
+/**
+ * A UDI version of abort that performs some cleanup before calling abort
+ */
 void udi_abort(const char *file, unsigned int line) {
     udi_printf("udi_abort at %s[%d]\n", file, line);
 
@@ -157,8 +162,10 @@ void udi_abort(const char *file, unsigned int line) {
     abort();
 }
 
-static
-void handle_pipe_write_failure() {
+/**
+ * Performs handling necessary to handle a pipe write failure gracefully.
+ */
+static void handle_pipe_write_failure() {
     pipe_write_failure = 1;
 
     sigset_t set;
@@ -191,11 +198,24 @@ void handle_pipe_write_failure() {
 }
 
 // request-response handling
+
+/**
+ * Frees a request allocated by the read_request functions
+ *
+ * @param request the request to free
+ */
 void free_request(udi_request *request) {
     if ( request->packed_data != NULL ) udi_free(request->packed_data);
     udi_free(request);
 }
 
+/**
+ * Reads a request from the specified file descriptor
+ *
+ * @param fd the file descriptor
+ *
+ * @return the read request
+ */
 udi_request *read_request_from_fd(int fd) {
     // easier to test if broken out into a parameterized function
 
@@ -243,11 +263,24 @@ udi_request *read_request_from_fd(int fd) {
     return request;
 }
 
+/**
+ * Reads the request from the library's request handle
+ *
+ * @return the read request
+ */
 udi_request *read_request()
 {
     return read_request_from_fd(request_handle);
 }
 
+/**
+ * Writes the specified response to the specified file descriptor.
+ *
+ * @param fd the file descriptor to write to
+ * @param response the response to write
+ *
+ * @param 0 on success; non-zero otherwise
+ */
 int write_response_to_fd(int fd, udi_response *response) {
     int errnum = 0;
 
@@ -282,10 +315,24 @@ int write_response_to_fd(int fd, udi_response *response) {
     return errnum;
 }
 
+/**
+ * Writes the specified response to the library's response handle
+ *
+ * @param response the response to write
+ *
+ * @return 0 on success; non-zero on failure
+ */
 int write_response(udi_response *response) {
     return write_response_to_fd(response_handle, response);
 }
 
+/**
+ * Writes the response to a request. Helper function to
+ * translate write result into a request handling result.
+ *
+ * @return REQ_SUCCESS on success; REQ_ERROR on unrecoverable failure;
+ *         errno otherwise
+ */
 int write_response_to_request(udi_response *response) {
     int write_result = write_response(response);
 
@@ -294,6 +341,14 @@ int write_response_to_request(udi_response *response) {
     return REQ_SUCCESS;
 }
 
+/**
+ * Writes the specified event to the specified file descriptor
+ *
+ * @param fd the file descriptor
+ * @param event the event to write
+ *
+ * @return 0 on success; non-zero otherwise
+ */
 int write_event_to_fd(int fd, udi_event_internal *event) {
     int errnum = 0;
 
@@ -324,10 +379,23 @@ int write_event_to_fd(int fd, udi_event_internal *event) {
     return errnum;
 }
 
+/**
+ * Writes the specified event to the library's event handle
+ *
+ * @param event the event to write
+ *
+ * @return 0 on success; non-zero otherwise
+ */
 int write_event(udi_event_internal *event) {
     return write_event_to_fd(events_handle, event);
 }
 
+/**
+ * Translates the failed memory access code into an error
+ * message
+ *
+ * @return the error message
+ */
 const char *get_mem_errstr() {
     switch(failed_si_code) {
         case SEGV_MAPERR:
@@ -341,8 +409,14 @@ const char *get_mem_errstr() {
 // Handler functions //
 ///////////////////////
 
-static
-int send_valid_response(udi_request_type req_type) {
+/**
+ * Sends a valid response for the specified request type
+ *
+ * @param req_type the request type
+ *
+ * @return 0 on success; non-zero otherwise
+ */
+static int send_valid_response(udi_request_type req_type) {
 
     udi_response resp;
     resp.response_type = UDI_RESP_VALID;
@@ -353,6 +427,11 @@ int send_valid_response(udi_request_type req_type) {
     return write_response_to_request(&resp);
 }
 
+/**
+ * Handles a process continue request
+ *
+ * Standard request handler interface
+ */
 int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     uint32_t sig_val;
     if ( udi_unpack_data(req->packed_data, req->length,
@@ -394,6 +473,11 @@ int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     return result;
 }
 
+/**
+ * The read request handler
+ *
+ * Standard read request handler
+ */
 int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     udi_address addr;
     udi_length num_bytes;
@@ -450,6 +534,11 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     return result;
 }
 
+/**
+ * Write request handler
+ *
+ * Standard request handler interface
+ */
 int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     udi_address addr;
     udi_length num_bytes;
@@ -483,16 +572,32 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     return write_result;
 }
 
+/**
+ * State request handler
+ *
+ * Standard request handler interface
+ */
 int state_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     // TODO
     return REQ_SUCCESS;
 }
 
+/**
+ * Init request handler
+ *
+ * Init request handler interface
+ * Standard request handler interface
+ */
 int init_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     // TODO need to reinitialize library on this request if not already initialized
     return REQ_SUCCESS;
 }
 
+/**
+ * Breakpoint create request handler
+ *
+ * Standard request handler interface
+ */
 int breakpoint_create_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     udi_address breakpoint_addr;
     udi_length instr_length;
@@ -526,6 +631,15 @@ int breakpoint_create_handler(udi_request *req, char *errmsg, unsigned int errms
     return send_valid_response(UDI_REQ_CREATE_BREAKPOINT);
 }
 
+/**
+ * Given a breakpoint request, attempt to determine the breakpoint that the request is addressing
+ * 
+ * @param req the request containing identifying info about the breakpoint
+ * @param errmsg the error message populated on error
+ * @param errmsg_size the size of the error message populated on error
+ *
+ * @return the breakpoint found, NULL if no breakpoint found
+ */
 static
 breakpoint *get_breakpoint_from_request(udi_request *req, char *errmsg, unsigned int errmsg_size)
 {
@@ -549,6 +663,11 @@ breakpoint *get_breakpoint_from_request(udi_request *req, char *errmsg, unsigned
     return bp;
 }
 
+/**
+ * Breakpoint install request handler
+ *
+ * Standard request handler interface
+ */
 int breakpoint_install_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     breakpoint *bp = get_breakpoint_from_request(req, errmsg, errmsg_size);
 
@@ -559,6 +678,11 @@ int breakpoint_install_handler(udi_request *req, char *errmsg, unsigned int errm
     return send_valid_response(UDI_REQ_INSTALL_BREAKPOINT);
 }
 
+/**
+ * Breakpoint remove request handler
+ *
+ * Standard request handler interface
+ */
 int breakpoint_remove_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     breakpoint *bp = get_breakpoint_from_request(req, errmsg, errmsg_size);
 
@@ -569,6 +693,11 @@ int breakpoint_remove_handler(udi_request *req, char *errmsg, unsigned int errms
     return send_valid_response(UDI_REQ_REMOVE_BREAKPOINT);
 }
 
+/**
+ * Breakpoint delete request handler
+ *
+ * Standard request handler interface
+ */
 int breakpoint_delete_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     breakpoint *bp = get_breakpoint_from_request(req, errmsg, errmsg_size);
 
@@ -583,6 +712,11 @@ int breakpoint_delete_handler(udi_request *req, char *errmsg, unsigned int errms
 // End handler functions //
 ///////////////////////////
 
+/**
+ * Implementation of pre_mem_access hook. Unblocks SIGSEGV.
+ *
+ * @return the original signal set before SIGSEGV unblocked
+ */
 void *pre_mem_access_hook() {
     // Unblock the SIGSEGV to allow the write to complete
     sigset_t *original_set = (sigset_t *)udi_malloc(sizeof(sigset_t));
@@ -617,6 +751,13 @@ void *pre_mem_access_hook() {
     return original_set;
 }
 
+/**
+ * Implementation of post mem access hook
+ *
+ * @param hook_arg the value returned from the pre mem access hook
+ *
+ * @return 0 on success; false otherwise
+ */
 int post_mem_access_hook(void *hook_arg) {
 
     sigset_t *original_set = (sigset_t *)hook_arg;
@@ -632,8 +773,15 @@ int post_mem_access_hook(void *hook_arg) {
     return result;
 }
 
-static
-int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
+/**
+ * Wait for and request and process the request on reception.
+ *
+ * @param errmsg error message populate on error
+ * @param errmsg_size the size of the error message
+ *
+ * @return request handler return code
+ */
+static int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
     udi_request *req = NULL;
     int result = 0;
 
@@ -661,8 +809,15 @@ int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
     return result;
 }
 
-static
-event_result decode_segv(const siginfo_t *siginfo, ucontext_t *context,
+/**
+ * Decodes the SIGSEGV using the specified arguments
+ *
+ * @param siginfo the siginfo argument passed to the signal handler
+ * @param context the context argument passed to the signal handler
+ *
+ * @return the event decoded from the SIGSEGV
+ */
+static event_result decode_segv(const siginfo_t *siginfo, ucontext_t *context,
         char *errmsg, unsigned int errmsg_size)
 {
     event_result result;
@@ -712,8 +867,17 @@ event_result decode_segv(const siginfo_t *siginfo, ucontext_t *context,
     return result;
 }
 
-static
-event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char *errmsg, unsigned int errmsg_size) {
+/**
+ * Handles the breakpoint event that occurred at the specified breakpoint
+ *
+ * @param bp the breakpoint that triggered the event
+ * @param context the context passed to the signal handler
+ * @param errmsg the error message populated on error
+ * @param errmsg_size the size of the error message
+ *
+ * @return the result of decoding the event
+ */
+static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char *errmsg, unsigned int errmsg_size) {
     event_result result;
     result.failure = 0;
     result.wait_for_request = 1;
@@ -776,8 +940,15 @@ event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char *errmsg
     return result;
 }
 
-static
-event_result decode_trap(const siginfo_t *siginfo, ucontext_t *context,
+/**
+ * Decodes the trap
+ *
+ * @param siginfo the siginfo passed to the signal handler
+ * @param context the context passed to the signal handler
+ * @param errmsg the error message populated on error
+ * @param errmsg_size the size of the error message
+ */
+static event_result decode_trap(const siginfo_t *siginfo, ucontext_t *context,
         char *errmsg, unsigned int errmsg_size)
 {
     event_result result;
@@ -799,6 +970,11 @@ event_result decode_trap(const siginfo_t *siginfo, ucontext_t *context,
     return result;
 }
 
+/**
+ * The signal handler entry point for the library
+ *
+ * See manpage for sigaction
+ */
 void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     char errmsg[ERRMSG_SIZE];
     errmsg[ERRMSG_SIZE-1] = '\0';
@@ -927,8 +1103,10 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     udi_in_sig_handler--;
 }
 
-static
-void enable_debug_logging() {
+/**
+ * Enables debug logging if the environment specifies it
+ */
+static void enable_debug_logging() {
     // turn on debugging, if necessary
     if (getenv(UDI_DEBUG_ENV) != NULL) {
         udi_debug_on = 1;
@@ -936,8 +1114,10 @@ void enable_debug_logging() {
     }
 }
 
-static
-void global_variable_initialization() {
+/**
+ * Performs any necessary global variable initialization
+ */
+static void global_variable_initialization() {
     // set allocator used for packing data
     udi_set_malloc(udi_malloc);
 
@@ -960,8 +1140,10 @@ void global_variable_initialization() {
     }
 }
 
-static 
-int create_udi_filesystem() {
+/**
+ * Creates the necessary elements for the udi filesystem
+ */
+static int create_udi_filesystem() {
     int errnum = 0;
 
     do {
@@ -1063,8 +1245,20 @@ int create_udi_filesystem() {
     return errnum;
 }
 
-static
-int handshake_with_debugger(int *output_enabled, char *errmsg, 
+/**
+ * Performs the initiation handshake with the debugger.
+ *
+ * TODO this should be split into functions to allow the caller to
+ * implicitly know that the output has been enabled instead having
+ * the output parameter.
+ *
+ * @param output_enabled set if an error can be reported to the debugger
+ * @param errmsg the error message populated on error
+ * @param errmsg_size the size of the error message
+ *
+ * @return 0 on success; non-zero on failure
+ */
+static int handshake_with_debugger(int *output_enabled, char *errmsg, 
         unsigned int errmsg_size)
 {
     int errnum = 0;
@@ -1141,8 +1335,12 @@ int handshake_with_debugger(int *output_enabled, char *errmsg,
     return errnum;
 }
 
+/** The entry point for initialization declaration */
 void init_udi_rt() UDI_CONSTRUCTOR;
 
+/**
+ * The entry point for initialization
+ */
 void init_udi_rt() {
     char errmsg[ERRMSG_SIZE];
     int errnum = 0, output_enabled = 0;
