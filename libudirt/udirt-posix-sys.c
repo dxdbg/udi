@@ -111,6 +111,15 @@ void wait_and_execute_command_with_response() {
 }
 */
 
+/**
+ * Use dynamic loader to locate functions that are wrapped by library
+ * wrappers
+ *
+ * @param errmsg the errmsg populated on error
+ * @param errmsg_size the size of the errmsg
+ *
+ * @return 0 on success; non-zero on failure
+ */
 int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
     int errnum = 0;
     char *errmsg_tmp;
@@ -151,6 +160,15 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
     return errnum;
 }
 
+/**
+ * Install any breakpoints necessary to capture any interesting events
+ * that cannot be captured by wrapping functions
+ *
+ * @param errmsg the errmsg populated on error
+ * @param errmsg_size the size of the errmsg on error
+ *
+ * @return 0 on success; non-zero on failure
+ */
 int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
     int errnum = 0;
     
@@ -184,6 +202,16 @@ int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
     return errnum;
 }
 
+/**
+ * Handle the occurence of a hit on the exit breakpoint. This includes gathering all information
+ * neccessary to create the exit event.
+ *
+ * @param context the context for the breakpoint
+ * @param errmsg the error message populated on error
+ * @param errmsg_size the size of the error message
+ *
+ * @return the information extracted about the exit event
+ */
 event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, unsigned int errmsg_size) {
 
     event_result result;
@@ -225,13 +253,19 @@ event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, uns
     return result;
 }
 
+/**
+ * The wrapper function for the fork system call. This is TODO
+ */
 pid_t fork()
 {
-    // TODO wrapper function stuff
-
     return real_fork();
 }
 
+/**
+ * The wrapper function for the execve system call. This is TODO.
+ *
+ * See execve manpage for description of parameters.
+ */
 int execve(const char *filename, char *const argv[],
         char *const envp[])
 {
@@ -240,6 +274,14 @@ int execve(const char *filename, char *const argv[],
     return real_execve(filename, argv, envp);
 }
 
+/**
+ * Wrapper function for sigaction.
+ *
+ * See sigaction manpage for description of parameters.
+ *
+ * Registers the passed sigaction with user sigactions maintained
+ * by the library.
+ */
 int sigaction(int signum, const struct sigaction *act,
         struct sigaction *oldact)
 {
@@ -276,6 +318,11 @@ int sigaction(int signum, const struct sigaction *act,
     return 0;
 }
 
+/**
+ * The entry point for passing a signal to a user signal handler
+ *
+ * See manpage for SA_SIGINFO function.
+ */
 void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context) {
     int signal_index = signal_map[(signal % MAX_SIGNAL_NUM)];
 
@@ -306,6 +353,11 @@ void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context) {
     }
 }
 
+/**
+ * Sets up the signal handlers for all catchable signals
+ *
+ * @return 0 on success; non-zero on failure
+ */
 int setup_signal_handlers() {
     int errnum = 0;
 
