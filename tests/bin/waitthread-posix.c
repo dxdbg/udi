@@ -58,7 +58,7 @@ void usr1_handle(int sig) {
     pause();
 }
 
-static const char *FIFO_NAME = "/tmp/waitthread";
+static const char *FIFO_NAME = "/tmp/waitthread-%d";
 
 int main(int argc, char **argv) {
     init_bin();
@@ -75,6 +75,9 @@ int main(int argc, char **argv) {
     int numThreads;
     sscanf(argv[1], "%d", &numThreads);
     if( numThreads < 1 ) numThreads = 1;
+
+    char fifo_name[1024];
+    snprintf(fifo_name, 1024, FIFO_NAME, getpid());
 
     pthread_t *threads = (pthread_t *)malloc(sizeof(pthread_t)*numThreads);
 
@@ -99,15 +102,15 @@ int main(int argc, char **argv) {
     }
 
     // Wait on the named pipe
-    unlink(FIFO_NAME);
-    if( mkfifo(FIFO_NAME, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP) ) {
+    unlink(fifo_name);
+    if( mkfifo(fifo_name, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP) ) {
         perror("mkfifo");
         return EXIT_FAILURE;
     }
 
     FILE *fifo;
     do {
-        if( (fifo = fopen(FIFO_NAME, "r")) == NULL ) {
+        if( (fifo = fopen(fifo_name, "r")) == NULL ) {
             if( errno == EINTR ) continue;
 
             perror("fopen");

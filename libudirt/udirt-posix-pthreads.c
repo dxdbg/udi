@@ -43,7 +43,7 @@ extern int pthread_sigmask(int how, const sigset_t *new_set, sigset_t *old_set) 
  * @return non-zero if the debugee is multithread capable
  */
 int get_multithread_capable() {
-    return 0;
+    return pthread_sigmask != 0;
 }
 
 /**
