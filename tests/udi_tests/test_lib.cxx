@@ -38,17 +38,30 @@
 using std::cout;
 using std::endl;
 using std::stringstream;
+using std::ostream;
 
+ostream& operator<<(ostream &os, udi_process *proc) {
+    os << "process[" << get_proc_pid(proc) << "]";
+
+    return os;
+}
+
+/**
+ * Waits for the specified process to hit the expected breakpoint
+ *
+ * @param proc  the process to wait on
+ *
+ * @return True, if an breakpoint event was seen; False otherwise
+ */
 bool wait_for_breakpoint(udi_process *proc, udi_address breakpoint) {
     udi_event *events = wait_for_events(&proc, 1);
 
     udi_event *iter = events;
 
-    // TODO refactor this to be shared among other functions
     bool saw_breakpoint_event = false;
     while (iter != NULL) {
         if ( iter->proc != proc ) {
-            cout << "Received event for unknown process " << get_proc_pid(iter->proc) << endl;
+            cout << "Received event for unknown " << iter->proc << endl;
             return false;
         }
 
@@ -75,13 +88,20 @@ bool wait_for_breakpoint(udi_process *proc, udi_address breakpoint) {
     }
 
     if ( !saw_breakpoint_event ) {
-        cout << "Failed to observe breakpoint event for process " << get_proc_pid(proc) << endl;
+        cout << "Failed to observe breakpoint event for " << proc << endl;
         return false;
     }
 
     return true;
 }
 
+/**
+ * Waits for the specified process to exit
+ *
+ * @param proc  the process to wait for
+ *
+ * @return True, if an exit event was seen; False otherwise
+ */
 bool wait_for_exit(udi_process *proc) {
     udi_event *events = wait_for_events(&proc, 1);
 
@@ -90,7 +110,7 @@ bool wait_for_exit(udi_process *proc) {
     bool saw_exit_event = false;
     while ( iter != NULL ) {
         if ( iter->proc != proc ) {
-            cout << "Received event for unknown process " << get_proc_pid(iter->proc) << endl;
+            cout << "Received event for unknown " << proc << endl;
             return false;
         }
 
@@ -121,12 +141,12 @@ bool wait_for_exit(udi_process *proc) {
     }
 
     if ( !saw_exit_event ) {
-        cout << "Failed to observe exit event for process " << get_proc_pid(proc) << endl;
+        cout << "Failed to observe exit event for " << proc << endl;
         return false;
     }
 
     if ( free_process(proc) ) {
-        cout << "Failed to free process " << get_proc_pid(proc) << endl;
+        cout << "Failed to free " << proc << endl;
         return false;
     }
 

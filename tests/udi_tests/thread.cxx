@@ -26,18 +26,68 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _TEST_LIB_H_
-#define _TEST_LIB_H_ 1
-
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
+#include <sstream>
 
 #include "libudi.h"
+#include "libuditest.h"
+#include "test_bins.h"
+#include "test_lib.h"
 
-bool wait_for_exit(udi_process *proc);
-bool wait_for_breakpoint(udi_process *proc, udi_address breakpoint);
-bool release_debuggee_threads(udi_process *proc);
-bool wait_for_debuggee_pipe(udi_process *proc);
+using std::cout;
+using std::endl;
+using std::stringstream;
 
-std::ostream& operator<<(std::ostream &os, udi_process *proc);
+class test_thread : public UDITestCase {
+    public:
+        test_thread()
+            : UDITestCase(std::string("test_thread")) {}
+        virtual ~test_thread() {}
 
-#endif
+        bool operator()(void);
+};
+
+static const char *TEST_BINARY = THREAD_BINARY_PATH;
+
+static test_thread testInstance;
+
+bool test_thread::operator()(void) {
+    if ( init_libudi() != 0 ) {
+        cout << "Failed to initialize libudi" << endl;
+        return false;
+    }
+
+    char *argv[] = { (char *)TEST_BINARY, (char *)"5", NULL };
+
+    udi_process *proc = create_process(TEST_BINARY, argv, NULL);
+    if ( proc == NULL ) {
+        cout << "Failed to create process" << endl;
+        return false;
+    }
+
+    if ( get_multithread_capable(proc) == 0 ) {
+        cout << proc << " incorrectly marked as multithread capable" << endl;
+        return false;
+    }
+
+    udi_error_e result = continue_process(proc);
+
+    if ( result != UDI_ERROR_NONE ) {
+        cout << "Failed to continue process " << get_error_message(result) << endl;
+        return false;
+    }
+
+    if ( !wait_for_debuggee_pipe(proc) ) {
+        cout << "Failed to wait for debuggee pipe to exist " << proc << endl;
+        return false;
+    }
+
+    if ( !release_debuggee_threads(proc) ) {
+        cout << "Failed to release threads for " << proc << endl;
+        return false;
+    }
+
+    return wait_for_exit(proc);
+}

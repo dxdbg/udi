@@ -26,18 +26,66 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _TEST_LIB_H_
-#define _TEST_LIB_H_ 1
-
-#include <iostream>
-
+#include "test_lib.h"
 #include "libudi.h"
 
-bool wait_for_exit(udi_process *proc);
-bool wait_for_breakpoint(udi_process *proc, udi_address breakpoint);
-bool release_debuggee_threads(udi_process *proc);
-bool wait_for_debuggee_pipe(udi_process *proc);
+#include <sstream>
+#include <cerrno>
 
-std::ostream& operator<<(std::ostream &os, udi_process *proc);
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#endif
+using std::stringstream;
+using std::string;
+
+static const string PIPE_BASE_NAME("/tmp/waitthread-");
+
+bool release_debuggee_threads(udi_process *proc) {
+    stringstream pipe_name;
+
+    pipe_name << PIPE_BASE_NAME << get_proc_pid(proc);
+
+    int pipe_fd = open(pipe_name.str().c_str(), O_WRONLY);
+    if (pipe_fd == -1) {
+        perror("open");
+        return false;
+    }
+
+    char character = 'e';
+
+    if ( write(pipe_fd, &character, sizeof(char)) == -1 ) {
+        perror("write");
+        return false;
+    }
+
+    // Explicitly ignore errors
+    close(pipe_fd);
+
+    return true;
+}
+
+
+bool wait_for_debuggee_pipe(udi_process *proc) {
+
+    stringstream pipe_name;
+
+    pipe_name << PIPE_BASE_NAME << get_proc_pid(proc);
+
+    struct stat pipe_stat;
+
+    // Wait for the pipe to exist
+    while(1) {
+        if ( stat(pipe_name.str().c_str(), &pipe_stat) == 0 ) {
+            break;
+        }else{
+            if (errno != ENOENT ) {
+                perror("stat");
+                return false;
+            }
+        }
+    }
+
+    return true;
+}

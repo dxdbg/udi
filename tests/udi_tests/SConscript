@@ -26,6 +26,7 @@ def build_binary_header(target, source, env):
         # paths to binaries
 
         target_file.write("#define SIMPLE_BINARY_PATH \"{0}\"\n".format(bin_dir + 'simple'))
+        target_file.write("#define THREAD_BINARY_PATH \"{0}\"\n".format(bin_dir + 'waitthread'))
 
         # symbol addresses
 
@@ -55,20 +56,36 @@ lib_file = 'test_lib.cxx'
 
 lib_file_obj = bin_env.Object(lib_file)
 
+lib_file_os = None
+
+lib_file_os_obj = None
+
+if udibuild.IsUnix():
+    lib_file_os = 'test_lib_posix.cxx'
+
+    lib_file_os_obj = bin_env.Object(lib_file_os)
+
 for source in sources:
-    if source == lib_file:
+    if source == lib_file or source == lib_file_os:
         continue
 
     bins[udibuild.GetFilename(source)] = bin_env.Object(source)
+
+lib_files = list()
+
+lib_files.append(lib_file_obj)
+
+if lib_file_os_obj is not None:
+    lib_files.append(lib_file_os_obj)
 
 libs = ['udi', 'uditest']
 
 libpath = [ '#/build/libudi', '#/build/tests/libuditest' ]
 
 for binary,source in bins.items():
-    bin_env.Program(binary, [source, lib_file_obj], LIBS=libs, LIBPATH=libpath)
+    bin_env.Program(binary, [source, lib_files], LIBS=libs, LIBPATH=libpath)
 
-bin_env.Program('all_libudi_tests', [bins.values(), lib_file_obj], LIBS=libs, LIBPATH=libpath)
+bin_env.Program('all_libudi_tests', [bins.values(), lib_files], LIBS=libs, LIBPATH=libpath)
 
 test_bins_h = bin_env.BinaryHeaderBuilder('test_bins.h', sources)
 
