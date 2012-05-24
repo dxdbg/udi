@@ -45,6 +45,7 @@
 #include <fcntl.h>
 #include <pwd.h>
 #include <sys/mman.h>
+#include <inttypes.h>
 
 #include "udi.h"
 #include "udirt.h"
@@ -452,13 +453,13 @@ int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     if ( continue_bp != NULL ) {
         int install_result = install_breakpoint(continue_bp, errmsg, errmsg_size);
         if ( install_result != 0 ) {
-            udi_printf("failed to install breakpoint for continue at 0x%llx\n",
+            udi_printf("failed to install breakpoint for continue at 0x%"PRIx64"\n",
                     continue_bp->address);
             if ( install_result < REQ_ERROR ) {
                 install_result = REQ_ERROR;
             }
         }else{
-            udi_printf("installed breakpoint at 0x%llx for continue from breakpoint\n",
+            udi_printf("installed breakpoint at 0x%"PRIx64" for continue from breakpoint\n",
                     continue_bp->address);
         }
     }
@@ -615,15 +616,15 @@ int breakpoint_create_handler(udi_request *req, char *errmsg, unsigned int errms
 
     // A breakpoint already exists
     if ( bp != NULL ) {
-        snprintf(errmsg, errmsg_size, "breakpoint already exists at 0x%llx", breakpoint_addr);
-        udi_printf("attempt to create duplicate breakpoint at 0x%llx\n", breakpoint_addr);
+        snprintf(errmsg, errmsg_size, "breakpoint already exists at 0x%"PRIx64, breakpoint_addr);
+        udi_printf("attempt to create duplicate breakpoint at 0x%"PRIx64"\n", breakpoint_addr);
         return REQ_FAILURE;
     }
 
     bp = create_breakpoint(breakpoint_addr, instr_length);
 
     if ( bp == NULL ) {
-        snprintf(errmsg, errmsg_size, "failed to create breakpoint at 0x%llx", breakpoint_addr);
+        snprintf(errmsg, errmsg_size, "failed to create breakpoint at 0x%"PRIx64, breakpoint_addr);
         udi_printf("%s\n", errmsg);
         return REQ_FAILURE;
     }
@@ -656,7 +657,7 @@ breakpoint *get_breakpoint_from_request(udi_request *req, char *errmsg, unsigned
     breakpoint *bp = find_breakpoint(breakpoint_addr);
 
     if ( bp == NULL ) {
-        snprintf(errmsg, errmsg_size, "no breakpoint exists at 0x%llx", breakpoint_addr);
+        snprintf(errmsg, errmsg_size, "no breakpoint exists at 0x%"PRIx64, breakpoint_addr);
         udi_printf("%s\n", errmsg);
     }
 
@@ -886,7 +887,7 @@ static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char 
     // will be required after the next continue
     int remove_result = remove_breakpoint(bp, errmsg, errmsg_size);
     if ( remove_result != 0 ) {
-        udi_printf("failed to remove breakpoint at 0x%llx\n", bp->address);
+        udi_printf("failed to remove breakpoint at 0x%"PRIx64"\n", bp->address);
         result.failure = remove_result;
         return result;
     }
@@ -899,7 +900,7 @@ static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char 
 
         int delete_result = delete_breakpoint(bp, errmsg, errmsg_size);
         if ( delete_result != 0 ) {
-            udi_printf("failed to delete breakpoint at 0x%llx\n", bp->address);
+            udi_printf("failed to delete breakpoint at 0x%"PRIx64"\n", bp->address);
             result.failure = delete_result;
         }
 
@@ -912,7 +913,7 @@ static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char 
         return handle_exit_breakpoint(context, errmsg, errmsg_size);
     }
 
-    udi_printf("user breakpoint at 0x%llx\n", bp->address);
+    udi_printf("user breakpoint at 0x%"PRIx64"\n", bp->address);
 
     // create the event
     udi_event_internal brkpt_event;
@@ -934,7 +935,7 @@ static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char 
     }while(0);
 
     if ( result.failure ) {
-        udi_printf("failed to report breakpoint at 0x%llx\n", bp->address);
+        udi_printf("failed to report breakpoint at 0x%"PRIx64"\n", bp->address);
     }
 
     return result;
@@ -961,7 +962,7 @@ static event_result decode_trap(const siginfo_t *siginfo, ucontext_t *context,
     breakpoint *bp = find_breakpoint(trap_address);
 
     if ( bp != NULL ) {
-        udi_printf("found breakpoint at 0x%llx\n", trap_address);
+        udi_printf("found breakpoint at 0x%"PRIx64"\n", trap_address);
         result = decode_breakpoint(bp, context, errmsg, errmsg_size);
     }else{
         // TODO create signal event

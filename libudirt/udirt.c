@@ -32,6 +32,7 @@
 
 #include <string.h>
 #include <errno.h>
+#include <inttypes.h>
 
 const int REQ_SUCCESS = 0; ///< Request processed successfully
 const int REQ_ERROR = -1; ///< Unrecoverable failure caused by environment/OS error
@@ -278,7 +279,7 @@ int delete_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     }
 
     if ( tmp_breakpoint == NULL || prev_breakpoint == NULL ) {
-        snprintf(errmsg, errmsg_size, "failed to delete breakpoint at %llx",
+        snprintf(errmsg, errmsg_size, "failed to delete breakpoint at %"PRIx64,
                 bp->address);
         udi_printf("%s\n", errmsg);
         return -1;

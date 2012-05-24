@@ -31,6 +31,8 @@
 #include "udirt.h"
 #include "udirt-x86.h"
 
+#include <inttypes.h>
+
 static const unsigned char BREAKPOINT_INSN = 0xcc;
 
 /**
@@ -48,7 +50,7 @@ int write_breakpoint_instruction(breakpoint *bp, char *errmsg, unsigned int errm
     int result = read_memory(bp->saved_bytes, (void *)(unsigned long)bp->address, sizeof(BREAKPOINT_INSN),
             errmsg, errmsg_size);
     if( result != 0 ) {
-        udi_printf("failed to save original bytes at 0x%llx\n",
+        udi_printf("failed to save original bytes at 0x%"PRIx64"\n",
                 bp->address);
         return result;
     }
@@ -56,7 +58,7 @@ int write_breakpoint_instruction(breakpoint *bp, char *errmsg, unsigned int errm
     result = write_memory((void *)(unsigned long)bp->address, &BREAKPOINT_INSN, sizeof(BREAKPOINT_INSN),
             errmsg, errmsg_size);
     if ( result != 0 ) {
-        udi_printf("failed to install breakpoint at 0x%llx\n",
+        udi_printf("failed to install breakpoint at 0x%"PRIx64"\n",
                 bp->address);
     }
 
@@ -79,7 +81,7 @@ int write_saved_bytes(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
             errmsg, errmsg_size);
 
     if ( result != 0 ) {
-        udi_printf("failed to remove breakpoint at 0x%llx\n", bp->address);
+        udi_printf("failed to remove breakpoint at 0x%"PRIx64"\n", bp->address);
     }
 
     return result;
