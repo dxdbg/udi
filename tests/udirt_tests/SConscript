@@ -12,7 +12,7 @@ bin_env.Append(CPPPATH = ['#/libudirt', '#/libudicommon', '#/tests/libuditest'])
 
 sources = bin_env.Glob('*.cxx', strings=True, source=True)
 
-libs = ['udirt', 'uditest']
+libs = ['udirt', 'uditest', 'uditestmain']
 
 libpath = ['#/build/libudirt', '#/build/tests/libuditest']
 

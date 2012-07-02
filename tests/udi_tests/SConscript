@@ -78,7 +78,7 @@ lib_files.append(lib_file_obj)
 if lib_file_os_obj is not None:
     lib_files.append(lib_file_os_obj)
 
-libs = ['udi', 'uditest']
+libs = ['udi', 'uditest', 'uditestmain']
 
 libpath = [ '#/build/libudi', '#/build/tests/libuditest' ]
 
