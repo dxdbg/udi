@@ -648,7 +648,7 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
 
             if ( udi_unpack_data(event->packed_data, event->length,
                         UDI_DATATYPE_BYTESTREAM, &errmsg_size, 
-                        err_event->errstr) )
+                        &err_event->errstr) )
             {
                 udi_printf("%s\n", "failed to decode error event");
 

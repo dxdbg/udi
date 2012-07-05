@@ -38,7 +38,19 @@
 #include "udirt-posix.h"
 #include "udirt-x86.h"
 
+// Exit prologue parsing
+
+// Common on x86 with gcc
 static const unsigned char PUSH_EBP = 0x55;
+
+// Common on x86_64 with gcc
+static const unsigned char LEA_RIP_BYTE1 = 0x48;
+static const unsigned char LEA_RIP_BYTE2 = 0x8d;
+static const unsigned char LEA_RIP_BYTE3 = 0x35;
+
+#define X86_EXIT_INST_LENGTH 1
+#define X86_64_EXIT_INST_LENGTH 7
+#define MAX_EXIT_INST_LENGTH X86_64_EXIT_INST_LENGTH
 
 /**
  * Given the context, rewinds the PC to account for a hit breakpoint
@@ -73,7 +85,7 @@ udi_address get_trap_address(const ucontext_t *context) {
 int get_exit_inst_length(void (*exit_func)(int), char *errmsg, unsigned int errmsg_size) {
     // Use heuristics to determine the instruction length
 
-    unsigned char possible_inst[1]; // this should be the maximum instruction length
+    unsigned char possible_inst[MAX_EXIT_INST_LENGTH];
 
     int read_result = read_memory(possible_inst, (const void *)exit_func, sizeof(possible_inst),
             errmsg, errmsg_size);
@@ -84,7 +96,11 @@ int get_exit_inst_length(void (*exit_func)(int), char *errmsg, unsigned int errm
     }
 
     if ( possible_inst[0] == PUSH_EBP ) {
-        return 1;
+        return X86_EXIT_INST_LENGTH;
+    }else if (possible_inst[0] == LEA_RIP_BYTE1 &&
+              possible_inst[1] == LEA_RIP_BYTE2 &&
+              possible_inst[2] == LEA_RIP_BYTE3) {
+        return X86_64_EXIT_INST_LENGTH;
     }
 
     return -1;

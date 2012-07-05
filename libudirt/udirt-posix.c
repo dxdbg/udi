@@ -966,6 +966,9 @@ static event_result decode_trap(const siginfo_t *siginfo, ucontext_t *context,
         result = decode_breakpoint(bp, context, errmsg, errmsg_size);
     }else{
         // TODO create signal event
+        result.failure = -1;
+        result.wait_for_request = 0;
+        snprintf(errmsg, errmsg_size-1, "Failed to decode trap event at 0x%"PRIx64, trap_address);
     }
 
     return result;
@@ -1016,7 +1019,6 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     result.wait_for_request = 1;
 
     do {
-        udi_event_internal event;
         switch(signal) {
             case SIGSEGV:
                 result = decode_segv(siginfo, context, errmsg,
@@ -1026,13 +1028,12 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                 result = decode_trap(siginfo, context, errmsg,
                         ERRMSG_SIZE);
                 break;
-            default:
-                event.event_type = UDI_EVENT_UNKNOWN;
-                event.length = 0;
-                event.packed_data = NULL;
+            default: {
+                udi_event_internal event = create_event_unknown();
 
                 result.failure = write_event(&event);
                 break;
+            }
         }
 
         if ( result.failure != 0 ) {
@@ -1040,10 +1041,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                 strncpy(errmsg, strerror(result.failure), ERRMSG_SIZE-1);
             }
 
-            event.event_type = UDI_EVENT_ERROR;
-            event.length = strlen(errmsg) + 1;
-            event.packed_data = udi_pack_data(event.length,
-                    UDI_DATATYPE_BYTESTREAM, event.length, errmsg);
+            udi_event_internal event = create_event_error(errmsg, ERRMSG_SIZE-1);
 
             // Explicitly ignore any errors -- no way to report them
             if ( event.packed_data != NULL ) {

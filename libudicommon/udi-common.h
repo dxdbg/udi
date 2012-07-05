@@ -102,6 +102,11 @@ udi_response_type udi_response_type_ntoh(udi_response_type value);
 udi_event_type udi_event_type_hton(udi_event_type value);
 udi_event_type udi_event_type_ntoh(udi_event_type value);
 
+/* payload handling */
+
+udi_event_internal create_event_error(const char *errmsg, unsigned int errmsg_size);
+udi_event_internal create_event_unknown();
+
 #ifdef __cplusplus
 } // extern C
 #endif
