@@ -194,6 +194,13 @@ int udi_packer(int pack, unsigned char *data, udi_length length, va_list ap) {
                 memcpy(buffer_size, data + current_length, sizeof(udi_length));
                 *buffer_size = udi_length_ntoh(*buffer_size);
                 next_arg_size = *buffer_size;
+
+                // Handle invalid bytestream size
+                if (next_arg_size > (length - sizeof(udi_length))) {
+                    // TODO this will cause a memory leak if mulitple
+                    // bytestreams are used in the same unpack call
+                    return -1;
+                }
             }
 
             current_length += sizeof(udi_length);

@@ -10,7 +10,7 @@ lib_env = topenv.Clone()
 
 lib_env.Append(CPPPATH = ['#/libudirt'])
 
-sources = ['udi-common.c']
+sources = ['udi-common.c', 'udi-common-payload.c']
 
 if udibuild.IsUnix():
     sources.append('udi-common-posix.c')

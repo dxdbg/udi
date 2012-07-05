@@ -67,6 +67,10 @@ bool wait_for_breakpoint(udi_process *proc, udi_address breakpoint) {
 
         if ( iter->event_type != UDI_EVENT_BREAKPOINT ) {
             cout << "Received unexpected event " << get_event_type_str(iter->event_type) << endl;
+            if (iter->event_type == UDI_EVENT_ERROR) {
+                cout << "Error message: " << ((udi_event_error_struct *)iter->event_data)->errstr << endl;
+            }
+
             return false;
         }
 
@@ -116,6 +120,10 @@ bool wait_for_exit(udi_process *proc) {
 
         if ( iter->event_type != UDI_EVENT_PROCESS_EXIT ) {
             cout << "Received unexpected event " << get_event_type_str(iter->event_type) << endl;
+            if (iter->event_type == UDI_EVENT_ERROR) {
+                cout << "Error message: " << ((udi_event_error_struct *)iter->event_data)->errstr << endl;
+            }
+
             return false;
         }
 

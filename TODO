@@ -21,3 +21,5 @@ A list of enhancements/bugfixes for the future
 * implement debuggee-side conditional breakpoints
 
 * add Doxygen documentation generation
+
+* factor out interpretation of UDI message payloads
