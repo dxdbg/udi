@@ -48,3 +48,6 @@ topenv.SConscript('#/tests/udi_tests/SConscript', variant_dir='#/build/tests/udi
 
 # default target
 topenv.Default('libudi', 'libudirt', 'tests/udirt_tests', 'tests/udi_tests')
+
+# ctags generator
+ctags = topenv.Command('ctags', '', 'ctags -R libudirt libudi libudicommon tests')
