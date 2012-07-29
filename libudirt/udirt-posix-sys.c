@@ -228,11 +228,7 @@ event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, uns
     udi_printf("exit entered with status %d\n", exit_result.status);
 
     // create the event
-    udi_event_internal exit_event;
-    exit_event.event_type = UDI_EVENT_PROCESS_EXIT;
-    exit_event.length = sizeof(uint32_t);
-    exit_event.packed_data = udi_pack_data(exit_event.length,
-            UDI_DATATYPE_INT32, exit_result.status);
+    udi_event_internal exit_event = create_event_exit(exit_result.status);
 
     // Explicitly ignore errors as there is no way to report them
     do {
@@ -247,7 +243,7 @@ event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, uns
     }while(0);
 
     if ( result.failure ) {
-        udi_printf("failed to report exit status with %d\n", exit_result.status);
+        udi_printf("failed to report exit status of %d\n", exit_result.status);
     }
 
     return result;

@@ -33,7 +33,7 @@
 
 #include "libudi.h"
 
-bool wait_for_exit(udi_process *proc);
+bool wait_for_exit(udi_process *proc, int expected_status);
 bool wait_for_breakpoint(udi_process *proc, udi_address breakpoint);
 bool release_debuggee_threads(udi_process *proc);
 bool wait_for_debuggee_pipe(udi_process *proc);

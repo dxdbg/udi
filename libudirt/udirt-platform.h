@@ -50,6 +50,18 @@ extern "C" {
 #define REG_ESP 7
 #endif
 
+#ifndef REG_RIP
+#define REG_RIP 16
+#endif
+
+#ifndef REG_RSP
+#define REG_RSP 15
+#endif
+
+#ifndef REG_RAX
+#define REG_RAX 13
+#endif
+
 #ifndef MAX_SIGNAL_NUM
 #define MAX_SIGNAL_NUM 31
 #endif

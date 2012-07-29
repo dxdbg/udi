@@ -53,6 +53,41 @@ udi_event_internal create_event_error(const char *errmsg, unsigned int errmsg_si
 }
 
 /**
+ * Creates a breakpoint event
+ *
+ * @param bp_address the address of the breakpoint
+ * 
+ * @return the created event
+ */
+udi_event_internal create_event_breakpoint(udi_address bp_address) {
+    
+    udi_event_internal brkpt_event;
+    brkpt_event.event_type = UDI_EVENT_BREAKPOINT;
+    brkpt_event.length = sizeof(udi_address);
+    brkpt_event.packed_data = udi_pack_data(brkpt_event.length,
+            UDI_DATATYPE_ADDRESS, bp_address);
+
+    return brkpt_event;
+}
+
+/**
+ * Creates an exit event
+ *
+ * @param exit_status the status of the exit
+ *
+ * @return the created event
+ */
+udi_event_internal create_event_exit(uint32_t exit_status) {
+    udi_event_internal exit_event;
+    exit_event.event_type = UDI_EVENT_PROCESS_EXIT;
+    exit_event.length = sizeof(uint32_t);
+    exit_event.packed_data = udi_pack_data(exit_event.length,
+            UDI_DATATYPE_INT32, exit_status);
+
+    return exit_event;
+}
+
+/**
  * Creates an unknown event
  *
  * @return the created event

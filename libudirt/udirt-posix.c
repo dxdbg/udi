@@ -825,13 +825,13 @@ static event_result decode_segv(const siginfo_t *siginfo, ucontext_t *context,
     result.failure = 0;
     result.wait_for_request = 1;
 
-    if ( performing_mem_access ) {
+    if ( is_performing_mem_access() ) {
         result.wait_for_request = 0;
 
         // if the error was due to permissions, change permissions temporarily
         // to allow mem access to complete
         if (siginfo->si_code == SEGV_ACCERR) {
-            unsigned long mem_access_addr_ul = (unsigned long)mem_access_addr;
+            unsigned long mem_access_addr_ul = (unsigned long)get_mem_access_addr();
 
             // page align
             mem_access_addr_ul = mem_access_addr_ul & ~(sysconf(_SC_PAGESIZE)-1);
@@ -842,7 +842,7 @@ static event_result decode_segv(const siginfo_t *siginfo, ucontext_t *context,
             // must be queried from the OS, and currently there is not a
             // portable way to do this. Thus, the tradeoff was made in favor of
             // portability.
-            if ( mprotect((void *)mem_access_addr_ul, mem_access_size,
+            if ( mprotect((void *)mem_access_addr_ul, get_mem_access_size(),
                         PROT_READ | PROT_WRITE | PROT_EXEC) != 0 ) 
             {
                 result.failure = errno;
@@ -850,19 +850,25 @@ static event_result decode_segv(const siginfo_t *siginfo, ucontext_t *context,
                         strerror(result.failure));
             }
         }else{
+            udi_printf("address 0x%"PRIx64" not mapped for process %d\n",
+                    (unsigned long)siginfo->si_addr, getpid());
             result.failure = -1;
         }
 
         if (result.failure != 0) {
-            abort_mem_access = 1;
+            set_pc(context, abort_mem_access());
+
             failed_si_code = siginfo->si_code;
         }
+
+        if ( result.failure > 0 ) {
+            strerror_r(result.failure, errmsg, errmsg_size);
+        }
+
+        // If failures occurred, errors will be reported by code performing mem access
+        result.failure = 0;
     }else{
         // TODO create event and send to debugger
-    }
-
-    if ( result.failure > 0 ) {
-        strerror_r(result.failure, errmsg, errmsg_size);
     }
 
     return result;
@@ -916,11 +922,7 @@ static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char 
     udi_printf("user breakpoint at 0x%"PRIx64"\n", bp->address);
 
     // create the event
-    udi_event_internal brkpt_event;
-    brkpt_event.event_type = UDI_EVENT_BREAKPOINT;
-    brkpt_event.length = sizeof(udi_address);
-    brkpt_event.packed_data = udi_pack_data(brkpt_event.length,
-            UDI_DATATYPE_ADDRESS, bp->address);
+    udi_event_internal brkpt_event = create_event_breakpoint(bp->address);
 
     // Explicitly ignore errors as there is no way to report them
     do {
@@ -962,13 +964,13 @@ static event_result decode_trap(const siginfo_t *siginfo, ucontext_t *context,
     breakpoint *bp = find_breakpoint(trap_address);
 
     if ( bp != NULL ) {
-        udi_printf("found breakpoint at 0x%"PRIx64"\n", trap_address);
+        udi_printf("breakpoint hit at 0x%"PRIx64"\n", trap_address);
         result = decode_breakpoint(bp, context, errmsg, errmsg_size);
     }else{
         // TODO create signal event
         result.failure = -1;
         result.wait_for_request = 0;
-        snprintf(errmsg, errmsg_size-1, "Failed to decode trap event at 0x%"PRIx64, trap_address);
+        snprintf(errmsg, errmsg_size, "Failed to decode trap event at 0x%"PRIx64, trap_address);
     }
 
     return result;
@@ -1000,7 +1002,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
         return;
     }
 
-    if (!udi_enabled && !performing_mem_access) {
+    if (!udi_enabled && !is_performing_mem_access()) {
         udi_printf("UDI disabled, not handling signal %d at addr 0x%08lx\n", signal,
                 (unsigned long)siginfo->si_addr);
         return;
@@ -1041,19 +1043,19 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                 strncpy(errmsg, strerror(result.failure), ERRMSG_SIZE-1);
             }
 
-            udi_event_internal event = create_event_error(errmsg, ERRMSG_SIZE-1);
+            // Don't report any more errors after this event
+            result.failure = 0;
+
+            udi_event_internal event = create_event_error(errmsg, ERRMSG_SIZE);
 
             // Explicitly ignore any errors -- no way to report them
             if ( event.packed_data != NULL ) {
                 write_event(&event);
                 udi_free(event.packed_data);
             }else{
-                udi_printf("failed to report event reporting failure: %s\n",
-                        errmsg);
+                udi_printf("aborting due to event reporting failure: %s\n", errmsg);
+                udi_abort(__FILE__, __LINE__);
             }
-
-            result.failure = 0;
-            break;
         }
     
         // wait for command
@@ -1093,9 +1095,8 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                 udi_free(resp.packed_data);
             }
         }else{
-            udi_printf("Disabling UDI due to request failure: %s\n",
-                    errmsg);
-            disable_debugging();
+            udi_printf("Aborting due to request failure: %s\n", errmsg);
+            udi_abort(__FILE__, __LINE__);
         }
     }
 
@@ -1171,8 +1172,7 @@ static int create_udi_filesystem() {
             break;
         }
 
-        basedir_name[basedir_length-1] = '\0';
-        snprintf(basedir_name, basedir_length-1, "%s/%s/%d", UDI_ROOT_DIR,
+        snprintf(basedir_name, basedir_length, "%s/%s/%d", UDI_ROOT_DIR,
                  passwd_info->pw_name, getpid());
         if (mkdir(basedir_name, S_IRWXG | S_IRWXU) == -1) {
             udi_printf("error creating basedir: %s\n", strerror(errno));
@@ -1190,8 +1190,7 @@ static int create_udi_filesystem() {
             break;
         }
 
-        requestfile_name[requestfile_length-1] = '\0';
-        snprintf(requestfile_name, requestfile_length-1, "%s/%s/%d/%s",
+        snprintf(requestfile_name, requestfile_length, "%s/%s/%d/%s",
                  UDI_ROOT_DIR, passwd_info->pw_name, getpid(), REQUEST_FILE_NAME);
         if (mkfifo(requestfile_name, S_IRWXG | S_IRWXU) == -1) {
             udi_printf("error creating request file fifo: %s\n",
@@ -1210,8 +1209,7 @@ static int create_udi_filesystem() {
             break;
         }
 
-        responsefile_name[responsefile_length-1] = '\0';
-        snprintf(responsefile_name, responsefile_length-1, "%s/%s/%d/%s",
+        snprintf(responsefile_name, responsefile_length, "%s/%s/%d/%s",
                  UDI_ROOT_DIR, passwd_info->pw_name, getpid(), RESPONSE_FILE_NAME);
         if (mkfifo(responsefile_name, S_IRWXG | S_IRWXU) == -1) {
             udi_printf("error creating response file fifo: %s\n",
@@ -1230,8 +1228,7 @@ static int create_udi_filesystem() {
             break;
         }
 
-        eventsfile_name[eventsfile_length-1] = '\0';
-        snprintf(eventsfile_name, eventsfile_length-1, "%s/%s/%d/%s",
+        snprintf(eventsfile_name, eventsfile_length, "%s/%s/%d/%s",
                  UDI_ROOT_DIR, passwd_info->pw_name, getpid(), EVENTS_FILE_NAME);
         if (mkfifo(eventsfile_name, S_IRWXG | S_IRWXU) == -1) {
             udi_printf("error creating event file fifo: %s\n",
@@ -1273,7 +1270,7 @@ static int handshake_with_debugger(int *output_enabled, char *errmsg,
 
         udi_request *init_request = read_request();
         if ( init_request == NULL ) {
-            snprintf(errmsg, errmsg_size-1, "%s", 
+            snprintf(errmsg, errmsg_size, "%s", 
                     "failed reading init request");
             udi_printf("%s\n", "failed reading init request");
             errnum = -1;
@@ -1426,9 +1423,8 @@ void init_udi_rt() {
             }
         }
 
-        disable_debugging();
-
         udi_printf("%s\n", "Initialization failed");
+        udi_abort(__FILE__, __LINE__);
     }else{
         udi_printf("%s\n", "Initialization completed");
     }

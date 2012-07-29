@@ -106,6 +106,8 @@ udi_event_type udi_event_type_ntoh(udi_event_type value);
 
 udi_event_internal create_event_error(const char *errmsg, unsigned int errmsg_size);
 udi_event_internal create_event_unknown();
+udi_event_internal create_event_breakpoint(udi_address bp_address);
+udi_event_internal create_event_exit(uint32_t exit_status);
 
 #ifdef __cplusplus
 } // extern C
