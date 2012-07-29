@@ -78,6 +78,9 @@ event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, uns
 udi_address get_trap_address(const ucontext_t *context);
 void rewind_pc(ucontext_t *context);
 
+// context modification
+void set_pc(ucontext_t *context, unsigned long pc);
+
 // signal handling
 
 // This is the number of elements in the signals array

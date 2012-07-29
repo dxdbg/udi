@@ -103,10 +103,11 @@ bool wait_for_breakpoint(udi_process *proc, udi_address breakpoint) {
  * Waits for the specified process to exit
  *
  * @param proc  the process to wait for
+ * @param expected_status the expected status for the process exit
  *
  * @return True, if an exit event was seen; False otherwise
  */
-bool wait_for_exit(udi_process *proc) {
+bool wait_for_exit(udi_process *proc, int expected_status) {
     udi_event *events = wait_for_events(&proc, 1);
 
     udi_event *iter = events;
@@ -122,6 +123,8 @@ bool wait_for_exit(udi_process *proc) {
             cout << "Received unexpected event " << get_event_type_str(iter->event_type) << endl;
             if (iter->event_type == UDI_EVENT_ERROR) {
                 cout << "Error message: " << ((udi_event_error_struct *)iter->event_data)->errstr << endl;
+
+                continue_process(proc);
             }
 
             return false;
@@ -129,7 +132,7 @@ bool wait_for_exit(udi_process *proc) {
 
         saw_exit_event = true;
         udi_event_process_exit *proc_exit = (udi_event_process_exit *)iter->event_data;
-        if ( proc_exit->exit_code != EXIT_FAILURE ) {
+        if ( proc_exit->exit_code != expected_status ) {
             cout << "Process unexpectedly exited with " << proc_exit->exit_code << " exit code" << endl;
             return false;
         }

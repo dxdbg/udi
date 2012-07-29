@@ -44,12 +44,31 @@ int udi_enabled = 0; // not enabled until initialization complete
 int udi_in_sig_handler = 0;
 
 // read / write handling
-void *mem_access_addr = NULL;
-size_t mem_access_size = 0;
+static void *mem_access_addr = NULL;
+static size_t mem_access_size = 0;
 
-int abort_mem_access = 0;
-int performing_mem_access = 0;
+static int aborting_mem_access = 0;
+static int performing_mem_access = 0;
 
+static void *mem_abort_label = NULL;
+
+void *get_mem_access_addr() {
+    return mem_access_addr;
+}
+
+size_t get_mem_access_size() {
+    return mem_access_size;
+}
+
+unsigned long abort_mem_access() {
+    aborting_mem_access = 1;
+
+    return (unsigned long)mem_abort_label;
+}
+
+int is_performing_mem_access() {
+    return performing_mem_access;
+}
 
 /**
  * Copy memory byte to byte to allow a signal handler to abort
@@ -65,17 +84,23 @@ int performing_mem_access = 0;
  */
 static 
 int abortable_memcpy(void *dest, const void *src, size_t n) {
-    /* slow as molasses, but gets the job done */
+    // This should stop the compiler from messing with the label
+    static void *abort_label_addr = &&abort_label;
+
+    mem_abort_label = abort_label_addr;
+
+    // Hopefully when compiled with optimization, this code will be vectorized if possible
     unsigned char *uc_dest = (unsigned char *)dest;
     const unsigned char *uc_src = (const unsigned char *)src;
 
     size_t i = 0;
-    for (i = 0; i < n && !abort_mem_access; ++i) {
+    for (i = 0; i < n; ++i) {
         uc_dest[i] = uc_src[i];
     }
 
-    if ( abort_mem_access ) {
-        abort_mem_access = 0;
+abort_label:
+    if ( aborting_mem_access ) {
+        aborting_mem_access = 0;
         return -1;
     }
 

@@ -26,7 +26,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-// UDI RT implementation specific to x86
+// UDI RT implementation specific to x86 and x86_64
 
 #include "udirt.h"
 #include "udirt-x86.h"
@@ -93,5 +93,5 @@ int write_saved_bytes(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
  * @return the architecture enum
  */
 udi_arch_e get_architecture() {
-    return UDI_ARCH_X86;
+    return (__WORDSIZE == 64 ? UDI_ARCH_X86_64 : UDI_ARCH_X86);
 }

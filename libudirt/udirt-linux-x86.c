@@ -32,6 +32,7 @@
 #include "udirt-platform.h"
 
 #include <ucontext.h>
+#include <inttypes.h>
 
 #include "udi.h"
 #include "udirt.h"
@@ -58,7 +59,25 @@ static const unsigned char LEA_RIP_BYTE3 = 0x35;
  * @param context the context containing the current PC value
  */
 void rewind_pc(ucontext_t *context) {
-    context->uc_mcontext.gregs[REG_EIP]--;
+    if (__WORDSIZE == 64) {
+        context->uc_mcontext.gregs[REG_RIP]--;
+    }else{
+        context->uc_mcontext.gregs[REG_EIP]--;
+    }
+}
+
+/**
+ * Given the context, sets the pc to the supplied value
+ *
+ * @param context the context containing the current PC value
+ * @param pc the new pc value
+ */
+void set_pc(ucontext_t *context, unsigned long pc) {
+    if (__WORDSIZE == 64) {
+        context->uc_mcontext.gregs[REG_RIP] = pc;
+    }else{
+        context->uc_mcontext.gregs[REG_EIP] = pc;
+    }
 }
 
 /**
@@ -69,6 +88,10 @@ void rewind_pc(ucontext_t *context) {
  * @return the computed address
  */
 udi_address get_trap_address(const ucontext_t *context) {
+    if (__WORDSIZE == 64) {
+        return (udi_address)(unsigned long)context->uc_mcontext.gregs[REG_RIP] - 1;
+    }
+
     return (udi_address)(unsigned long)context->uc_mcontext.gregs[REG_EIP] - 1;
 }
 
@@ -120,22 +143,31 @@ exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned 
     exit_result ret;
     ret.failure = 0;
 
-    // The exit argument is the first parameter on the stack
+    if (__WORDSIZE == 64) {
+        // The exit argument is passed in rax
+        ret.status = (int)context->uc_mcontext.gregs[REG_RAX];
+    }else{
+        // The exit argument is the first parameter on the stack
 
-    // Get the stack pointer
-    unsigned long sp = (unsigned long)context->uc_mcontext.gregs[REG_ESP];
+        // Get the stack pointer
+        unsigned long sp;
 
-    int word_length = sizeof(unsigned long);
+        sp = (unsigned long)context->uc_mcontext.gregs[REG_ESP];
 
-    // skip return address
-    sp += word_length;
+        int word_length = sizeof(unsigned long);
 
-    int read_result = read_memory(&(ret.status), (const void *)sp, sizeof(int),
-            errmsg, errmsg_size);
-    if ( read_result != 0 ) {
-        udi_printf("failed to retrieve exit status off of the stack at 0x%lx\n",
-                sp);
-        ret.failure = read_result;
+        // skip return address
+        sp += word_length;
+
+        int read_result = read_memory(&(ret.status), (const void *)sp, sizeof(int),
+                errmsg, errmsg_size);
+        if ( read_result != 0 ) {
+            udi_printf("failed to retrieve exit status off of the stack at 0x%lx\n",
+                    sp);
+            snprintf(errmsg, errmsg_size, "failed to retrieve exit status off of the stack at 0x%"PRIx64": %s",
+                    sp, get_mem_errstr());
+            ret.failure = read_result;
+        }
     }
 
     return ret;

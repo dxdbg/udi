@@ -104,5 +104,5 @@ bool test_breakpoint::operator()(void) {
         return false;
     }
 
-    return wait_for_exit(proc);
+    return wait_for_exit(proc, EXIT_FAILURE);
 }

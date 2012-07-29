@@ -23,3 +23,5 @@ A list of enhancements/bugfixes for the future
 * add Doxygen documentation generation
 
 * factor out interpretation of UDI message payloads
+
+* figure out if defining REG_* is really necessary on Linux
