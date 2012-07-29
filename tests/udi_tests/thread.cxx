@@ -68,7 +68,7 @@ bool test_thread::operator()(void) {
     }
 
     if ( get_multithread_capable(proc) == 0 ) {
-        cout << proc << " incorrectly marked as multithread capable" << endl;
+        cout << proc << " incorrectly marked as non-multithread capable" << endl;
         return false;
     }
 
