@@ -333,3 +333,10 @@ breakpoint *find_breakpoint(udi_address breakpoint_addr) {
 
     return tmp_breakpoint;
 }
+
+/**
+ * @return the protocol version for this execution
+ */
+udi_version_e get_protocol_version() {
+    return UDI_PROTOCOL_VERSION_1;
+}

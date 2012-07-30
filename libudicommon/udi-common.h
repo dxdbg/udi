@@ -109,6 +109,17 @@ udi_event_internal create_event_unknown();
 udi_event_internal create_event_breakpoint(udi_address bp_address);
 udi_event_internal create_event_exit(uint32_t exit_status);
 
+udi_response create_response_error(const char *errmsg, unsigned int errmsg_size);
+udi_response create_response_read(const void *data, udi_length num_bytes);
+udi_response create_response_init(udi_version_e protocol_version,
+        udi_arch_e arch, int multithread);
+
+
+int unpack_request_continue(udi_request *req, uint32_t *sig_val, char *errmsg, 
+        unsigned int errmsg_size);
+int unpack_request_read(udi_request *req, udi_address *addr, udi_length *num_bytes, char *errmsg,
+        unsigned int errmsg_size);
+
 #ifdef __cplusplus
 } // extern C
 #endif

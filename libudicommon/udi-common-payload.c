@@ -31,6 +31,7 @@
 #include "udi-common.h"
 
 #include <string.h>
+#include <stdio.h>
 
 /**
  * Creates an error event
@@ -99,4 +100,131 @@ udi_event_internal create_event_unknown() {
     result.packed_data = NULL;
 
     return result;
+}
+
+/**
+ * Creates an error response
+ *
+ * @param errmsg the error message to be included in the response
+ * @param errmsg_size the length of the error message
+ *
+ * @return the created response
+ */
+udi_response create_response_error(const char *errmsg, unsigned int errmsg_size) {
+    udi_length payload_length = strnlen(errmsg, errmsg_size) + 1;
+
+    udi_response error_resp;
+    error_resp.response_type = UDI_RESP_ERROR;
+    error_resp.request_type = UDI_REQ_INVALID;
+    error_resp.length = sizeof(udi_length) + payload_length;
+    error_resp.packed_data = udi_pack_data(error_resp.length,
+            UDI_DATATYPE_BYTESTREAM, payload_length, errmsg);
+
+    return error_resp;
+}
+
+/**
+ * Creates a read memory response
+ *
+ * @param data the data read
+ * @param num_bytes the number of bytes read
+ *
+ * @return the created read response
+ */
+udi_response create_response_read(const void *data, udi_length num_bytes) {
+    udi_response read_resp;
+    read_resp.response_type = UDI_RESP_VALID;
+    read_resp.request_type = UDI_REQ_READ_MEM;
+    read_resp.length = sizeof(udi_length) + num_bytes;
+    read_resp.packed_data = udi_pack_data(read_resp.length, UDI_DATATYPE_BYTESTREAM,
+            num_bytes, data);
+
+    return read_resp;
+}
+
+/**
+ * Creates an init response
+ *
+ * @param protocol_version version of the protocol being spoken
+ * @param arch the architecture of the debuggee
+ * @param multithread the multithread capability of the debuggee
+ *
+ * @return the created response
+ */
+udi_response create_response_init(udi_version_e protocol_version,
+        udi_arch_e arch, int multithread)
+{
+    udi_response init_response;
+    init_response.response_type = UDI_RESP_VALID;
+    init_response.request_type = UDI_REQ_INIT;
+    init_response.length = sizeof(uint32_t)*3;
+    init_response.packed_data = udi_pack_data(init_response.length,
+            UDI_DATATYPE_INT32, protocol_version,
+            UDI_DATATYPE_INT32, arch,
+            UDI_DATATYPE_INT32, multithread);
+
+    return init_response;
+}
+
+/**
+ * Unpacks the data contained in the continue request
+ *
+ * @param req the continue request
+ * @param sig_val the output signal value used to continue the process
+ * @param errmsg the error message populated on error
+ * @param errmsg_size the size of the error message
+ *
+ * @return zero on success; non-zero otherwise
+ */
+int unpack_request_continue(udi_request *req, uint32_t *sig_val, char *errmsg, unsigned int errmsg_size) {
+    int parsed = 1;
+    do {
+        if (req->request_type != UDI_REQ_CONTINUE) {
+            parsed = 0;
+            break;
+        }
+
+        if (udi_unpack_data(req->packed_data, req->length, 
+               UDI_DATATYPE_INT32, sig_val)) {
+            parsed = 0;
+            break;
+        }
+    }while(0); 
+
+    if (!parsed) {
+        snprintf(errmsg, errmsg_size, "%s", "failed to parse continue request");
+        return -1;
+    }
+
+    if (*sig_val < 0) {
+        snprintf(errmsg, errmsg_size, "invalid signal specified: %d", *sig_val);
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Unpacks the data from the read request
+ *
+ * @param req the request to parse
+ * @param addr the output parameter for the address
+ * @param num_bytes the output parameter for the number of bytes to read
+ * @param errmsg the error message populated on error
+ * @param errmsg_size the error message populated on size
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int unpack_request_read(udi_request *req, udi_address *addr, 
+        udi_length *num_bytes, char *errmsg, unsigned int errmsg_size) {
+
+    if ( udi_unpack_data(req->packed_data, req->length,
+                UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_LENGTH,
+                &num_bytes) )
+    {
+        snprintf(errmsg, errmsg_size, "%s", "failed to parse read request");
+        return -1;
+    }
+
+    return 0;
 }

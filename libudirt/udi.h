@@ -69,7 +69,7 @@ typedef enum {
  * The version of the protocol
  */
 typedef enum {
-    UDI_PROTOCOL_VERSION = 0
+    UDI_PROTOCOL_VERSION_1 = 1
 } udi_version_e;
 
 /* 

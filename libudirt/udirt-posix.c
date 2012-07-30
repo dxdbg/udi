@@ -435,17 +435,7 @@ static int send_valid_response(udi_request_type req_type) {
  */
 int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     uint32_t sig_val;
-    if ( udi_unpack_data(req->packed_data, req->length,
-                UDI_DATATYPE_INT32, &sig_val) )
-    {
-        snprintf(errmsg, errmsg_size, "%s", "failed to parse continue request");
-        udi_printf("%s\n", "failed to parse continue request");
-        return REQ_FAILURE;
-    }
-
-    if ( sig_val < 0 ) {
-        snprintf(errmsg, errmsg_size, "invalid signal specified: %d", sig_val);
-        udi_printf("invalid signal specified %d\n", sig_val);
+    if (unpack_request_continue(req, &sig_val, errmsg, errmsg_size)) {
         return REQ_FAILURE;
     }
 
@@ -483,11 +473,7 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     udi_address addr;
     udi_length num_bytes;
 
-    if ( udi_unpack_data(req->packed_data, req->length, 
-                UDI_DATATYPE_ADDRESS, &addr, UDI_DATATYPE_LENGTH,
-                &num_bytes) ) 
-    {
-        snprintf(errmsg, errmsg_size, "%s", "failed to parse read request");
+    if ( unpack_request_read(req, &addr, &num_bytes, errmsg, errmsg_size) ) {
         udi_printf("%s\n", "failed to unpack data for read request");
         return REQ_FAILURE;
     }
@@ -510,12 +496,7 @@ int read_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     }
 
     // Create the response
-    udi_response resp;
-    resp.response_type = UDI_RESP_VALID;
-    resp.request_type = UDI_REQ_READ_MEM;
-    resp.length = num_bytes;
-    resp.packed_data = udi_pack_data(resp.length, UDI_DATATYPE_BYTESTREAM,
-            resp.length, memory_read);
+    udi_response resp = create_response_read(memory_read, num_bytes);
 
     int result = 0;
     do {
@@ -1082,12 +1063,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
         // don't try to send a response
         if ( !request_error ) {
             // Shared error response code
-            udi_response resp;
-            resp.response_type = UDI_RESP_ERROR;
-            resp.request_type = UDI_REQ_INVALID;
-            resp.length = strlen(errmsg) + 1;
-            resp.packed_data = udi_pack_data(resp.length, 
-                    UDI_DATATYPE_BYTESTREAM, resp.length, errmsg);
+            udi_response resp = create_response_error(errmsg, ERRMSG_SIZE);
 
             if ( resp.packed_data != NULL ) {
                 // explicitly ignore errors
@@ -1305,14 +1281,9 @@ static int handshake_with_debugger(int *output_enabled, char *errmsg,
         udi_enabled = 1;
 
         // create the init response
-        udi_response init_response;
-        init_response.response_type = UDI_RESP_VALID;
-        init_response.request_type = UDI_REQ_INIT;
-        init_response.length = sizeof(uint32_t)*3;
-        init_response.packed_data = udi_pack_data(init_response.length,
-                UDI_DATATYPE_INT32, UDI_PROTOCOL_VERSION,
-                UDI_DATATYPE_INT32, get_architecture(),
-                UDI_DATATYPE_INT32, get_multithread_capable());
+        udi_response init_response = create_response_init(get_protocol_version(),
+                get_architecture(),
+                get_multithread_capable());
 
         if ( init_response.packed_data == NULL ) {
             udi_printf("failed to create init response: %s\n",
@@ -1410,12 +1381,7 @@ void init_udi_rt() {
             fprintf(stderr, "failed to initialize udi rt: %s\n", errmsg);
         } else {
             // explicitly don't worry about return
-            udi_response resp;
-            resp.response_type = UDI_RESP_ERROR;
-            resp.request_type = UDI_REQ_INVALID;
-            resp.length = strlen(errmsg) + 1;
-            resp.packed_data = udi_pack_data(resp.length, 
-                    UDI_DATATYPE_BYTESTREAM, resp.length, errmsg);
+            udi_response resp = create_response_error(errmsg, ERRMSG_SIZE);
 
             if ( resp.packed_data != NULL ) {
                 write_response(&resp);
