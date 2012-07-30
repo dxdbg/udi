@@ -491,7 +491,7 @@ int initialize_process(udi_process *proc)
                 break;
             }
 
-            if ( proc->protocol_version != UDI_PROTOCOL_VERSION ) {
+            if ( proc->protocol_version != UDI_PROTOCOL_VERSION_1 ) {
                 udi_printf("%s\n", "debuggee uses incompatible protocol version");
                 errnum = -1;
                 break;

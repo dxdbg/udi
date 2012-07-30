@@ -57,6 +57,7 @@ unsigned char *map_mem(size_t length);
 int unmap_mem(void *addr, size_t length);
 
 // request handling
+udi_version_e get_protocol_version();
 int write_response(udi_response *response);
 int write_response_to_request(udi_response *response);
 int write_event(udi_event_internal *event);
