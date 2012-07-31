@@ -480,12 +480,11 @@ int initialize_process(udi_process *proc)
                 break;
             }
 
+            if ( unpack_response_init(init_response,
+                        &(proc->protocol_version),
+                        &(proc->architecture),
+                        &(proc->multithread_capable)) ) {
 
-            if ( udi_unpack_data(init_response->packed_data, init_response->length,
-                        UDI_DATATYPE_INT32, &(proc->protocol_version),
-                        UDI_DATATYPE_INT32, &(proc->architecture),
-                        UDI_DATATYPE_INT32, &(proc->multithread_capable)) )
-            {
                 udi_printf("%s\n", "failed to unpack init response");
                 errnum = -1;
                 break;

@@ -34,6 +34,26 @@
 #include <stdio.h>
 
 /**
+ * Frees an internal event
+ *
+ * @param event the internal event
+ */
+void free_event_internal(udi_event_internal *event) {
+    if ( event->packed_data != NULL ) free(event->packed_data);
+    free(event);
+}
+
+/**
+ * Frees the specified response
+ *
+ * @param resp the response
+ */
+void free_response(udi_response *resp) {
+    if ( resp->packed_data != NULL ) free(resp->packed_data);
+    free(resp);
+}
+
+/**
  * Creates an error event
  *
  * @param errmsg the error message
@@ -51,6 +71,61 @@ udi_event_internal create_event_error(const char *errmsg, unsigned int errmsg_si
             UDI_DATATYPE_BYTESTREAM, payload_length, errmsg);
 
     return result;
+}
+
+/**
+ * Unpacks the error event into specified parameters
+ *
+ * @param event the event to unpack
+ * @param errmsg the error message to unpack into
+ * @param errmsg_size the size of the error message
+ *
+ * @return 0 on success; non-zero otherwise
+ */
+int unpack_event_error(udi_event_internal *event, char **errmsg, unsigned int *errmsg_size) {
+
+    if ( udi_unpack_data(event->packed_data, event->length,
+                UDI_DATATYPE_BYTESTREAM, errmsg_size, errmsg) ) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Unpacks the data from the exit event into the specified data
+ *
+ * @param event the exit event
+ * @param exit_code the output parameter for the exit code
+ *
+ * @return 0 on success; non-zero otherwise
+ */
+int unpack_event_exit(udi_event_internal *event, int *exit_code) {
+
+    if ( udi_unpack_data(event->packed_data, event->length,
+                UDI_DATATYPE_INT32, exit_code) ) {
+        return 1;
+    }
+
+    return 0;
+}
+
+/**
+ * Unpacks the breakpoint event into the specified parameters
+ *
+ * @param event the breakpoint event
+ * @param addr the output parameter for the address
+ *
+ * @return 0 on success; non-zero otherwise
+ */
+int unpack_event_breakpoint(udi_event_internal *event, udi_address *addr) {
+
+    if ( udi_unpack_data(event->packed_data, event->length,
+                UDI_DATATYPE_ADDRESS, addr) ) {
+        return -1;
+    }
+
+    return 0;
 }
 
 /**
@@ -223,6 +298,235 @@ int unpack_request_read(udi_request *req, udi_address *addr,
                 &num_bytes) )
     {
         snprintf(errmsg, errmsg_size, "%s", "failed to parse read request");
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Unpacks the data from a write request
+ *
+ * @param req the request
+ * @param addr the location of the write
+ * @param num_bytes the number of bytes to write
+ * @param bytes_to_write the data to write
+ * @param errmsg the error message populated on failure
+ * @param errmsg_size the size of the error message buffer
+ *
+ * @return -1 on failure; 0 otherwise
+ */
+int unpack_request_write(udi_request *req, udi_address *addr, udi_length *num_bytes,
+        void **bytes_to_write, char *errmsg, unsigned int errmsg_size) {
+
+    if ( udi_unpack_data(req->packed_data, req->length,
+                UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_BYTESTREAM, num_bytes,
+                bytes_to_write) ) 
+    {
+        snprintf(errmsg, errmsg_size, "%s", "failed to parse write request");
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Unpacks the data in a breakpoint create request
+ *
+ * @param req the request
+ * @param addr the address of the breakpoint
+ * @param instr_length the length of the instruction at the breakpoint
+ * @param errmsg the error message populated on error
+ * @param errmsg_size the size of the error message
+ *
+ * @return 0 on success; -1 otherwise
+ */
+int unpack_request_breakpoint_create(udi_request *req, udi_address *addr, udi_length *instr_length,
+        char *errmsg, unsigned int errmsg_size) {
+
+    if (udi_unpack_data(req->packed_data, req->length,
+                UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_LENGTH, instr_length) ) {
+
+        snprintf(errmsg, errmsg_size, "%s", "failed to parse breakpoint create request");
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Unpack data for breakpoint related request
+ *
+ * @param req the request
+ * @param addr the address of the request
+ * @param errmsg the error message populated on failure
+ * @param errmsg_size the size of the error message buffer
+ *
+ * @return 0 on success; non-zero otherwise
+ */
+int unpack_request_breakpoint(udi_request *req, udi_address *addr, char *errmsg, unsigned int errmsg_size) {
+
+    if (udi_unpack_data(req->packed_data, req->length,
+                UDI_DATATYPE_ADDRESS, addr)) 
+    {
+        snprintf(errmsg, errmsg_size, "%s", "failed to parse breakpoint request");
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Creates a request to create a breakpoint
+ *
+ * @param addr the address for the breakpoint
+ * @param instr_length the length of the instruction under the breakpoint
+ *
+ * @return the created request
+ */
+udi_request create_request_breakpoint_create(udi_address addr, udi_length instr_length) {
+
+    udi_request request;
+    request.request_type = UDI_REQ_CREATE_BREAKPOINT;
+    request.length = sizeof(udi_length) + sizeof(udi_address);
+    request.packed_data = udi_pack_data(request.length,
+            UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_LENGTH,
+            instr_length);
+
+    return request;
+}
+
+/**
+ * Creates a breakpoint request
+ *
+ * @param request_type the request type
+ * @param addr the address of the breakpoint
+ *
+ * @return the created request
+ */
+udi_request create_request_breakpoint(udi_request_type request_type, udi_address addr) {
+    
+    udi_request request;
+    request.request_type = request_type;
+    request.length = sizeof(udi_address);
+    request.packed_data = udi_pack_data(request.length, UDI_DATATYPE_ADDRESS, addr);
+
+    return request;
+}
+
+/**
+ * Creates a read request
+ *
+ * @param addr the address of the data to read
+ * @param num_bytes the number of bytes to read
+ *
+ * @return the created request
+ */
+udi_request create_request_read(udi_address addr, udi_length num_bytes) {
+
+    udi_request request;
+    request.request_type = UDI_REQ_READ_MEM;
+    request.length = sizeof(udi_length) + sizeof(udi_address);
+    request.packed_data = udi_pack_data(request.length,
+            UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_LENGTH, num_bytes);
+
+    return request;
+}
+
+/**
+ * Creates a write request
+ *
+ * @param addr the target address for the data
+ * @param num_bytes the number of bytes to write
+ * @param value the data to write
+ *
+ * @return the created request
+ */
+udi_request create_request_write(udi_address addr, udi_length num_bytes, void *value) {
+
+    udi_request request;
+    request.request_type = UDI_REQ_WRITE_MEM;
+    request.request_type = num_bytes + sizeof(udi_length) + sizeof(udi_address);
+    request.packed_data = udi_pack_data(request.length,
+            UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_BYTESTREAM,
+            num_bytes, value);
+
+    return request;
+}
+
+/**
+ * Creates a continue request
+ *
+ * @param sig_val the signal value to continue with, 0 for none
+ * 
+ * @return the created request
+ */
+udi_request create_request_continue(uint32_t sig_val) {
+
+    udi_request req;
+    req.request_type = UDI_REQ_CONTINUE;
+    req.length = sizeof(uint32_t);
+    req.packed_data = udi_pack_data(req.length,
+            UDI_DATATYPE_INT32, sig_val);
+
+    return req;
+}
+
+/**
+ * Unpacks the read response
+ *
+ * @param resp the response
+ * @param num_bytes the number of bytes read
+ * @param values the data read
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int unpack_response_read(udi_response *resp, udi_length *num_bytes, void **value) {
+
+    if (udi_unpack_data(resp->packed_data, resp->length,
+                UDI_DATATYPE_BYTESTREAM, num_bytes, value) ) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Unpacks the error response into the specified parameters
+ *
+ * @param resp the response
+ * @param size the number of bytes in the error message
+ * @param errmsg the error message output parameter
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int unpack_response_error(udi_response *resp, udi_length *size, char **errmsg) {
+
+    if (udi_unpack_data(resp->packed_data, resp->length,
+                UDI_DATATYPE_BYTESTREAM, size, errmsg)) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Unpacks the init response
+ *
+ * @param resp the response
+ * @param protocol_version the protocol version output parameter
+ * @param architecture the architecture output parameter
+ * @param multithread_capable the multithread capabable output parameter
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int unpack_response_init(udi_response *resp,  uint32_t *protocol_version,
+        udi_arch_e *architecture, int *multithread_capable) {
+
+    if (udi_unpack_data(resp->packed_data, resp->length,
+                UDI_DATATYPE_INT32, protocol_version,
+                UDI_DATATYPE_INT32, architecture,
+                UDI_DATATYPE_INT32, multithread_capable)) {
         return -1;
     }
 

@@ -95,13 +95,7 @@ void wait_and_execute_command_with_response() {
 
         udi_printf("failed to process command: %s\n", errmsg);
 
-        udi_response resp;
-        resp.response_type = UDI_RESP_ERROR;
-        resp.request_type = UDI_REQ_INVALID;
-        resp.length = strlen(errmsg) + 1;
-        resp.packed_data = udi_pack_data(resp.length, 
-                UDI_DATATYPE_BYTESTREAM, resp.length, errmsg);
-
+        udi_response resp = create_response_error(errmsg, ERRMSG_SIZE);
         if ( resp.packed_data != NULL ) {
             // explicitly ignore errors
             write_response(&resp);

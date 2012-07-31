@@ -85,7 +85,7 @@ typedef struct udi_event_struct {
  * typeof(udi_event.event_data) == udi_event_error
  */
 typedef struct udi_event_error_struct {
-    const char *errstr;
+    char *errstr;
 } udi_event_error;
 
 /**

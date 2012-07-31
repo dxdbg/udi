@@ -104,21 +104,43 @@ udi_event_type udi_event_type_ntoh(udi_event_type value);
 
 /* payload handling */
 
+void free_event_internal(udi_event_internal *event);
+void free_response(udi_response *resp);
+
 udi_event_internal create_event_error(const char *errmsg, unsigned int errmsg_size);
 udi_event_internal create_event_unknown();
 udi_event_internal create_event_breakpoint(udi_address bp_address);
 udi_event_internal create_event_exit(uint32_t exit_status);
+
+int unpack_event_error(udi_event_internal *event, char **errmsg, unsigned int *errmsg_size);
+int unpack_event_exit(udi_event_internal *event, int *exit_code);
+int unpack_event_breakpoint(udi_event_internal *event, udi_address *addr);
 
 udi_response create_response_error(const char *errmsg, unsigned int errmsg_size);
 udi_response create_response_read(const void *data, udi_length num_bytes);
 udi_response create_response_init(udi_version_e protocol_version,
         udi_arch_e arch, int multithread);
 
+int unpack_response_read(udi_response *resp, udi_length *num_bytes, void **value);
+int unpack_response_error(udi_response *resp, udi_length *size, char **errmsg);
+int unpack_response_init(udi_response *resp,  uint32_t *protocol_version,
+        udi_arch_e *architecture, int *multithread_capable);
 
 int unpack_request_continue(udi_request *req, uint32_t *sig_val, char *errmsg, 
         unsigned int errmsg_size);
 int unpack_request_read(udi_request *req, udi_address *addr, udi_length *num_bytes, char *errmsg,
         unsigned int errmsg_size);
+int unpack_request_write(udi_request *req, udi_address *addr, udi_length *num_bytes,
+        void **bytes_to_write, char *errmsg, unsigned int errmsg_size);
+int unpack_request_breakpoint_create(udi_request *req, udi_address *addr, udi_length *instr_length,
+        char *errmsg, unsigned int errmsg_size);
+int unpack_request_breakpoint(udi_request *req, udi_address *addr, char *errmsg, unsigned int errmsg_size);
+
+udi_request create_request_breakpoint_create(udi_address addr, udi_length instr_length);
+udi_request create_request_breakpoint(udi_request_type request_type, udi_address addr);
+udi_request create_request_read(udi_address addr, udi_length num_bytes);
+udi_request create_request_write(udi_address addr, udi_length num_bytes, void *value);
+udi_request create_request_continue(uint32_t sig_val);
 
 #ifdef __cplusplus
 } // extern C
