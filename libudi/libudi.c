@@ -351,13 +351,7 @@ udi_error_e submit_request_noresp(udi_process *proc,
 udi_error_e create_breakpoint(udi_process *proc, udi_address addr,
         udi_length instr_length)
 {
-    udi_request request;
-
-    request.request_type = UDI_REQ_CREATE_BREAKPOINT;
-    request.length = sizeof(udi_length) + sizeof(udi_address);
-    request.packed_data = udi_pack_data(request.length,
-            UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_LENGTH,
-            instr_length);
+    udi_request request = create_request_breakpoint_create(addr, instr_length);
 
     return submit_request_noresp(proc, &request, "breakpoint create request",
             __FILE__, __LINE__);
@@ -380,12 +374,7 @@ udi_error_e breakpoint_request(udi_process *proc, udi_address addr,
         udi_request_type request_type,
         const char *desc, const char *file, int line)
 {
-
-    udi_request request;
-    request.request_type = request_type;
-    request.length = sizeof(udi_address);
-    request.packed_data = udi_pack_data(request.length,
-            UDI_DATATYPE_ADDRESS, addr);
+    udi_request request = create_request_breakpoint(request_type, addr);
 
     return submit_request_noresp(proc, &request, desc, file, line);
 }
@@ -450,22 +439,10 @@ udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length siz
         udi_address addr) 
 {
     udi_error_e error_code = UDI_ERROR_NONE;
-    udi_request request;
+    udi_request request = write ?
+        create_request_write(addr, size, value) : 
+        create_request_read(addr, size);
     
-    // Create the request
-    if ( write ) {
-        request.request_type = UDI_REQ_WRITE_MEM;
-        request.length = size + sizeof(udi_length) + sizeof(udi_address);
-        request.packed_data = udi_pack_data(request.length,
-                UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_BYTESTREAM,
-                size, value);
-    }else{
-        request.request_type = UDI_REQ_READ_MEM;
-        request.length = sizeof(udi_length) + sizeof(udi_address);
-        request.packed_data = udi_pack_data(request.length, 
-                UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_LENGTH, size);
-    }
-
     udi_response *resp = NULL;
     do{
         error_code = submit_request(proc, &request, &resp, "memory access request",
@@ -476,10 +453,7 @@ udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length siz
         if ( resp->request_type == UDI_REQ_READ_MEM ) {
             void *result;
             udi_length result_size;
-
-            if ( udi_unpack_data(resp->packed_data, resp->length,
-                        UDI_DATATYPE_BYTESTREAM, &result_size, &result) )
-            {
+            if (unpack_response_read(resp, &result_size, &result)) {
                 udi_printf("%s\n", "failed to unpack response for read request");
                 error_code = UDI_ERROR_LIBRARY;
                 break;
@@ -505,11 +479,7 @@ udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length siz
  * @return the result of the operation
  */
 udi_error_e continue_process(udi_process *proc) {
-    udi_request req;
-    req.request_type = UDI_REQ_CONTINUE;
-    req.length = sizeof(uint32_t);
-    req.packed_data = udi_pack_data(req.length,
-            UDI_DATATYPE_INT32, 0);
+    udi_request req = create_request_continue(0);
 
     return submit_request_noresp(proc, &req, "continue request",
             __FILE__, __LINE__);
@@ -528,9 +498,7 @@ void log_error_msg(udi_response *resp, const char *error_file, int error_line) {
 
     if (resp->response_type != UDI_RESP_ERROR ) return;
 
-    if ( udi_unpack_data(resp->packed_data, resp->length, 
-                UDI_DATATYPE_BYTESTREAM, &errmsg_size, &errmsg_local) )
-    {
+    if ( unpack_response_error(resp, &errmsg_size, &errmsg_local) ) {
         udi_printf("%s\n", "failed to unpack response for failed request");
     }else{
         udi_printf("request failed @[%s:%d]: %s\n", error_file, error_line, 
@@ -583,26 +551,6 @@ void free_event_list(udi_event *event_list) {
 }
 
 /**
- * Frees the specified response
- *
- * @param resp the response
- */
-void free_response(udi_response *resp) {
-    if ( resp->packed_data != NULL ) free(resp->packed_data);
-    free(resp);
-}
-
-/**
- * Frees an internal event
- *
- * @param event the internal event
- */
-void free_event_internal(udi_event_internal *event) {
-    if ( event->packed_data != NULL ) free(event->packed_data);
-    free(event);
-}
-
-/**
  * @return a string representation of the specified event type
  */
 const char *get_event_type_str(udi_event_type event_type) {
@@ -645,11 +593,8 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
             }
 
             udi_length errmsg_size;
-
-            if ( udi_unpack_data(event->packed_data, event->length,
-                        UDI_DATATYPE_BYTESTREAM, &errmsg_size, 
-                        &err_event->errstr) )
-            {
+            if ( unpack_event_error(event, &err_event->errstr,
+                        &errmsg_size) ) {
                 udi_printf("%s\n", "failed to decode error event");
 
                 free(err_event);
@@ -671,9 +616,7 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
                 return NULL;
             }
 
-            if ( udi_unpack_data(event->packed_data, event->length,
-                        UDI_DATATYPE_INT32, &(exit_event->exit_code)) )
-            {
+            if ( unpack_event_exit(event, &(exit_event->exit_code)) ) {
                 udi_printf("%s\n", "failed to decode exit event");
                 
                 free(exit_event);
@@ -696,9 +639,7 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
                 return NULL;
             }
 
-            if ( udi_unpack_data(event->packed_data, event->length,
-                        UDI_DATATYPE_ADDRESS, &(break_event->breakpoint_addr)) )
-            {
+            if ( unpack_event_breakpoint(event, &(break_event->breakpoint_addr)) ) {
                 udi_printf("%s\n", "failed to decode breakpoint event");
                 free(break_event);
                 free_event(ret_event);

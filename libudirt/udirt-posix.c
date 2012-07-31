@@ -526,15 +526,12 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     udi_length num_bytes;
     void *bytes_to_write;
 
-    if ( udi_unpack_data(req->packed_data, req->length,
-                UDI_DATATYPE_ADDRESS, &addr, UDI_DATATYPE_BYTESTREAM, &num_bytes,
-                &bytes_to_write) )
-    {
-        snprintf(errmsg, errmsg_size, "%s", "failed to parse write request");
-        udi_printf("%s\n", "failed to unpack data for write request");
+    if ( unpack_request_write(req, &addr, &num_bytes, &bytes_to_write,
+                errmsg, errmsg_size) ) {
+        udi_printf("%s\n", "failed to unpack data for write requst");
         return REQ_FAILURE;
     }
-    
+
     // Perform the write operation
     int write_result = write_memory((void *)(unsigned long)addr, bytes_to_write, num_bytes,
             errmsg, errmsg_size);
@@ -546,10 +543,9 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
         udi_printf("failed write request: %s\n", mem_errstr);
         return REQ_FAILURE;
     }
+    udi_free(bytes_to_write);
 
     write_result = send_valid_response(UDI_REQ_WRITE_MEM);
-
-    udi_free(bytes_to_write);
 
     return write_result;
 }
@@ -584,11 +580,7 @@ int breakpoint_create_handler(udi_request *req, char *errmsg, unsigned int errms
     udi_address breakpoint_addr;
     udi_length instr_length;
 
-    if ( udi_unpack_data(req->packed_data, req->length,
-                UDI_DATATYPE_ADDRESS, &breakpoint_addr,
-                UDI_DATATYPE_LENGTH, &instr_length) )
-    {
-        snprintf(errmsg, errmsg_size, "%s", "failed to parse breakpoint create request");
+    if ( unpack_request_breakpoint_create(req, &breakpoint_addr, &instr_length, errmsg, errmsg_size) ) {
         udi_printf("%s\n", "failed to unpack data for breakpoint create request");
         return REQ_FAILURE;
     }
@@ -627,16 +619,12 @@ breakpoint *get_breakpoint_from_request(udi_request *req, char *errmsg, unsigned
 {
     udi_address breakpoint_addr;
 
-    if ( udi_unpack_data(req->packed_data, req->length,
-                UDI_DATATYPE_ADDRESS, &breakpoint_addr) )
-    {
-        snprintf(errmsg, errmsg_size, "%s", "failed to parse breakpoint install request");
-        udi_printf("%s\n", "failed to unpack data for breakpoint install request");
+    if ( unpack_request_breakpoint(req, &breakpoint_addr, errmsg, errmsg_size) ) {
+        udi_printf("%s\N", "failed to unpack breakpoint request");
         return NULL;
     }
 
     breakpoint *bp = find_breakpoint(breakpoint_addr);
-
     if ( bp == NULL ) {
         snprintf(errmsg, errmsg_size, "no breakpoint exists at 0x%"PRIx64, breakpoint_addr);
         udi_printf("%s\n", errmsg);
