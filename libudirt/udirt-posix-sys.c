@@ -123,7 +123,7 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
 
     do {
         // locate symbols for wrapper functions
-        real_sigaction = (sigaction_type) dlsym(RTLD_NEXT, "sigaction");
+        real_sigaction = (sigaction_type) dlsym(UDI_RTLD_NEXT, "sigaction");
         errmsg_tmp = dlerror();
         if (errmsg_tmp != NULL) {
             udi_printf("symbol lookup error: %s\n", errmsg_tmp);
@@ -132,7 +132,7 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
             break;
         }
 
-        real_fork = (fork_type) dlsym(RTLD_NEXT, "fork");
+        real_fork = (fork_type) dlsym(UDI_RTLD_NEXT, "fork");
         errmsg_tmp = dlerror();
         if (errmsg_tmp != NULL) {
             udi_printf("symbol lookup error: %s\n", errmsg_tmp);
@@ -141,7 +141,7 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
             break;
         }
 
-        real_execve = (execve_type) dlsym(RTLD_NEXT, "execve");
+        real_execve = (execve_type) dlsym(UDI_RTLD_NEXT, "execve");
         errmsg_tmp = dlerror();
         if (errmsg_tmp != NULL) {
             udi_printf("symbol lookup error: %s\n", errmsg_tmp);

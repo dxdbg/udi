@@ -91,6 +91,8 @@ typedef enum
     UDI_REQ_INSTALL_BREAKPOINT,
     UDI_REQ_REMOVE_BREAKPOINT,
     UDI_REQ_DELETE_BREAKPOINT,
+    UDI_REQ_THREAD_SUSPEND,
+    UDI_REQ_THREAD_RESUME,
     UDI_REQ_MAX,
     UDI_REQ_INVALID,
 } udi_request_type_e;
@@ -118,6 +120,8 @@ typedef enum
 
 /* Init request and response
  *
+ * It is an error to send this request to a thread pipe
+ *
  * Request arguments:
  *      None
  *
@@ -129,6 +133,8 @@ typedef enum
 
 /* Continue request and response
  *
+ * It is an error to send this request to a thread pipe
+ *
  * Request arguments:
  *      UDI_DATATYPE_INT32 - signal to pass to the debuggee (0 for no signal)
  *
@@ -137,6 +143,8 @@ typedef enum
  */
 
 /* Read request and response
+ *
+ * It is an error to send this request to a thread pipe
  *
  * Request arguments:
  *      UDI_DATATYPE_ADDRESS - virtual memory address to read from
@@ -147,6 +155,8 @@ typedef enum
  */
 
 /* Write request and response
+ *
+ * It is an error to send this request to a thread pipe
  *
  * Request arguments:
  *      UDI_DATATYPE_ADDRESS - virtual memory address to write to
@@ -193,6 +203,30 @@ typedef enum
  *      None
  */
 
+/**
+ * Thread suspend request and response
+ *
+ * It is an error to send this request to the process request pipe
+ *
+ * Request arguments:
+ *      None
+ *
+ * Response values:
+ *      None
+ */
+
+/**
+ * Thread resume request and response
+ *
+ * It is an error to send this request to the process request pipe
+ *
+ * Request arguments:
+ *      None
+ *
+ * Response values:
+ *      None
+ */
+
 /* State request and response
  *
  * Request arguments:
@@ -213,6 +247,8 @@ typedef enum
     UDI_EVENT_ERROR = 0,
     UDI_EVENT_SIGNAL,
     UDI_EVENT_BREAKPOINT,
+    UDI_EVENT_THREAD_CREATE,
+    UDI_EVENT_THREAD_DESTORY,
     UDI_EVENT_PROCESS_EXIT,
     UDI_EVENT_MAX,
     UDI_EVENT_UNKNOWN
@@ -243,6 +279,18 @@ typedef enum
  * Breakpoint event data
  *
  * UDI_DATATYPE_ADDRESS - virtual addresss where the breakpoint occurred
+ */
+
+/**
+ * Thread create event data
+ *
+ * UDI_DATATYPE_INT32 - the tid for the created thread
+ */
+
+/**
+ * Thread destroy event data
+ *
+ * UDI_DATATYPE_INT32 -  the tid for the destroyed thread
  */
 
 /*

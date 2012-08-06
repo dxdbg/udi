@@ -34,7 +34,15 @@
 #include "udi-common.h"
 #include "udi-common-posix.h"
 
+// pthread function types and definitions
+
+// these need to be weak to avoid linking pthreads with 
+// a target that doesn't link pthreads
+
 extern int pthread_sigmask(int how, const sigset_t *new_set, sigset_t *old_set) __attribute__((weak));
+extern pthread_t pthread_self() __attribute__((weak));
+
+static unsigned long DEFAULT_SINGLE_THREAD_ID = 0xDEADBEEF;
 
 /**
  * Determine if the debuggee is multithread capable (i.e., linked
@@ -42,6 +50,7 @@ extern int pthread_sigmask(int how, const sigset_t *new_set, sigset_t *old_set) 
  * 
  * @return non-zero if the debugee is multithread capable
  */
+inline
 int get_multithread_capable() {
     return pthread_sigmask != 0;
 }
@@ -59,4 +68,31 @@ int setsigmask(int how, const sigset_t *new_set, sigset_t *old_set) {
     }
 
     return sigprocmask(how, new_set, old_set);
+}
+
+/**
+ * @return the user thread id for the currently executing thread
+ */
+unsigned long get_user_thread_id() {
+
+    // pthread_self tends to be linked in single thread processes as well
+    if (pthread_self &&  get_multithread_capable() ) {
+        return (unsigned long)pthread_self();
+    }
+
+    return DEFAULT_SINGLE_THREAD_ID;
+}
+
+/**
+ * Installs the thread event breakpoints
+ *
+ * @return 0 on success; non-zero otherwise
+ */
+int install_thread_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
+
+    if (!pthreads_create_event || !pthreads_death_event) {
+        snprintf(errmsg, errmsg_size, "%s", "Failed to locate thread event functions");
+        udi_printf("%s\n", errmsg);
+        return -1;
+    }
 }

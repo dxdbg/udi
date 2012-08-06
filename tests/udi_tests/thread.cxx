@@ -50,6 +50,8 @@ class test_thread : public UDITestCase {
 };
 
 static const char *TEST_BINARY = THREAD_BINARY_PATH;
+static udi_address TEST_FUNCTION = THREAD_BREAK_FUNC;
+static udi_length TEST_FUNCTION_INST = THREAD_BREAK_FUNC_INST_LENGTH;
 
 static test_thread testInstance;
 
@@ -72,12 +74,41 @@ bool test_thread::operator()(void) {
         return false;
     }
 
-    udi_error_e result = continue_process(proc);
+    udi_error_e result = create_breakpoint(proc, TEST_FUNCTION, TEST_FUNCTION_INST);
+
+    if ( result != UDI_ERROR_NONE ) {
+        cout << "Failed to create breakpoint " << get_error_message(result) << endl;
+        return false;
+    }
+
+    result = install_breakpoint(proc, TEST_FUNCTION);
+
+    if ( result != UDI_ERROR_NONE ) {
+        cout << "Failed to install breakpoint: " << get_error_message(result) << endl;
+        return false;
+    }
+
+    result = continue_process(proc);
 
     if ( result != UDI_ERROR_NONE ) {
         cout << "Failed to continue process " << get_error_message(result) << endl;
         return false;
     }
+
+    /*
+    if ( !wait_for_breakpoint(proc, TEST_FUNCTION) ) {
+        cout << "Failed to wait for breakpoint at 0x" << std::hex
+             << TEST_FUNCTION << std::dec << endl;
+        return false;
+    }
+
+    result = continue_process(proc);
+
+    if ( result != UDI_ERROR_NONE ) {
+        cout << "Failed to continue process " << get_error_message(result) << endl;
+        return false;
+    }
+    */
 
     if ( !wait_for_debuggee_pipe(proc) ) {
         cout << "Failed to wait for debuggee pipe to exist " << proc << endl;
