@@ -620,7 +620,7 @@ breakpoint *get_breakpoint_from_request(udi_request *req, char *errmsg, unsigned
     udi_address breakpoint_addr;
 
     if ( unpack_request_breakpoint(req, &breakpoint_addr, errmsg, errmsg_size) ) {
-        udi_printf("%s\N", "failed to unpack breakpoint request");
+        udi_printf("%s\n", "failed to unpack breakpoint request");
         return NULL;
     }
 
@@ -953,6 +953,11 @@ static event_result decode_trap(const siginfo_t *siginfo, ucontext_t *context,
 void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     char errmsg[ERRMSG_SIZE];
     errmsg[ERRMSG_SIZE-1] = '\0';
+
+    udi_printf("signal entry for 0x%lx/%lu with %d\n",
+            get_user_thread_id(),
+            get_kernel_thread_id(),
+            signal);
 
     ucontext_t *context = (ucontext_t *)v_context;
 

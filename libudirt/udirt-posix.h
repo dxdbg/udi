@@ -74,6 +74,9 @@ int get_exit_inst_length(void (*exit_func)(int), char *errmsg, unsigned int errm
 exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned int errmsg_size);
 event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, unsigned int errmsg_size);
 
+// library wrapping
+extern void *UDI_RTLD_NEXT;
+
 // breakpoint handling
 udi_address get_trap_address(const ucontext_t *context);
 void rewind_pc(ucontext_t *context);
@@ -81,7 +84,16 @@ void rewind_pc(ucontext_t *context);
 // context modification
 void set_pc(ucontext_t *context, unsigned long pc);
 
+// register interface
+extern int EIP_OFFSET;
+extern int ESP_OFFSET;
+extern int RIP_OFFSET;
+extern int RSP_OFFSET;
+extern int RAX_OFFSET;
+
 // signal handling
+
+#define MAX_SIGNAL_NUM 31
 
 // This is the number of elements in the signals array
 #define NUM_SIGNALS 29
@@ -97,6 +109,12 @@ void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context);
 // pthreads support
 int get_multithread_capable();
 int setsigmask(int how, const sigset_t *new_set, sigset_t *old_set);
+unsigned long get_user_thread_id();
+unsigned long get_kernel_thread_id();
+int install_thread_event_breakpoints(char *errmsg, unsigned int errmsg_size);
+
+extern void (*pthreads_create_event)(void);
+extern void (*pthreads_death_event)(void);
 
 #ifdef __cplusplus
 } // extern C

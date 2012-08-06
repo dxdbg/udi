@@ -24,16 +24,16 @@ def build_binary_header(target, source, env):
         target_file.write("#define __TEST_BINS_H__\n")
 
         # paths to binaries
-
         target_file.write("#define SIMPLE_BINARY_PATH \"{0}\"\n".format(bin_dir + 'simple'))
         target_file.write("#define THREAD_BINARY_PATH \"{0}\"\n".format(bin_dir + 'waitthread'))
 
         # symbol addresses
-
         target_file.write("#define SIMPLE_FUNCTION1 0x{0}\n".format(udibuild.GetSymbolAddress(bin_dir + 'simple', 'function1')))
+        target_file.write("#define THREAD_BREAK_FUNC 0x{0}\n".format(udibuild.GetSymbolAddress(bin_dir + 'waitthread', 'breakpoint_func')))
 
         # instruction lengths
         target_file.write("#define SIMPLE_FUNCTION1_INST_LENGTH {0}\n".format(udibuild.GetInstructionLength(bin_dir + 'simple', 'function1')))
+        target_file.write("#define THREAD_BREAK_FUNC_INST_LENGTH 0x{0}\n".format(udibuild.GetInstructionLength(bin_dir + 'waitthread', 'breakpoint_func')))
 
         # create the trailing part of the header
         target_file.write("#endif\n")

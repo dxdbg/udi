@@ -60,9 +60,9 @@ static const unsigned char LEA_RIP_BYTE3 = 0x35;
  */
 void rewind_pc(ucontext_t *context) {
     if (__WORDSIZE == 64) {
-        context->uc_mcontext.gregs[REG_RIP]--;
+        context->uc_mcontext.gregs[RIP_OFFSET]--;
     }else{
-        context->uc_mcontext.gregs[REG_EIP]--;
+        context->uc_mcontext.gregs[EIP_OFFSET]--;
     }
 }
 
@@ -74,9 +74,9 @@ void rewind_pc(ucontext_t *context) {
  */
 void set_pc(ucontext_t *context, unsigned long pc) {
     if (__WORDSIZE == 64) {
-        context->uc_mcontext.gregs[REG_RIP] = pc;
+        context->uc_mcontext.gregs[RIP_OFFSET] = pc;
     }else{
-        context->uc_mcontext.gregs[REG_EIP] = pc;
+        context->uc_mcontext.gregs[EIP_OFFSET] = pc;
     }
 }
 
@@ -89,10 +89,10 @@ void set_pc(ucontext_t *context, unsigned long pc) {
  */
 udi_address get_trap_address(const ucontext_t *context) {
     if (__WORDSIZE == 64) {
-        return (udi_address)(unsigned long)context->uc_mcontext.gregs[REG_RIP] - 1;
+        return (udi_address)(unsigned long)context->uc_mcontext.gregs[RIP_OFFSET] - 1;
     }
 
-    return (udi_address)(unsigned long)context->uc_mcontext.gregs[REG_EIP] - 1;
+    return (udi_address)(unsigned long)context->uc_mcontext.gregs[EIP_OFFSET] - 1;
 }
 
 /**
@@ -145,14 +145,14 @@ exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned 
 
     if (__WORDSIZE == 64) {
         // The exit argument is passed in rax
-        ret.status = (int)context->uc_mcontext.gregs[REG_RAX];
+        ret.status = (int)context->uc_mcontext.gregs[RAX_OFFSET];
     }else{
         // The exit argument is the first parameter on the stack
 
         // Get the stack pointer
         unsigned long sp;
 
-        sp = (unsigned long)context->uc_mcontext.gregs[REG_ESP];
+        sp = (unsigned long)context->uc_mcontext.gregs[ESP_OFFSET];
 
         int word_length = sizeof(unsigned long);
 

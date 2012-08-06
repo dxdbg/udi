@@ -25,6 +25,18 @@ struct threadArg {
 
 struct threadArg threadStruct = { -1, NULL };
 
+void usr1_handle(int sig) {
+    long lwp_id = udi_get_thread_id(getpid());
+
+    bin_printf("Received %d on thread %ld\n", sig, lwp_id);
+
+    pause();
+}
+
+void breakpoint_func() {
+    bin_printf("In function1\n");
+}
+
 void *entry(void *arg) {
     struct threadArg *thisArg = (struct threadArg *)arg;
 
@@ -46,16 +58,10 @@ void *entry(void *arg) {
     }
 
     bin_printf("%ld released lock\n", lwp_id);
+
+    breakpoint_func();
     
     return NULL;
-}
-
-void usr1_handle(int sig) {
-    long lwp_id = udi_get_thread_id(getpid());
-
-    bin_printf("Received %d on thread %ld\n", sig, lwp_id);
-
-    pause();
 }
 
 static const char *FIFO_NAME = "/tmp/waitthread-%d";
@@ -100,6 +106,8 @@ int main(int argc, char **argv) {
         arg->mutex = mutex;
         assert( !pthread_create(&threads[i], NULL, &entry, (void *)arg) );
     }
+
+    // breakpoint_func();
 
     // Wait on the named pipe
     unlink(fifo_name);

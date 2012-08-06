@@ -26,26 +26,58 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _UDI_RT_PLATFORM_H
-#define _UDI_RT_PLATFORM_H 1
+#define _GNU_SOURCE
 
-#ifdef __cplusplus
-extern "C" {
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <dlfcn.h>
+#include <ucontext.h>
+
+// These symbols are not exported through the dynamic symbol table
+// but it turns out that GDB relies on libpthread having these
+// symbols defined to operate correct
+extern void __nptl_create_event(void) __attribute__((weak));
+extern void __nptl_death_event(void) __attribute__((weak));
+
+// exported constants //
+
+// library wrapping
+void *UDI_RTLD_NEXT = RTLD_NEXT;
+
+// register interface
+
+#ifndef REG_EIP
+#define REG_EIP -1
 #endif
+int EIP_OFFSET = REG_EIP;
 
-#if defined(LINUX)
-
-#define _XOPEN_SOURCE 700
-
-// pthreads support
-#include <bits/pthreadtypes.h>
-
-#else
-#error Unknown platform
+#ifndef REG_ESP
+#define REG_ESP -1
 #endif
+int ESP_OFFSET = REG_ESP;
 
-#ifdef __cplusplus
-} // extern C
+#ifndef REG_RIP
+#define REG_RIP -1
 #endif
+int RIP_OFFSET = REG_RIP;
 
+#ifndef REG_RSP
+#define REG_RSP -1
 #endif
+int RSP_OFFSET = REG_RSP;
+
+#ifndef REG_RAX
+#define REG_RAX -1
+#endif
+int RAX_OFFSET = REG_RAX;
+
+// pthread events
+void (*pthreads_create_event)(void) = __nptl_create_event;
+void (*pthreads_death_event)(void) = __nptl_death_event;
+
+/**
+ * @return the kernel thread id for the currently executing thread
+ */
+unsigned long get_kernel_thread_id() {
+    return (unsigned long)syscall(SYS_gettid);
+}
