@@ -4,3 +4,6 @@ notes.txt
 .sconsign.dblite
 __init__.pyc
 tags
+cscope.out
+.sconf_temp
+config.log

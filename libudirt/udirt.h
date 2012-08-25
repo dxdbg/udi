@@ -86,16 +86,18 @@ int write_memory(void *dest, const void *src, size_t num_bytes,
 
 const char *get_mem_errstr();
 
+// disassembly interface
+unsigned long get_ctf_successor(unsigned long pc, char *errmsg, unsigned int errmsg_size);
+
 // breakpoint handling
 typedef struct breakpoint_struct {
     unsigned char saved_bytes[8];
-    udi_length instruction_length;
     udi_address address;
     unsigned char in_memory;
     struct breakpoint_struct *next_breakpoint;
 } breakpoint;
 
-breakpoint *create_breakpoint(udi_address breakpoint_addr, udi_length instruction_length);
+breakpoint *create_breakpoint(udi_address breakpoint_addr);
 
 int install_breakpoint(breakpoint *bp, char *errmsg, 
         unsigned int errmsg_size);

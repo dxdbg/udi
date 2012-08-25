@@ -170,7 +170,6 @@ typedef enum
  *
  * Request arguments:
  *      UDI_DATATYPE_ADDRESSS - virtual memory address to set the breakpoint
- *      UDI_DATATYPE_LENGTH - the length of the instruction at the breakpoint
  *
  * Response values:
  *      None

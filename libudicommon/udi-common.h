@@ -132,11 +132,11 @@ int unpack_request_read(udi_request *req, udi_address *addr, udi_length *num_byt
         unsigned int errmsg_size);
 int unpack_request_write(udi_request *req, udi_address *addr, udi_length *num_bytes,
         void **bytes_to_write, char *errmsg, unsigned int errmsg_size);
-int unpack_request_breakpoint_create(udi_request *req, udi_address *addr, udi_length *instr_length,
+int unpack_request_breakpoint_create(udi_request *req, udi_address *addr,
         char *errmsg, unsigned int errmsg_size);
 int unpack_request_breakpoint(udi_request *req, udi_address *addr, char *errmsg, unsigned int errmsg_size);
 
-udi_request create_request_breakpoint_create(udi_address addr, udi_length instr_length);
+udi_request create_request_breakpoint_create(udi_address addr);
 udi_request create_request_breakpoint(udi_request_type request_type, udi_address addr);
 udi_request create_request_read(udi_address addr, udi_length num_bytes);
 udi_request create_request_write(udi_address addr, udi_length num_bytes, void *value);

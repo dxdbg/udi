@@ -167,17 +167,9 @@ int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
     int errnum = 0;
     
     do {
-        int exit_inst_length = get_exit_inst_length(exit, errmsg, errmsg_size);
-        if ( exit_inst_length <= 0 ) {
-            udi_printf("%s\n", "failed to determine length of instruction for exit breakpoint");
-            errnum = -1;
-            break;
-        }
-
         // Exit cannot be wrappped because Linux executables can call it
         // directly and do not pass through the PLT
-        exit_bp = create_breakpoint((udi_address)(unsigned long)exit,
-                exit_inst_length);
+        exit_bp = create_breakpoint((udi_address)(unsigned long)exit);
         if ( exit_bp == NULL ) {
             udi_printf("%s\n", "failed to create exit breakpoint");
             errnum = -1;

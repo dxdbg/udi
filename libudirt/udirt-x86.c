@@ -33,6 +33,8 @@
 
 #include <inttypes.h>
 
+#include <udis86.h>
+
 static const unsigned char BREAKPOINT_INSN = 0xcc;
 
 /**
@@ -94,4 +96,17 @@ int write_saved_bytes(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
  */
 udi_arch_e get_architecture() {
     return (__WORDSIZE == 64 ? UDI_ARCH_X86_64 : UDI_ARCH_X86);
+}
+
+/**
+ * Gets the control flow successor for the instruction at the specified pc
+ *
+ * @param pc the program counter
+ * @param errmsg the error message populated on failure
+ * @param errmsg_size the max size of the error message
+ *
+ * @return the address of the control flow successor or 0 on error
+ */
+unsigned long get_ctf_successor(unsigned long pc, char *errmsg, unsigned int errmsg_size) {
+
 }

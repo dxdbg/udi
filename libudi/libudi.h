@@ -109,8 +109,7 @@ const char *get_event_type_str(udi_event_type event_type);
 void free_event_list(udi_event *event_list);
 
 // Breakpoint interface //
-udi_error_e create_breakpoint(udi_process *proc, udi_address addr,
-        udi_length instr_length);
+udi_error_e create_breakpoint(udi_process *proc, udi_address addr);
 udi_error_e install_breakpoint(udi_process *proc, udi_address addr);
 udi_error_e remove_breakpoint(udi_process *proc, udi_address addr);
 udi_error_e delete_breakpoint(udi_process *proc, udi_address addr);

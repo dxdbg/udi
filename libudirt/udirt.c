@@ -190,16 +190,10 @@ static breakpoint *breakpoints = NULL;
  * Creates a breakpoint at the specified address
  *
  * @param breakpoint_addr the breakpoint address
- * @param instruction_length the length of the instruction at the breakpoint address
  *
  * @return the created breakpoint, NULL on failure
  */
-breakpoint *create_breakpoint(udi_address breakpoint_addr, udi_length instruction_length) {
-    if ( instruction_length <= 0 ) {
-        udi_printf("invalid argument: instruction_length: %d\n", instruction_length);
-        return NULL;
-    }
-
+breakpoint *create_breakpoint(udi_address breakpoint_addr) {
     breakpoint *new_breakpoint = (breakpoint *)udi_malloc(sizeof(breakpoint));
 
     if ( new_breakpoint == NULL ) {
@@ -211,7 +205,6 @@ breakpoint *create_breakpoint(udi_address breakpoint_addr, udi_length instructio
     memset(new_breakpoint->saved_bytes, 0, sizeof(new_breakpoint->saved_bytes));
     new_breakpoint->address = breakpoint_addr;
     new_breakpoint->in_memory = 0;
-    new_breakpoint->instruction_length = instruction_length;
 
     // Add the breakpoint to the end of the linked list
     if ( breakpoints == NULL ) {

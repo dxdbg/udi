@@ -51,7 +51,6 @@ class test_thread : public UDITestCase {
 
 static const char *TEST_BINARY = THREAD_BINARY_PATH;
 static udi_address TEST_FUNCTION = THREAD_BREAK_FUNC;
-static udi_length TEST_FUNCTION_INST = THREAD_BREAK_FUNC_INST_LENGTH;
 
 static test_thread testInstance;
 
@@ -74,7 +73,7 @@ bool test_thread::operator()(void) {
         return false;
     }
 
-    udi_error_e result = create_breakpoint(proc, TEST_FUNCTION, TEST_FUNCTION_INST);
+    udi_error_e result = create_breakpoint(proc, TEST_FUNCTION);
 
     if ( result != UDI_ERROR_NONE ) {
         cout << "Failed to create breakpoint " << get_error_message(result) << endl;

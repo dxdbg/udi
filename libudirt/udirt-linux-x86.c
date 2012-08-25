@@ -81,6 +81,21 @@ void set_pc(ucontext_t *context, unsigned long pc) {
 }
 
 /**
+ * Given the context, gets the pc
+ *
+ * @param context the context containing the current PC value
+ * 
+ * @return the PC contained in the context
+ */
+unsigned long get_pc(ucontext_t *context) {
+    if (__WORDSIZE == 64) {
+        return context->uc_mcontext.gregs[RIP_OFFSET];
+    }
+        
+    return context->uc_mcontext.gregs[EIP_OFFSET];
+}
+
+/**
  * Given the context, calculates the address at which a trap occurred at.
  *
  * @param context the context containing the current PC value
@@ -93,40 +108,6 @@ udi_address get_trap_address(const ucontext_t *context) {
     }
 
     return (udi_address)(unsigned long)context->uc_mcontext.gregs[EIP_OFFSET] - 1;
-}
-
-/**
- * Determines the instruction length of the first instruction of the specified
- * exit function
- *
- * @param exit_func a pointer to the exit function
- * @param errmsg the errmsg populated by the memory access
- * @param errmsg_size the maximum size of the error message
- *
- * @return positive value on success; non-positive otherwise
- */
-int get_exit_inst_length(void (*exit_func)(int), char *errmsg, unsigned int errmsg_size) {
-    // Use heuristics to determine the instruction length
-
-    unsigned char possible_inst[MAX_EXIT_INST_LENGTH];
-
-    int read_result = read_memory(possible_inst, (const void *)exit_func, sizeof(possible_inst),
-            errmsg, errmsg_size);
-    if ( read_result != 0 ) {
-        udi_printf("failed to read instructions from exit function at 0x%lx\n",
-                (unsigned long)exit_func);
-        return -1;
-    }
-
-    if ( possible_inst[0] == PUSH_EBP ) {
-        return X86_EXIT_INST_LENGTH;
-    }else if (possible_inst[0] == LEA_RIP_BYTE1 &&
-              possible_inst[1] == LEA_RIP_BYTE2 &&
-              possible_inst[2] == LEA_RIP_BYTE3) {
-        return X86_64_EXIT_INST_LENGTH;
-    }
-
-    return -1;
 }
 
 /**
@@ -171,4 +152,16 @@ exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned 
     }
 
     return ret;
+}
+
+/**
+ * Gets the control flow successor for the current instruction
+ *
+ * @param context the context containing the registers
+ * @param errmsg the error message populated on error
+ * @param errmsg_size the max size of the error message
+ *
+ * @return the address of the instruction, or 0 on error
+ */
+unsigned long get_ctf_successor_context(const ucontext_t *context, char *errmsg, unsigned int errmsg_size) {
 }

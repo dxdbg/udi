@@ -70,7 +70,7 @@ bool test_breakpoint::operator()(void) {
     }
 
     // Create and install breakpoint
-    udi_error_e result = create_breakpoint(proc, TEST_FUNCTION, TEST_FUNCTION_INST);
+    udi_error_e result = create_breakpoint(proc, TEST_FUNCTION);
 
     if ( result != UDI_ERROR_NONE ) {
         cout << "Failed to create breakpoint " << get_error_message(result) << endl;
