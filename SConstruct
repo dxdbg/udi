@@ -11,6 +11,17 @@ import udibuild
 
 topenv = Environment()
 
+# configuring based on the environment
+
+conf = Configure(topenv)
+
+if udibuild.IsX86():
+    if not conf.CheckLibWithHeader('udis86', 'udis86.h', 'c'):
+        print 'Did not find libudis86'
+        Exit(1)
+    
+topenv = conf.Finish()
+
 Export('topenv')
 
 if topenv['CC'] == 'gcc':
@@ -51,3 +62,6 @@ topenv.Default('libudi', 'libudirt', 'tests/udirt_tests', 'tests/udi_tests')
 
 # ctags generator
 ctags = topenv.Command('ctags', '', 'ctags -R libudirt libudi libudicommon tests')
+
+# cscope generator
+cscope = topenv.Command('cscope', '', 'cscope -b -R')

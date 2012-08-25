@@ -344,14 +344,11 @@ udi_error_e submit_request_noresp(udi_process *proc,
  *
  * @param proc          the process handle
  * @param addr          the address to place the breakpoint
- * @param instr_length  the length of the instruction being replaced
  * 
  * @return the result of the operation
  */
-udi_error_e create_breakpoint(udi_process *proc, udi_address addr,
-        udi_length instr_length)
-{
-    udi_request request = create_request_breakpoint_create(addr, instr_length);
+udi_error_e create_breakpoint(udi_process *proc, udi_address addr) {
+    udi_request request = create_request_breakpoint_create(addr);
 
     return submit_request_noresp(proc, &request, "breakpoint create request",
             __FILE__, __LINE__);

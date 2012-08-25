@@ -578,9 +578,8 @@ int init_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
  */
 int breakpoint_create_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     udi_address breakpoint_addr;
-    udi_length instr_length;
 
-    if ( unpack_request_breakpoint_create(req, &breakpoint_addr, &instr_length, errmsg, errmsg_size) ) {
+    if ( unpack_request_breakpoint_create(req, &breakpoint_addr, errmsg, errmsg_size) ) {
         udi_printf("%s\n", "failed to unpack data for breakpoint create request");
         return REQ_FAILURE;
     }
@@ -594,7 +593,7 @@ int breakpoint_create_handler(udi_request *req, char *errmsg, unsigned int errms
         return REQ_FAILURE;
     }
 
-    bp = create_breakpoint(breakpoint_addr, instr_length);
+    bp = create_breakpoint(breakpoint_addr);
 
     if ( bp == NULL ) {
         snprintf(errmsg, errmsg_size, "failed to create breakpoint at 0x%"PRIx64, breakpoint_addr);
@@ -882,7 +881,7 @@ static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char 
         return result;
     }
 
-    continue_bp = create_breakpoint(bp->address + bp->instruction_length, bp->instruction_length);
+    continue_bp = create_breakpoint(0);
 
     if ( bp == exit_bp ) {
         return handle_exit_breakpoint(context, errmsg, errmsg_size);

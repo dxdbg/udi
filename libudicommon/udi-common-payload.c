@@ -335,17 +335,16 @@ int unpack_request_write(udi_request *req, udi_address *addr, udi_length *num_by
  *
  * @param req the request
  * @param addr the address of the breakpoint
- * @param instr_length the length of the instruction at the breakpoint
  * @param errmsg the error message populated on error
  * @param errmsg_size the size of the error message
  *
  * @return 0 on success; -1 otherwise
  */
-int unpack_request_breakpoint_create(udi_request *req, udi_address *addr, udi_length *instr_length,
+int unpack_request_breakpoint_create(udi_request *req, udi_address *addr,
         char *errmsg, unsigned int errmsg_size) {
 
     if (udi_unpack_data(req->packed_data, req->length,
-                UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_LENGTH, instr_length) ) {
+                UDI_DATATYPE_ADDRESS, addr) ) {
 
         snprintf(errmsg, errmsg_size, "%s", "failed to parse breakpoint create request");
         return -1;
@@ -380,18 +379,16 @@ int unpack_request_breakpoint(udi_request *req, udi_address *addr, char *errmsg,
  * Creates a request to create a breakpoint
  *
  * @param addr the address for the breakpoint
- * @param instr_length the length of the instruction under the breakpoint
  *
  * @return the created request
  */
-udi_request create_request_breakpoint_create(udi_address addr, udi_length instr_length) {
+udi_request create_request_breakpoint_create(udi_address addr) {
 
     udi_request request;
     request.request_type = UDI_REQ_CREATE_BREAKPOINT;
-    request.length = sizeof(udi_length) + sizeof(udi_address);
+    request.length = sizeof(udi_address);
     request.packed_data = udi_pack_data(request.length,
-            UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_LENGTH,
-            instr_length);
+            UDI_DATATYPE_ADDRESS, addr);
 
     return request;
 }

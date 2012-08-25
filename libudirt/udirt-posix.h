@@ -70,7 +70,6 @@ typedef struct exit_result_struct {
 
 extern breakpoint *exit_bp;
 
-int get_exit_inst_length(void (*exit_func)(int), char *errmsg, unsigned int errmsg_size);
 exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned int errmsg_size);
 event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, unsigned int errmsg_size);
 
@@ -83,6 +82,10 @@ void rewind_pc(ucontext_t *context);
 
 // context modification
 void set_pc(ucontext_t *context, unsigned long pc);
+unsigned long get_pc(const ucontext_t *context);
+
+// POSIX specific disassembly interface
+unsigned long get_ctf_successor_context(const ucontext_t *context, char *errmsg, unsigned int errmsg_size);
 
 // register interface
 extern int EIP_OFFSET;

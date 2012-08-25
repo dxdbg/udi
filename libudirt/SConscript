@@ -11,6 +11,7 @@ lib_env = topenv.Clone()
 lib_env.Append(CPPPATH = ['#/libudicommon', '#/libudirt'])
 
 sources = ['udirt.c', 'udirt-malloc.c']
+libs = ['udicommon']
 
 if udibuild.IsUnix():
     sources.append('udirt-posix.c')
@@ -20,6 +21,7 @@ if udibuild.IsUnix():
 
 if udibuild.IsX86():
     sources.append('udirt-x86.c')
+    libs.append('udis86')
 
 if udibuild.IsLinux() and udibuild.IsX86():
     sources.append('udirt-linux-x86.c')
@@ -27,7 +29,6 @@ if udibuild.IsLinux() and udibuild.IsX86():
 if udibuild.IsLinux():
     sources.append('udirt-posix-linux-gnu.c')
 
-libs = ['udicommon']
 
 if udibuild.IsLinux():
     libs.append('dl')
