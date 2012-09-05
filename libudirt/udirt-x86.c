@@ -98,15 +98,35 @@ udi_arch_e get_architecture() {
     return (__WORDSIZE == 64 ? UDI_ARCH_X86_64 : UDI_ARCH_X86);
 }
 
+// x86 instruction analysis functions
+
 /**
  * Gets the control flow successor for the instruction at the specified pc
  *
  * @param pc the program counter
  * @param errmsg the error message populated on failure
  * @param errmsg_size the max size of the error message
+ * @param context the context from which registers can be retrieved
  *
  * @return the address of the control flow successor or 0 on error
  */
-unsigned long get_ctf_successor(unsigned long pc, char *errmsg, unsigned int errmsg_size) {
+unsigned long get_cf_successor(unsigned long pc, char *errmsg, 
+        unsigned int errmsg_size, void *context) {
 
+    ud_t ud_obj;
+
+    ud_init(&ud_obj);
+
+    ud_set_input_buffer(&ud_obj, (unsigned char *)pc, 64);
+
+    ud_set_pc(&ud_obj, pc);
+
+    if ( ud_disassemble(&ud_obj) == 0 ) {
+        snprintf(errmsg, errmsg_size, "disassembling instruction at 0x%lx failed", pc);
+        udi_printf("%s\n", errmsg);
+        return 0;
+    }
+
+    // the easy case, just the next instruction
+    return pc + ud_insn_len(&ud_obj);
 }

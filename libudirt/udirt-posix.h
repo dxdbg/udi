@@ -84,16 +84,6 @@ void rewind_pc(ucontext_t *context);
 void set_pc(ucontext_t *context, unsigned long pc);
 unsigned long get_pc(const ucontext_t *context);
 
-// POSIX specific disassembly interface
-unsigned long get_ctf_successor_context(const ucontext_t *context, char *errmsg, unsigned int errmsg_size);
-
-// register interface
-extern int EIP_OFFSET;
-extern int ESP_OFFSET;
-extern int RIP_OFFSET;
-extern int RSP_OFFSET;
-extern int RAX_OFFSET;
-
 // signal handling
 
 #define MAX_SIGNAL_NUM 31
