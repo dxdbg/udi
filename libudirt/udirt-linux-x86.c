@@ -38,20 +38,7 @@
 #include "udirt.h"
 #include "udirt-posix.h"
 #include "udirt-x86.h"
-
-// Exit prologue parsing
-
-// Common on x86 with gcc
-static const unsigned char PUSH_EBP = 0x55;
-
-// Common on x86_64 with gcc
-static const unsigned char LEA_RIP_BYTE1 = 0x48;
-static const unsigned char LEA_RIP_BYTE2 = 0x8d;
-static const unsigned char LEA_RIP_BYTE3 = 0x35;
-
-#define X86_EXIT_INST_LENGTH 1
-#define X86_64_EXIT_INST_LENGTH 7
-#define MAX_EXIT_INST_LENGTH X86_64_EXIT_INST_LENGTH
+#include "udirt-posix-x86.h"
 
 /**
  * Given the context, rewinds the PC to account for a hit breakpoint
@@ -60,9 +47,9 @@ static const unsigned char LEA_RIP_BYTE3 = 0x35;
  */
 void rewind_pc(ucontext_t *context) {
     if (__WORDSIZE == 64) {
-        context->uc_mcontext.gregs[RIP_OFFSET]--;
+        context->uc_mcontext.gregs[X86_64_RIP_OFFSET]--;
     }else{
-        context->uc_mcontext.gregs[EIP_OFFSET]--;
+        context->uc_mcontext.gregs[X86_EIP_OFFSET]--;
     }
 }
 
@@ -74,9 +61,9 @@ void rewind_pc(ucontext_t *context) {
  */
 void set_pc(ucontext_t *context, unsigned long pc) {
     if (__WORDSIZE == 64) {
-        context->uc_mcontext.gregs[RIP_OFFSET] = pc;
+        context->uc_mcontext.gregs[X86_64_RIP_OFFSET] = pc;
     }else{
-        context->uc_mcontext.gregs[EIP_OFFSET] = pc;
+        context->uc_mcontext.gregs[X86_EIP_OFFSET] = pc;
     }
 }
 
@@ -87,12 +74,12 @@ void set_pc(ucontext_t *context, unsigned long pc) {
  * 
  * @return the PC contained in the context
  */
-unsigned long get_pc(ucontext_t *context) {
+unsigned long get_pc(const ucontext_t *context) {
     if (__WORDSIZE == 64) {
-        return context->uc_mcontext.gregs[RIP_OFFSET];
+        return context->uc_mcontext.gregs[X86_64_RIP_OFFSET];
     }
         
-    return context->uc_mcontext.gregs[EIP_OFFSET];
+    return context->uc_mcontext.gregs[X86_EIP_OFFSET];
 }
 
 /**
@@ -104,10 +91,10 @@ unsigned long get_pc(ucontext_t *context) {
  */
 udi_address get_trap_address(const ucontext_t *context) {
     if (__WORDSIZE == 64) {
-        return (udi_address)(unsigned long)context->uc_mcontext.gregs[RIP_OFFSET] - 1;
+        return (udi_address)(unsigned long)context->uc_mcontext.gregs[X86_64_RIP_OFFSET] - 1;
     }
 
-    return (udi_address)(unsigned long)context->uc_mcontext.gregs[EIP_OFFSET] - 1;
+    return (udi_address)(unsigned long)context->uc_mcontext.gregs[X86_EIP_OFFSET] - 1;
 }
 
 /**
@@ -126,14 +113,14 @@ exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned 
 
     if (__WORDSIZE == 64) {
         // The exit argument is passed in rax
-        ret.status = (int)context->uc_mcontext.gregs[RAX_OFFSET];
+        ret.status = (int)context->uc_mcontext.gregs[X86_64_RAX_OFFSET];
     }else{
         // The exit argument is the first parameter on the stack
 
         // Get the stack pointer
         unsigned long sp;
 
-        sp = (unsigned long)context->uc_mcontext.gregs[ESP_OFFSET];
+        sp = (unsigned long)context->uc_mcontext.gregs[X86_ESP_OFFSET];
 
         int word_length = sizeof(unsigned long);
 
@@ -155,13 +142,65 @@ exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned 
 }
 
 /**
- * Gets the control flow successor for the current instruction
+ * @param reg the register
  *
- * @param context the context containing the registers
- * @param errmsg the error message populated on error
- * @param errmsg_size the max size of the error message
- *
- * @return the address of the instruction, or 0 on error
+ * @return the offset in the context array
  */
-unsigned long get_ctf_successor_context(const ucontext_t *context, char *errmsg, unsigned int errmsg_size) {
+static
+int get_reg_context_offset(ud_type_t reg) {
+    if ( __WORDSIZE == 64 ) {
+        switch(reg) {
+            case UD_R_R8B:
+            case UD_R_R8W:
+            case UD_R_R8D:
+            case UD_R_R8:
+                return X86_64_R8_OFFSET;
+            case UD_R_AL:
+            case UD_R_AH:
+            case UD_R_AX:
+            case UD_R_EAX:
+            case UD_R_RAX:
+                return X86_64_RAX_OFFSET;
+            default:
+                return -1;
+        }
+    }else{
+        switch(reg) {
+            default:
+                return -1;
+        }
+    }
+}
+
+/**
+ * @param reg the register
+ *
+ * @return 0 if it isn't accessible; non-zero if it is
+ */
+int is_accessible_register(ud_type_t reg) {
+    return get_reg_context_offset(reg) != -1;
+}
+
+/**
+ * Gets the specified register from the context
+ *
+ * @param reg the register to retrieve
+ * @param context the context
+ *
+ * @return the value from the register
+ */
+unsigned long get_register_ud_type(ud_type_t reg, const void *context) {
+    const ucontext_t *u_context = (const ucontext_t *)context;
+
+    int offset = get_reg_context_offset(reg);
+
+    if ( offset == -1 ) {
+        udi_abort(__FILE__, __LINE__);
+    }
+
+   if (__WORDSIZE == 64) {
+        return u_context->uc_mcontext.gregs[offset];
+    }
+        
+    return u_context->uc_mcontext.gregs[offset];
 }
