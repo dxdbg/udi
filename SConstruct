@@ -30,6 +30,11 @@ if topenv['CC'] == 'gcc':
 
     # C++ compiler flags
     topenv.Append(CXXFLAGS = "-Wall -g -fPIC")
+
+    if 'ENABLE_OPT' in os.environ:
+        topenv.Append(CFLAGS = "-O2")
+        topenv.Append(CXXFLAGS = "-O2")
+    
 else:
     print 'Unknown compiler'
     quit()
@@ -56,9 +61,10 @@ topenv.SConscript('#/tests/bin/SConscript', variant_dir='#/build/tests/bin', dup
 topenv.SConscript('#/tests/libuditest/SConscript', variant_dir='#/build/tests/libuditest', duplicate=False)
 topenv.SConscript('#/tests/udirt_tests/SConscript', variant_dir='#/build/tests/udirt_tests', duplicate=False)
 topenv.SConscript('#/tests/udi_tests/SConscript', variant_dir='#/build/tests/udi_tests', duplicate=False)
+topenv.SConscript('#/util/SConscript', variant_dir='#/build/util', duplicate=False)
 
 # default target
-topenv.Default('libudi', 'libudirt', 'tests/udirt_tests', 'tests/udi_tests')
+topenv.Default('libudi', 'libudirt', 'tests/udirt_tests', 'tests/udi_tests', 'util')
 
 # ctags generator
 ctags = topenv.Command('ctags', '', 'ctags -R libudirt libudi libudicommon tests')

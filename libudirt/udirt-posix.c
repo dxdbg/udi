@@ -881,8 +881,7 @@ static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char 
         return result;
     }
 
-    // TODO need to create breakpoint at cf successor
-    continue_bp = create_breakpoint(0);
+    continue_bp = create_breakpoint(get_ctf_successor(bp->address, errmsg, errmsg_size, context));
 
     if ( bp == exit_bp ) {
         return handle_exit_breakpoint(context, errmsg, errmsg_size);

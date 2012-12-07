@@ -1,0 +1,14 @@
+#
+# SConscript for test binaries
+#
+import udibuild
+
+Import('topenv')
+
+bin_env = topenv.Clone()
+
+libs = [ 'udis86' ]
+
+sources = [ 'disutil.c' ]
+
+bin_env.Program('disutil', sources, LIBS=libs)

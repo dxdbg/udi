@@ -83,6 +83,23 @@ unsigned long get_pc(const ucontext_t *context) {
 }
 
 /**
+ * Given the context, gets the flags register
+ *
+ * @param context the context containing the flags register
+ *
+ * @return the flags register in the context
+ */
+unsigned long get_flags(const void *context) {
+    const ucontext_t *u_context = (const ucontext_t *)context;
+
+    if (__WORDSIZE == 64) {
+        return u_context->uc_mcontext.gregs[X86_64_FLAGS_OFFSET];
+    }
+
+    return u_context->uc_mcontext.gregs[X86_FLAGS_OFFSET];
+}
+
+/**
  * Given the context, calculates the address at which a trap occurred at.
  *
  * @param context the context containing the current PC value
@@ -132,7 +149,8 @@ exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned 
         if ( read_result != 0 ) {
             udi_printf("failed to retrieve exit status off of the stack at 0x%lx\n",
                     sp);
-            snprintf(errmsg, errmsg_size, "failed to retrieve exit status off of the stack at 0x%"PRIx64": %s",
+            snprintf(errmsg, errmsg_size, 
+                    "failed to retrieve exit status off of the stack at 0x%"PRIx64": %s",
                     sp, get_mem_errstr());
             ret.failure = read_result;
         }
@@ -150,17 +168,90 @@ static
 int get_reg_context_offset(ud_type_t reg) {
     if ( __WORDSIZE == 64 ) {
         switch(reg) {
-            case UD_R_R8B:
-            case UD_R_R8W:
-            case UD_R_R8D:
-            case UD_R_R8:
-                return X86_64_R8_OFFSET;
             case UD_R_AL:
             case UD_R_AH:
             case UD_R_AX:
             case UD_R_EAX:
             case UD_R_RAX:
                 return X86_64_RAX_OFFSET;
+            case UD_R_CL:
+            case UD_R_CH:
+            case UD_R_CX:
+            case UD_R_ECX:
+            case UD_R_RCX:
+                return X86_64_RCX_OFFSET;
+            case UD_R_DL:
+            case UD_R_DH:
+            case UD_R_EDX:
+            case UD_R_RDX:
+                return X86_64_RDX_OFFSET;
+            case UD_R_BL:
+            case UD_R_BH:
+            case UD_R_EBX:
+            case UD_R_RBX:
+                return X86_64_RBX_OFFSET;
+            case UD_R_RIP:
+                return X86_64_RIP_OFFSET;
+            case UD_R_SPL:
+            case UD_R_SP:
+            case UD_R_ESP:
+            case UD_R_RSP:
+                return X86_64_RSP_OFFSET;
+            case UD_R_BPL:
+            case UD_R_BP:
+            case UD_R_EBP:
+            case UD_R_RBP:
+                return X86_64_RBP_OFFSET;
+            case UD_R_SIL:
+            case UD_R_SI:
+            case UD_R_ESI:
+            case UD_R_RSI:
+                return X86_64_RSI_OFFSET;
+            case UD_R_DIL:
+            case UD_R_DI:
+            case UD_R_EDI:
+            case UD_R_RDI:
+                return X86_64_RDI_OFFSET;
+            case UD_R_R8B:
+            case UD_R_R8W:
+            case UD_R_R8D:
+            case UD_R_R8:
+                return X86_64_R8_OFFSET;
+            case UD_R_R9B:
+            case UD_R_R9W:
+            case UD_R_R9D:
+            case UD_R_R9:
+                return X86_64_R9_OFFSET;
+            case UD_R_R10B:
+            case UD_R_R10W:
+            case UD_R_R10D:
+            case UD_R_R10:
+                return X86_64_R10_OFFSET;
+            case UD_R_R11B:
+            case UD_R_R11W:
+            case UD_R_R11D:
+            case UD_R_R11:
+                return X86_64_R11_OFFSET;
+            case UD_R_R12B:
+            case UD_R_R12W:
+            case UD_R_R12D:
+            case UD_R_R12:
+                return X86_64_R12_OFFSET;
+            case UD_R_R13B:
+            case UD_R_R13W:
+            case UD_R_R13D:
+            case UD_R_R13:
+                return X86_64_R13_OFFSET;
+            case UD_R_R14B:
+            case UD_R_R14W:
+            case UD_R_R14D:
+            case UD_R_R14:
+                return X86_64_R14_OFFSET;
+            case UD_R_R15B:
+            case UD_R_R15W:
+            case UD_R_R15D:
+            case UD_R_R15:
+                return X86_64_R15_OFFSET;
             default:
                 return -1;
         }
