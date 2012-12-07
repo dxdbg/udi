@@ -42,7 +42,8 @@
  * @return the mapped memory
  */
 unsigned char *map_mem(size_t length) {
-    void * ret = mmap(NULL, length, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    void * ret = mmap(NULL, length, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS 
+            | MAP_PRIVATE, -1, 0);
 
     if ( ret == MAP_FAILED ) {
         udi_printf("mmap failed: %s\n", strerror(errno));

@@ -40,6 +40,7 @@ extern "C" {
 // disassembly interface
 unsigned long get_register_ud_type(ud_type_t reg, const void *context);
 int is_accessible_register(ud_type_t reg);
+unsigned long get_flags(const void *context);
 
 #ifdef __cplusplus
 } // extern C

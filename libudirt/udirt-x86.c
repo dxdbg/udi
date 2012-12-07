@@ -49,16 +49,16 @@ static const unsigned char BREAKPOINT_INSN = 0xcc;
 int write_breakpoint_instruction(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     if ( bp->in_memory ) return 0;
 
-    int result = read_memory(bp->saved_bytes, (void *)(unsigned long)bp->address, sizeof(BREAKPOINT_INSN),
-            errmsg, errmsg_size);
+    int result = read_memory(bp->saved_bytes, (void *)(unsigned long)bp->address, 
+            sizeof(BREAKPOINT_INSN), errmsg, errmsg_size);
     if( result != 0 ) {
         udi_printf("failed to save original bytes at 0x%"PRIx64"\n",
                 bp->address);
         return result;
     }
 
-    result = write_memory((void *)(unsigned long)bp->address, &BREAKPOINT_INSN, sizeof(BREAKPOINT_INSN),
-            errmsg, errmsg_size);
+    result = write_memory((void *)(unsigned long)bp->address, &BREAKPOINT_INSN, 
+            sizeof(BREAKPOINT_INSN), errmsg, errmsg_size);
     if ( result != 0 ) {
         udi_printf("failed to install breakpoint at 0x%"PRIx64"\n",
                 bp->address);
@@ -79,8 +79,8 @@ int write_breakpoint_instruction(breakpoint *bp, char *errmsg, unsigned int errm
 int write_saved_bytes(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     if ( !bp->in_memory ) return 0;
 
-    int result = write_memory((void *)(unsigned long)bp->address, bp->saved_bytes, sizeof(BREAKPOINT_INSN),
-            errmsg, errmsg_size);
+    int result = write_memory((void *)(unsigned long)bp->address, bp->saved_bytes, 
+            sizeof(BREAKPOINT_INSN), errmsg, errmsg_size);
 
     if ( result != 0 ) {
         udi_printf("failed to remove breakpoint at 0x%"PRIx64"\n", bp->address);
@@ -101,6 +101,160 @@ udi_arch_e get_architecture() {
 // x86 instruction analysis functions
 
 /**
+ * Computes the location contained in the operand relative to the specified pc
+ *
+ * @param op the operand
+ * @param pc the pc
+ *
+ * @return the relative immediate
+ */
+static
+unsigned long compute_relative_location(struct ud_operand *op, unsigned long pc) {
+    switch (op->size) {
+        case 8:
+           return (unsigned long)(pc + op->lval.sbyte);
+        case 16:
+           return (unsigned long)(pc + op->lval.sword);
+        case 32:
+           return (unsigned long)(pc + op->lval.sdword);
+        case 64:
+           return (unsigned long)(pc + op->lval.sqword);
+        default:
+           return pc;
+    }
+}
+
+// flag masks
+static int CF = 0x1;
+static int PF = 0x4;
+static int AF = 0x10;
+static int ZF = 0x40;
+static int SF = 0x80;
+static int OF = 0x800;
+
+/**
+ * Determines if the condition encoded in the mnemonic is met with the
+ * specified context
+ *
+ * @param mnemonic the mnemonic
+ * @param context
+ *
+ * @return non-zero if the condition is met; 0 otherwise
+ */
+static
+int ctf_condition_met(ud_mnemonic_code_t mnemonic, void *context) {
+    int result = 0;
+
+    unsigned long flags = get_flags(context);
+    unsigned long cx = (__WORDSIZE == 64) ? get_register_ud_type(UD_R_RCX, context)
+        : get_register_ud_type(UD_R_ECX, context);
+
+    switch (mnemonic) {
+        case UD_Ija:
+            result = (!(CF & flags) && !(ZF & flags));
+            break;
+        case UD_Ijae:
+            result = !(CF & flags);
+            break;
+        case UD_Ijb:
+            result = CF & flags;
+            break;
+        case UD_Ijbe:
+            result = (CF & flags) || (ZF & flags);
+            break;
+        case UD_Ijcxz:
+            result = get_register_ud_type(UD_R_CX, context) == 0;
+            break;
+        case UD_Ijecxz:
+            result = get_register_ud_type(UD_R_ECX, context) == 0;
+            break;
+        case UD_Ijrcxz:
+            result = get_register_ud_type(UD_R_RCX, context) == 0;
+            break;
+        case UD_Ijg:
+            result = (!(ZF & flags) && ((SF & flags) == (OF & flags)));
+            break;
+        case UD_Ijge:
+            result = ((SF & flags) == (OF & flags));
+            break;
+        case UD_Ijl:
+            result = ((SF & flags) != (OF & flags));
+            break;
+        case UD_Ijle:
+            result = ((ZF & flags) || ((SF & flags) != (OF & flags)));
+            break;
+        case UD_Ijno:
+            result = !(OF & flags);
+            break;
+        case UD_Ijnp:
+            result = !(PF & flags);
+            break;
+        case UD_Ijns:
+            result = !(SF & flags);
+            break;
+        case UD_Ijnz:
+            result = !(ZF & flags);
+            break;
+        case UD_Ijo:
+            result = OF & flags;
+            break;
+        case UD_Ijp:
+            result = PF & flags;
+            break;
+        case UD_Ijs:
+            result = SF & flags;
+            break;
+        case UD_Ijz:
+            result = ZF & flags;
+            break;
+        case UD_Iloopnz: 
+            result = (!(ZF & flags) && (cx-1) != 0);
+            break;
+        case UD_Iloope:
+            result = ((ZF & flags) && (cx-1) != 0);
+            break;
+        case UD_Iloop:
+            result = (cx-1) != 0;
+            break;
+        default:
+            break;
+    }
+
+    return result;
+}
+
+/**
+ * Computes the target encoded by the operand
+ *
+ * @param mnemonic the mnemonic for the instruction
+ * @param op the operand
+ * @param pc the pc
+ * @param effective_pc the effective pc (points to the next instruction)
+ * @Param context the context (used to retrieve registers)
+ *
+ * @return the target or 0 on failure
+ */
+static
+unsigned long compute_target(ud_mnemonic_code_t mnemonic, struct ud_operand *op, 
+        unsigned long pc, unsigned long effective_pc, void *context) 
+{
+    // All these instructions only have 1 operand
+    switch(op->type) {
+        case UD_OP_REG:
+            return get_register_ud_type(op->base, context);
+        case UD_OP_MEM:
+            // TODO compute address using index,base,scale equation
+            break;
+        case UD_OP_JIMM:
+            return compute_relative_location(op, effective_pc);
+        default:
+            break;
+    }
+
+    return 0;
+}
+
+/**
  * Gets the control flow successor for the instruction at the specified pc
  *
  * @param pc the program counter
@@ -110,7 +264,7 @@ udi_arch_e get_architecture() {
  *
  * @return the address of the control flow successor or 0 on error
  */
-unsigned long get_cf_successor(unsigned long pc, char *errmsg, 
+unsigned long get_ctf_successor(unsigned long pc, char *errmsg, 
         unsigned int errmsg_size, void *context) {
 
     ud_t ud_obj;
@@ -127,6 +281,59 @@ unsigned long get_cf_successor(unsigned long pc, char *errmsg,
         return 0;
     }
 
-    // the easy case, just the next instruction
-    return pc + ud_insn_len(&ud_obj);
+    struct ud_operand *first_op = &(ud_obj.operand[0]);
+
+    unsigned long successor = 0;
+    switch (ud_obj.mnemonic) {
+        case UD_Icall:
+        case UD_Ijmp:
+            // unconditional control transfer
+            successor = compute_target(ud_obj.mnemonic, 
+                    first_op, pc, ud_obj.pc, context);
+            break;
+        case UD_Ijo:
+        case UD_Ijno:
+        case UD_Ijb:
+        case UD_Ijae:
+        case UD_Ijz:
+        case UD_Ijnz:
+        case UD_Ijbe:
+        case UD_Ija:
+        case UD_Ijs:
+        case UD_Ijns:
+        case UD_Ijp:
+        case UD_Ijnp:
+        case UD_Ijl:
+        case UD_Ijge:
+        case UD_Ijle:
+        case UD_Ijg:
+        case UD_Ijcxz:
+        case UD_Ijecxz:
+        case UD_Ijrcxz:
+        case UD_Iloopnz:
+        case UD_Iloope:
+        case UD_Iloop:
+            if ( ctf_condition_met(ud_obj.mnemonic, context) ) {
+                successor = compute_target(ud_obj.mnemonic, 
+                        first_op, pc, ud_obj.pc, context);
+            }else{
+                successor = pc + ud_insn_len(&ud_obj);
+            }
+            break;
+        case UD_Iret:
+            // TODO read stack slot 1
+            break;
+        default:
+            // the easy case, just the next instruction
+            successor = pc + ud_insn_len(&ud_obj);
+            break;
+    }
+
+    if ( successor == 0 ) {
+        snprintf(errmsg, errmsg_size, "failed to determine ctf successor at 0x%lx\n",
+                pc);
+        udi_printf("%s\n", errmsg);
+    }
+
+    return successor;
 }

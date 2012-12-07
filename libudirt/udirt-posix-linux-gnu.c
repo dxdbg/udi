@@ -35,7 +35,7 @@
 
 // These symbols are not exported through the dynamic symbol table
 // but it turns out that GDB relies on libpthread having these
-// symbols defined to operate correct
+// symbols defined to operate correctly
 extern void __nptl_create_event(void) __attribute__((weak));
 extern void __nptl_death_event(void) __attribute__((weak));
 
@@ -119,11 +119,15 @@ int X86_CS_OFFSET = REG_CS;
 #endif
 int X86_SS_OFFSET = REG_SS;
 
-
 #ifndef REG_EIP
 #define REG_EIP -1
 #endif
 int X86_EIP_OFFSET = REG_EIP;
+
+#ifndef REG_EFL
+#define REG_EFL -1
+#endif
+int X86_FLAGS_OFFSET = REG_EFL;
 
 // x86_64
 
@@ -216,6 +220,8 @@ int X86_64_RIP_OFFSET = REG_RIP;
 #define REG_CSGSFS -1
 #endif
 int X86_64_CSGSFS_OFFSET = REG_CSGSFS;
+
+int X86_64_FLAGS_OFFSET = REG_EFL;
 
 // pthread events
 void (*pthreads_create_event)(void) = __nptl_create_event;

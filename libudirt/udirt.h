@@ -87,7 +87,7 @@ int write_memory(void *dest, const void *src, size_t num_bytes,
 const char *get_mem_errstr();
 
 // disassembly interface
-unsigned long get_cf_successor(unsigned long pc, 
+unsigned long get_ctf_successor(unsigned long pc, 
         char *errmsg, unsigned int errmsg_size, void *context);
 
 // breakpoint handling

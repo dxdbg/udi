@@ -26,52 +26,54 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _UDI_RT_POSIX_X86_H
-#define _UDI_RT_POSIX_X86_H 1
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/**
+ * A utility program used to experiment with libudis86
+ */
 
-// register interface
-extern int X86_GS_OFFSET;
-extern int X86_FS_OFFSET;
-extern int X86_ES_OFFSET;
-extern int X86_DS_OFFSET;
-extern int X86_EDI_OFFSET;
-extern int X86_ESI_OFFSET;
-extern int X86_EBP_OFFSET;
-extern int X86_ESP_OFFSET;
-extern int X86_EBX_OFFSET;
-extern int X86_EDX_OFFSET;
-extern int X86_ECX_OFFSET;
-extern int X86_EAX_OFFSET;
-extern int X86_CS_OFFSET;
-extern int X86_SS_OFFSET;
-extern int X86_EIP_OFFSET;
-extern int X86_FLAGS_OFFSET;
-extern int X86_64_R8_OFFSET;
-extern int X86_64_R9_OFFSET;
-extern int X86_64_R10_OFFSET;
-extern int X86_64_R11_OFFSET;
-extern int X86_64_R12_OFFSET;
-extern int X86_64_R13_OFFSET;
-extern int X86_64_R14_OFFSET;
-extern int X86_64_R15_OFFSET;
-extern int X86_64_RDI_OFFSET;
-extern int X86_64_RSI_OFFSET;
-extern int X86_64_RBP_OFFSET;
-extern int X86_64_RBX_OFFSET;
-extern int X86_64_RDX_OFFSET;
-extern int X86_64_RAX_OFFSET;
-extern int X86_64_RCX_OFFSET;
-extern int X86_64_RSP_OFFSET;
-extern int X86_64_RIP_OFFSET;
-extern int X86_64_CSGSFS_OFFSET;
-extern int X86_64_FLAGS_OFFSET;
+#include <stdlib.h>
+#include <stdio.h>
 
-#ifdef __cplusplus
-} // extern C
-#endif
+#include <udis86.h>
 
-#endif
+void func(int value) {
+    if (value == 1) {
+        printf("One\n");
+    }else if ( value == 2 ) {
+        printf("Two\n");
+    }
+
+    switch (value) {
+        case 1:
+            printf("One\n");
+            break;
+        case 2:
+            printf("Two\n");
+            break;
+        default:
+            break;
+    }
+}
+
+int main(int argc, char *argv[]) {
+
+    ud_t ud_obj;
+
+    ud_init(&ud_obj);
+
+    ud_set_input_buffer(&ud_obj, (unsigned char *)func, 100);
+
+    ud_set_syntax(&ud_obj, UD_SYN_ATT);
+
+    ud_set_mode(&ud_obj, 64);
+
+    ud_set_pc(&ud_obj, (unsigned long)func);
+
+    unsigned int pointer = 0, cur_insn_length = 0;
+    while ( (cur_insn_length = ud_disassemble(&ud_obj)) != 0 ) {
+        printf("func(%d): %s\n", pointer, ud_insn_asm(&ud_obj));
+        pointer += cur_insn_length;
+    }
+
+    return EXIT_SUCCESS;
+}
