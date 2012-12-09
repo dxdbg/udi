@@ -818,7 +818,7 @@ static event_result decode_segv(const siginfo_t *siginfo, ucontext_t *context,
                         strerror(result.failure));
             }
         }else{
-            udi_printf("address 0x%"PRIx64" not mapped for process %d\n",
+            udi_printf("address 0x%lx not mapped for process %d\n",
                     (unsigned long)siginfo->si_addr, getpid());
             result.failure = -1;
         }
