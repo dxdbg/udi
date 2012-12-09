@@ -238,13 +238,49 @@ static
 unsigned long compute_target(ud_mnemonic_code_t mnemonic, struct ud_operand *op, 
         unsigned long pc, unsigned long effective_pc, void *context) 
 {
-    // All these instructions only have 1 operand
     switch(op->type) {
         case UD_OP_REG:
             return get_register_ud_type(op->base, context);
-        case UD_OP_MEM:
-            // TODO compute address using index,base,scale equation
-            break;
+        case UD_OP_MEM: 
+        {
+            unsigned long base;
+            if (op->base != UD_NONE) {
+                base = get_register_ud_type(op->base, context);
+            }else{
+                base = 0;
+            }
+
+            unsigned long index;
+            if (op->index != UD_NONE) {
+                index = get_register_ud_type(op->index, context);
+            }else{
+                index = 0;
+            }
+
+            unsigned long displacement;
+            if (op->offset != 0) {
+                switch (op->offset) {
+                    case 8:
+                        displacement = op->lval.ubyte;
+                        break;
+                    case 16:
+                        displacement = op->lval.uword;
+                        break;
+                    case 32:
+                        displacement = op->lval.udword;
+                        break;
+                    case 64:
+                        displacement = op->lval.uqword;
+                        break;
+                    default:
+                        displacement = 0;
+                        break;
+                }
+            }else{
+                displacement = 0;
+            }
+            return base + (index * op->scale) + displacement;
+        }
         case UD_OP_JIMM:
             return compute_relative_location(op, effective_pc);
         default:
@@ -321,8 +357,21 @@ unsigned long get_ctf_successor(unsigned long pc, char *errmsg,
             }
             break;
         case UD_Iret:
-            // TODO read stack slot 1
+        {
+            unsigned long stack_ptr;
+            if (__WORDSIZE == 64) {
+                stack_ptr = get_register_ud_type(UD_R_RSP, context);
+            }else{
+                stack_ptr = get_register_ud_type(UD_R_ESP, context);
+            }
+
+            if ( read_memory(&successor, (const void *)stack_ptr, sizeof(unsigned long),
+                        errmsg, errmsg_size) ) return 0;
+
+            return successor;
+
             break;
+        }
         default:
             // the easy case, just the next instruction
             successor = pc + ud_insn_len(&ud_obj);
