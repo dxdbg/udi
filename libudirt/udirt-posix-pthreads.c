@@ -95,4 +95,6 @@ int install_thread_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
         udi_printf("%s\n", errmsg);
         return -1;
     }
+
+    return 0;
 }

@@ -150,7 +150,7 @@ exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned 
             udi_printf("failed to retrieve exit status off of the stack at 0x%lx\n",
                     sp);
             snprintf(errmsg, errmsg_size, 
-                    "failed to retrieve exit status off of the stack at 0x%"PRIx64": %s",
+                    "failed to retrieve exit status off of the stack at 0x%lx: %s",
                     sp, get_mem_errstr());
             ret.failure = read_result;
         }
