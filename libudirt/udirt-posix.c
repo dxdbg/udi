@@ -881,7 +881,14 @@ static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char 
         return result;
     }
 
-    continue_bp = create_breakpoint(get_ctf_successor(bp->address, errmsg, errmsg_size, context));
+    unsigned long successor = get_ctf_successor(bp->address, errmsg, errmsg_size, context);
+    if (successor == 0) {
+        udi_printf("failed to determine successor for instruction at 0x%"PRIx64"\n", bp->address);
+        result.failure = 1;
+        return result;
+    }
+
+    continue_bp = create_breakpoint(successor);
 
     if ( bp == exit_bp ) {
         return handle_exit_breakpoint(context, errmsg, errmsg_size);
@@ -1139,7 +1146,7 @@ static int create_udi_filesystem() {
             errnum = errno;
             break;
         }
-
+    
         snprintf(basedir_name, basedir_length, "%s/%s/%d", UDI_ROOT_DIR,
                  passwd_info->pw_name, getpid());
         if (mkdir(basedir_name, S_IRWXG | S_IRWXU) == -1) {
@@ -1348,7 +1355,6 @@ void init_udi_rt() {
             udi_printf("%s\n", "failed to create udi filesystem");
             break;
         }
-        
 
         if ( (errnum = handshake_with_debugger(&output_enabled,
                         errmsg, ERRMSG_SIZE)) != 0 ) {
