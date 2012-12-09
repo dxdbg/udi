@@ -307,7 +307,9 @@ unsigned long get_ctf_successor(unsigned long pc, char *errmsg,
 
     ud_init(&ud_obj);
 
-    ud_set_input_buffer(&ud_obj, (unsigned char *)pc, 64);
+    ud_set_mode(&ud_obj, __WORDSIZE);
+
+    ud_set_input_buffer(&ud_obj, (unsigned char *)pc, 15);
 
     ud_set_pc(&ud_obj, pc);
 
