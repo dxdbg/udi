@@ -78,7 +78,7 @@ fork_type real_fork;
 execve_type real_execve;
 
 // event breakpoints
-breakpoint *exit_bp = NULL;
+static breakpoint *exit_bp = NULL;
 
 /* to be used by system call library function wrappers
 static
@@ -198,6 +198,7 @@ int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
  *
  * @return the information extracted about the exit event
  */
+static
 event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, unsigned int errmsg_size) {
 
     event_result result;
@@ -299,6 +300,38 @@ int sigaction(int signum, const struct sigaction *act,
 
     return 0;
 }
+
+/**
+ * @param bp the breakpoint
+ *
+ * @return non-zero if the specified breakpoint is a event breakpoint; zero otherwise
+ */
+int is_event_breakpoint(breakpoint *bp) {
+    if (bp == exit_bp) {
+        return 1;
+    }
+
+    return is_thread_event_breakpoint(bp);
+}
+
+/**
+ * Handles the specified event breakpoint
+ *
+ * @param bp the breakpoint
+ * @param context the context
+ * @param errmsg the error message populated on error
+ * @param errmsg_size the maximum size of the error message
+ */
+event_result handle_event_breakpoint(breakpoint *bp, const ucontext_t *context, char *errmsg,
+        unsigned int errmsg_size) 
+{
+    if (bp == exit_bp) {
+        return handle_exit_breakpoint(context, errmsg, errmsg_size);
+    }
+
+    return handle_thread_event_breakpoint(bp, context, errmsg, errmsg_size);
+}
+
 
 /**
  * The entry point for passing a signal to a user signal handler

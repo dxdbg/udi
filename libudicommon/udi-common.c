@@ -60,6 +60,10 @@ const char *event_type_str(udi_event_type event_type) {
     switch(event_type) {
         CASE_TO_STR(UDI_EVENT_ERROR);
         CASE_TO_STR(UDI_EVENT_SIGNAL);
+        CASE_TO_STR(UDI_EVENT_BREAKPOINT);
+        CASE_TO_STR(UDI_EVENT_THREAD_CREATE);
+        CASE_TO_STR(UDI_EVENT_THREAD_DESTORY);
+        CASE_TO_STR(UDI_EVENT_PROCESS_EXIT);
         CASE_TO_STR(UDI_EVENT_MAX);
         CASE_TO_STR(UDI_EVENT_UNKNOWN);
         default: return "UNSPECIFIED";

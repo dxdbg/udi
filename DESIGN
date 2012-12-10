@@ -34,8 +34,8 @@ interaction between a shell and a forked child process. In some current
 debugger interfaces, the debugger attach operation establishes a special
 relationship between the debugger and the debuggee, typically in the form of a
 flag in the internal process structure. This flag is used to mark off special
-case code within the debugger to handle the debugger-debuggee relationship.
-This special case code is only tested by a debugger.
+case code within the kernel to handle the debugger-debuggee relationship. This
+special case code is only tested by a debugger.
 
 Pros of this approach:
 

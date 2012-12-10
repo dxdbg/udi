@@ -61,6 +61,9 @@ extern execve_type real_execve;
 
 int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size);
 int install_event_breakpoints(char *errmsg, unsigned int errmsg_size);
+int is_event_breakpoint(breakpoint *bp);
+event_result handle_event_breakpoint(breakpoint *bp, const ucontext_t *context, char *errmsg,
+        unsigned int errmsg_size);
 
 // exit event handling
 typedef struct exit_result_struct {
@@ -68,10 +71,7 @@ typedef struct exit_result_struct {
     int failure;
 } exit_result;
 
-extern breakpoint *exit_bp;
-
 exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned int errmsg_size);
-event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, unsigned int errmsg_size);
 
 // library wrapping
 extern void *UDI_RTLD_NEXT;
@@ -99,13 +99,19 @@ extern struct sigaction app_actions[];
 int setup_signal_handlers();
 void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context);
 
-// pthreads support
+// threads support
 int get_multithread_capable();
 int setsigmask(int how, const sigset_t *new_set, sigset_t *old_set);
 unsigned long get_user_thread_id();
-unsigned long get_kernel_thread_id();
+uint32_t get_kernel_thread_id();
 int install_thread_event_breakpoints(char *errmsg, unsigned int errmsg_size);
+int is_thread_event_breakpoint(breakpoint *bp);
+event_result handle_thread_event_breakpoint(breakpoint *bp, const ucontext_t *context,
+        char *errmsg, unsigned int errmsg_size);
+int thread_create_callback(uint32_t tid, char *errmsg, unsigned int errmsg_size);
+int thread_destroy_callback(uint32_t tid, char *errmsg, unsigned int errmsg_size);
 
+// pthreads support
 extern void (*pthreads_create_event)(void);
 extern void (*pthreads_death_event)(void);
 

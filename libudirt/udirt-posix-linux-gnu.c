@@ -32,6 +32,7 @@
 #include <sys/syscall.h>
 #include <dlfcn.h>
 #include <ucontext.h>
+#include <stdint.h>
 
 // These symbols are not exported through the dynamic symbol table
 // but it turns out that GDB relies on libpthread having these
@@ -47,7 +48,6 @@ void *UDI_RTLD_NEXT = RTLD_NEXT;
 // register interface
 
 // x86
-
 #ifndef REG_GS
 #define REG_GS -1
 #endif
@@ -92,7 +92,6 @@ int X86_ESP_OFFSET = REG_ESP;
 #define REG_EBX -1
 #endif
 int X86_EBX_OFFSET = REG_EBX;
-
 
 #ifndef REG_EDX
 #define REG_EDX -1
@@ -230,6 +229,6 @@ void (*pthreads_death_event)(void) = __nptl_death_event;
 /**
  * @return the kernel thread id for the currently executing thread
  */
-unsigned long get_kernel_thread_id() {
-    return (unsigned long)syscall(SYS_gettid);
+uint32_t get_kernel_thread_id() {
+    return (uint32_t)syscall(SYS_gettid);
 }
