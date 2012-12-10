@@ -111,10 +111,14 @@ udi_event_internal create_event_error(const char *errmsg, unsigned int errmsg_si
 udi_event_internal create_event_unknown();
 udi_event_internal create_event_breakpoint(udi_address bp_address);
 udi_event_internal create_event_exit(uint32_t exit_status);
+udi_event_internal create_event_thread_create(uint32_t tid);
+udi_event_internal create_event_thread_destroy(uint32_t tid);
 
 int unpack_event_error(udi_event_internal *event, char **errmsg, unsigned int *errmsg_size);
 int unpack_event_exit(udi_event_internal *event, int *exit_code);
 int unpack_event_breakpoint(udi_event_internal *event, udi_address *addr);
+int unpack_event_thread_create(udi_event_internal *event, uint32_t *tid);
+int unpack_event_thread_destroy(udi_event_internal *event, uint32_t *tid);
 
 udi_response create_response_error(const char *errmsg, unsigned int errmsg_size);
 udi_response create_response_read(const void *data, udi_length num_bytes);

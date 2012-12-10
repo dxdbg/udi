@@ -890,8 +890,8 @@ static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char 
 
     continue_bp = create_breakpoint(successor);
 
-    if ( bp == exit_bp ) {
-        return handle_exit_breakpoint(context, errmsg, errmsg_size);
+    if ( is_event_breakpoint(bp) ) {
+        return handle_event_breakpoint(bp, context, errmsg, errmsg_size);
     }
 
     udi_printf("user breakpoint at 0x%"PRIx64"\n", bp->address);
@@ -960,7 +960,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     char errmsg[ERRMSG_SIZE];
     errmsg[ERRMSG_SIZE-1] = '\0';
 
-    udi_printf("signal entry for 0x%lx/%lu with %d\n",
+    udi_printf("signal entry for 0x%lx/%u with %d\n",
             get_user_thread_id(),
             get_kernel_thread_id(),
             signal);
@@ -1214,6 +1214,30 @@ static int create_udi_filesystem() {
     }while(0);
 
     return errnum;
+}
+
+/**
+ * Called by the thread support implementation
+ *
+ * @param tid the thread id
+ * @param errmsg the error message
+ * @param errmsg_size the maximum size of the error message
+ */
+int thread_create_callback(uint32_t tid, char *errmsg, unsigned int errmsg_size) {
+    // TODO create the udi filesystem elements
+    return 0;
+}
+
+/**
+ * Called by the thread support implementation
+ *
+ * @param tid the thread id
+ * @param errmsg the error message
+ * @param errmsg_size the maximum size of the error message
+ */
+int thread_destroy_callback(uint32_t tid, char *errmsg, unsigned int errmsg_size) {
+    // TODO destroy the udi filesystem elements
+    return 0;
 }
 
 /**

@@ -129,6 +129,40 @@ int unpack_event_breakpoint(udi_event_internal *event, udi_address *addr) {
 }
 
 /**
+ * Unpacks the thread create event into the specified parameters
+ *
+ * @param event the thread create event
+ * @param tid the output parameter for the thread id
+ *
+ * @return 0 on success; non-zero otherwise
+ */
+int unpack_event_thread_create(udi_event_internal *event, uint32_t *tid) {
+    if ( udi_unpack_data(event->packed_data, event->length,
+                UDI_DATATYPE_INT32, tid) ) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Unpacks the thread destroy event into the specified parameters
+ *
+ * @param event the thread destroy event
+ * @param tid the output parameter for the thread id
+ *
+ * @return 0 on success; non-zero otherwise
+ */
+int unpack_event_thread_destroy(udi_event_internal *event, uint32_t *tid) {
+    if ( udi_unpack_data(event->packed_data, event->length,
+                UDI_DATATYPE_INT32, tid) ) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
  * Creates a breakpoint event
  *
  * @param bp_address the address of the breakpoint
@@ -161,6 +195,40 @@ udi_event_internal create_event_exit(uint32_t exit_status) {
             UDI_DATATYPE_INT32, exit_status);
 
     return exit_event;
+}
+
+/**
+ * Creates an thread create event
+ *
+ * @param tid the thread id for the newly created thread
+ *
+ * @return the created event
+ */
+udi_event_internal create_event_thread_create(uint32_t tid) {
+    udi_event_internal thread_create;
+    thread_create.event_type = UDI_EVENT_THREAD_CREATE;
+    thread_create.length = sizeof(uint32_t);
+    thread_create.packed_data = udi_pack_data(thread_create.length,
+            UDI_DATATYPE_INT32, tid);
+
+    return thread_create;
+}
+
+/**
+ * Creates a thread destroy event
+ *
+ * @param tid the thread id for the thread that is about to be destroyed
+ *
+ * @return the created event
+ */
+udi_event_internal create_event_thread_destroy(uint32_t tid) {
+    udi_event_internal thread_destroy;
+    thread_destroy.event_type = UDI_EVENT_THREAD_DESTORY;
+    thread_destroy.length = sizeof(uint32_t);
+    thread_destroy.packed_data = udi_pack_data(thread_destroy.length,
+            UDI_DATATYPE_INT32, tid);
+
+    return thread_destroy;
 }
 
 /**
@@ -268,11 +336,6 @@ int unpack_request_continue(udi_request *req, uint32_t *sig_val, char *errmsg, u
 
     if (!parsed) {
         snprintf(errmsg, errmsg_size, "%s", "failed to parse continue request");
-        return -1;
-    }
-
-    if (*sig_val < 0) {
-        snprintf(errmsg, errmsg_size, "invalid signal specified: %d", *sig_val);
         return -1;
     }
 
