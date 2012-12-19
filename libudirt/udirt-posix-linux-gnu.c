@@ -223,8 +223,16 @@ int X86_64_CSGSFS_OFFSET = REG_CSGSFS;
 int X86_64_FLAGS_OFFSET = REG_EFL;
 
 // pthread events
-void (*pthreads_create_event)(void) = __nptl_create_event;
-void (*pthreads_death_event)(void) = __nptl_death_event;
+void (*pthreads_create_event)(void) = NULL;
+void (*pthreads_death_event)(void) = NULL;
+
+/**
+ * Initializes the global pthreads data
+ */
+void find_pthreads_breakpoints() {
+    pthreads_create_event = __nptl_create_event;
+    pthreads_death_event = __nptl_death_event;
+}
 
 /**
  * @return the kernel thread id for the currently executing thread

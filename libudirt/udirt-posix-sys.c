@@ -183,6 +183,9 @@ int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
             errnum = -1;
             break;
         }
+
+        errnum = install_thread_event_breakpoints(errmsg, errmsg_size);
+
     }while(0);
 
     return errnum;
@@ -376,13 +379,27 @@ void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context) {
 int setup_signal_handlers() {
     int errnum = 0;
 
+    // Define the default sigaction for the library
+    memset(&default_lib_action, 0, sizeof(struct sigaction));
+    default_lib_action.sa_sigaction = signal_entry_point;
+    sigfillset(&(default_lib_action.sa_mask));
+    default_lib_action.sa_flags = SA_SIGINFO | SA_NODEFER;
+
+    // initialize application sigactions and signal map
+    int i;
+    for (i = 0; i < NUM_SIGNALS; ++i) {
+        memset(&app_actions[i], 0, sizeof(struct sigaction));
+        app_actions[i].sa_handler = SIG_DFL;
+
+        signal_map[(signals[i] % MAX_SIGNAL_NUM)] = i;
+    }
+
     // Sanity check
     if ( (sizeof(signals) / sizeof(int)) != NUM_SIGNALS ) {
         udi_printf("%s\n", "ASSERT FAIL: signals array length != NUM_SIGNALS");
         return -1;
     }
 
-    int i;
     for(i = 0; i < NUM_SIGNALS; ++i) {
         if ( real_sigaction(signals[i], &default_lib_action, &app_actions[i]) != 0 ) {
             errnum = errno;

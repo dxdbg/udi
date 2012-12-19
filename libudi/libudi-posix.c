@@ -156,6 +156,8 @@ char **insert_rt_library(char * const envp[]) {
     // Look for the LD_PRELOAD value in the specified environment
     // If it exists, append the runtime library
     // If it does not, add it
+    
+    const int LD_DEBUG = 1;
  
     int i, ld_preload_index = -1;
     for (i = 0; envp[i] != NULL; ++i) {
@@ -168,6 +170,10 @@ char **insert_rt_library(char * const envp[]) {
     int original_elements = i+1;
     int num_elements = i+1;
     if (ld_preload_index == -1) {
+        num_elements++;
+    }
+
+    if (LD_DEBUG) {
         num_elements++;
     }
 
@@ -187,6 +193,15 @@ char **insert_rt_library(char * const envp[]) {
         }else{
             envp_copy[j] = envp[i];
         }
+    }
+
+    if (LD_DEBUG) {
+        size_t str_size = strlen("LD_DEBUG=all") + 1;
+
+        envp_copy[num_elements-3] = (char *)malloc(sizeof(char)*str_size);
+        memset(envp_copy[num_elements-3], 0, str_size);
+
+        strncpy(envp_copy[num_elements-3], "LD_DEBUG=all", str_size-1);
     }
 
     // Second to last element is the LD_PRELOAD variable

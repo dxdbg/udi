@@ -126,6 +126,8 @@ int install_thread_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
         return -1;
     }
 
+    find_pthreads_breakpoints();
+
     if (!pthreads_create_event || !pthreads_death_event) {
         snprintf(errmsg, errmsg_size, "%s", "Failed to locate thread event functions");
         udi_printf("%s\n", errmsg);
@@ -147,6 +149,9 @@ int install_thread_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
         udi_printf("%s\n", "failed to install thread destroy breakpoint");
         return -1;
     }
+
+    udi_printf("thread_create = 0x%"PRIx64" thread_destroy = 0x%"PRIx64"\n",
+            thread_create_bp->address, thread_destroy_bp->address);
 
     return 0;
 }
