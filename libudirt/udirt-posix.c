@@ -1098,21 +1098,6 @@ static void global_variable_initialization() {
 
     // initialize the malloc implementation
     udi_set_max_mem_size(UDIRT_HEAP_SIZE);
-
-    // Define the default sigaction for the library
-    memset(&default_lib_action, 0, sizeof(struct sigaction));
-    default_lib_action.sa_sigaction = signal_entry_point;
-    sigfillset(&(default_lib_action.sa_mask));
-    default_lib_action.sa_flags = SA_SIGINFO | SA_NODEFER;
-
-    // initialize application sigactions and signal map
-    int i;
-    for (i = 0; i < NUM_SIGNALS; ++i) {
-        memset(&app_actions[i], 0, sizeof(struct sigaction));
-        app_actions[i].sa_handler = SIG_DFL;
-
-        signal_map[(signals[i] % MAX_SIGNAL_NUM)] = i;
-    }
 }
 
 /**
@@ -1242,10 +1227,6 @@ int thread_destroy_callback(uint32_t tid, char *errmsg, unsigned int errmsg_size
 
 /**
  * Performs the initiation handshake with the debugger.
- *
- * TODO this should be split into functions to allow the caller to
- * implicitly know that the output has been enabled instead having
- * the output parameter.
  *
  * @param output_enabled set if an error can be reported to the debugger
  * @param errmsg the error message populated on error
@@ -1399,9 +1380,7 @@ void init_udi_rt() {
     if (errnum != 0) {
         udi_enabled = 0;
 
-        if(!output_enabled) {
-            fprintf(stderr, "failed to initialize udi rt: %s\n", errmsg);
-        } else {
+        if(output_enabled) {
             // explicitly don't worry about return
             udi_response resp = create_response_error(errmsg, ERRMSG_SIZE);
 

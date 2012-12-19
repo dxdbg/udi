@@ -91,13 +91,13 @@ unsigned long get_pc(const ucontext_t *context);
 // This is the number of elements in the signals array
 #define NUM_SIGNALS 29
 
-extern struct sigaction default_lib_action;
 extern int signal_map[];
 extern int signals[];
 extern struct sigaction app_actions[];
 
 int setup_signal_handlers();
 void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context);
+void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context);
 
 // threads support
 int get_multithread_capable();
@@ -114,6 +114,7 @@ int thread_destroy_callback(uint32_t tid, char *errmsg, unsigned int errmsg_size
 // pthreads support
 extern void (*pthreads_create_event)(void);
 extern void (*pthreads_death_event)(void);
+void find_pthreads_breakpoints();
 
 #ifdef __cplusplus
 } // extern C
