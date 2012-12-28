@@ -57,7 +57,7 @@ extern const char *UDI_DS;
 extern const unsigned int DS_LEN;
 
 /*
- * data structure
+ * data structures
  */
 typedef struct {
     udi_response_type response_type;
@@ -74,6 +74,7 @@ typedef struct {
 
 typedef struct {
     udi_event_type event_type;
+    uint64_t thread_id;
     udi_length length;
     void *packed_data;
 } udi_event_internal;
@@ -101,24 +102,24 @@ udi_response_type udi_response_type_hton(udi_response_type value);
 udi_response_type udi_response_type_ntoh(udi_response_type value);
 udi_event_type udi_event_type_hton(udi_event_type value);
 udi_event_type udi_event_type_ntoh(udi_event_type value);
+uint64_t udi_uint64_t_hton(uint64_t value);
+uint64_t udi_uint64_t_ntoh(uint64_t value);
 
 /* payload handling */
 
 void free_event_internal(udi_event_internal *event);
 void free_response(udi_response *resp);
 
-udi_event_internal create_event_error(const char *errmsg, unsigned int errmsg_size);
-udi_event_internal create_event_unknown();
-udi_event_internal create_event_breakpoint(udi_address bp_address);
-udi_event_internal create_event_exit(uint32_t exit_status);
-udi_event_internal create_event_thread_create(uint32_t tid);
-udi_event_internal create_event_thread_destroy(uint32_t tid);
+udi_event_internal create_event_error(uint64_t thread_id, const char *errmsg, unsigned int errmsg_size);
+udi_event_internal create_event_unknown(uint64_t thread_id);
+udi_event_internal create_event_breakpoint(uint64_t thread_id, udi_address bp_address);
+udi_event_internal create_event_exit(uint64_t thread_id, uint32_t exit_status);
+udi_event_internal create_event_thread_create(uint64_t thread_id);
+udi_event_internal create_event_thread_destroy(uint64_t thread_id);
 
 int unpack_event_error(udi_event_internal *event, char **errmsg, unsigned int *errmsg_size);
 int unpack_event_exit(udi_event_internal *event, int *exit_code);
 int unpack_event_breakpoint(udi_event_internal *event, udi_address *addr);
-int unpack_event_thread_create(udi_event_internal *event, uint32_t *tid);
-int unpack_event_thread_destroy(udi_event_internal *event, uint32_t *tid);
 
 udi_response create_response_error(const char *errmsg, unsigned int errmsg_size);
 udi_response create_response_read(const void *data, udi_length num_bytes);

@@ -41,6 +41,9 @@ extern "C" {
 // Opaque process handle
 typedef struct udi_process_struct udi_process;
 
+// Opaque thread handle
+typedef struct udi_thread_struct udi_thread;
+
 /**
  * library error codes
  */

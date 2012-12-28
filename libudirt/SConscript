@@ -28,6 +28,7 @@ if udibuild.IsLinux() and udibuild.IsX86():
 
 if udibuild.IsLinux():
     sources.append('udirt-posix-linux-gnu.c')
+    lib_env.Append(CPPPATH = ['#/ext'])
 
 
 if udibuild.IsLinux():

@@ -56,16 +56,18 @@ void free_response(udi_response *resp) {
 /**
  * Creates an error event
  *
+ * @param thread_id the thread id
  * @param errmsg the error message
  * @param errmsg_size the maximum size for the error message
  *
  * @return the created event
  */
-udi_event_internal create_event_error(const char *errmsg, unsigned int errmsg_size) {
+udi_event_internal create_event_error(uint64_t thread_id, const char *errmsg, unsigned int errmsg_size) {
     udi_length payload_length = strnlen(errmsg, errmsg_size) + 1;
 
     udi_event_internal result;
     result.event_type = UDI_EVENT_ERROR;
+    result.thread_id = thread_id;
     result.length = sizeof(udi_length) + payload_length;
     result.packed_data = udi_pack_data(result.length,
             UDI_DATATYPE_BYTESTREAM, payload_length, errmsg);
@@ -129,50 +131,18 @@ int unpack_event_breakpoint(udi_event_internal *event, udi_address *addr) {
 }
 
 /**
- * Unpacks the thread create event into the specified parameters
- *
- * @param event the thread create event
- * @param tid the output parameter for the thread id
- *
- * @return 0 on success; non-zero otherwise
- */
-int unpack_event_thread_create(udi_event_internal *event, uint32_t *tid) {
-    if ( udi_unpack_data(event->packed_data, event->length,
-                UDI_DATATYPE_INT32, tid) ) {
-        return -1;
-    }
-
-    return 0;
-}
-
-/**
- * Unpacks the thread destroy event into the specified parameters
- *
- * @param event the thread destroy event
- * @param tid the output parameter for the thread id
- *
- * @return 0 on success; non-zero otherwise
- */
-int unpack_event_thread_destroy(udi_event_internal *event, uint32_t *tid) {
-    if ( udi_unpack_data(event->packed_data, event->length,
-                UDI_DATATYPE_INT32, tid) ) {
-        return -1;
-    }
-
-    return 0;
-}
-
-/**
  * Creates a breakpoint event
  *
+ * @param thread_id the thread id
  * @param bp_address the address of the breakpoint
  * 
  * @return the created event
  */
-udi_event_internal create_event_breakpoint(udi_address bp_address) {
+udi_event_internal create_event_breakpoint(uint64_t thread_id, udi_address bp_address) {
     
     udi_event_internal brkpt_event;
     brkpt_event.event_type = UDI_EVENT_BREAKPOINT;
+    brkpt_event.thread_id = thread_id;
     brkpt_event.length = sizeof(udi_address);
     brkpt_event.packed_data = udi_pack_data(brkpt_event.length,
             UDI_DATATYPE_ADDRESS, bp_address);
@@ -183,13 +153,15 @@ udi_event_internal create_event_breakpoint(udi_address bp_address) {
 /**
  * Creates an exit event
  *
+ * @param thread_id the thread id
  * @param exit_status the status of the exit
  *
  * @return the created event
  */
-udi_event_internal create_event_exit(uint32_t exit_status) {
+udi_event_internal create_event_exit(uint64_t thread_id, uint32_t exit_status) {
     udi_event_internal exit_event;
     exit_event.event_type = UDI_EVENT_PROCESS_EXIT;
+    exit_event.thread_id = thread_id;
     exit_event.length = sizeof(uint32_t);
     exit_event.packed_data = udi_pack_data(exit_event.length,
             UDI_DATATYPE_INT32, exit_status);
@@ -200,16 +172,15 @@ udi_event_internal create_event_exit(uint32_t exit_status) {
 /**
  * Creates an thread create event
  *
- * @param tid the thread id for the newly created thread
+ * @param thread_id the user level thread id for the thread that is about to be destroyed
  *
  * @return the created event
  */
-udi_event_internal create_event_thread_create(uint32_t tid) {
+udi_event_internal create_event_thread_create(uint64_t thread_id) {
     udi_event_internal thread_create;
     thread_create.event_type = UDI_EVENT_THREAD_CREATE;
-    thread_create.length = sizeof(uint32_t);
-    thread_create.packed_data = udi_pack_data(thread_create.length,
-            UDI_DATATYPE_INT32, tid);
+    thread_create.thread_id = thread_id;
+    thread_create.length = 0;
 
     return thread_create;
 }
@@ -217,16 +188,15 @@ udi_event_internal create_event_thread_create(uint32_t tid) {
 /**
  * Creates a thread destroy event
  *
- * @param tid the thread id for the thread that is about to be destroyed
+ * @param tid the user level thread id for the thread that is about to be destroyed
  *
  * @return the created event
  */
-udi_event_internal create_event_thread_destroy(uint32_t tid) {
+udi_event_internal create_event_thread_destroy(uint64_t thread_id) {
     udi_event_internal thread_destroy;
     thread_destroy.event_type = UDI_EVENT_THREAD_DESTORY;
-    thread_destroy.length = sizeof(uint32_t);
-    thread_destroy.packed_data = udi_pack_data(thread_destroy.length,
-            UDI_DATATYPE_INT32, tid);
+    thread_destroy.thread_id = thread_id;
+    thread_destroy.length = 0;
 
     return thread_destroy;
 }
@@ -236,9 +206,10 @@ udi_event_internal create_event_thread_destroy(uint32_t tid) {
  *
  * @return the created event
  */
-udi_event_internal create_event_unknown() {
+udi_event_internal create_event_unknown(uint64_t thread_id) {
     udi_event_internal result;
     result.event_type = UDI_EVENT_UNKNOWN;
+    result.thread_id = thread_id;
     result.length = 0;
     result.packed_data = NULL;
 

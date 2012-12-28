@@ -303,7 +303,12 @@ int delete_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
         return -1;
     }
 
-    prev_breakpoint->next_breakpoint = tmp_breakpoint->next_breakpoint;
+    if (tmp_breakpoint == breakpoints) {
+        breakpoints = NULL;
+    }else{
+        prev_breakpoint->next_breakpoint = tmp_breakpoint->next_breakpoint;
+    }
+
     udi_free(tmp_breakpoint);
 
     return 0;
