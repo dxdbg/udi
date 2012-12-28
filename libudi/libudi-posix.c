@@ -157,7 +157,7 @@ char **insert_rt_library(char * const envp[]) {
     // If it exists, append the runtime library
     // If it does not, add it
     
-    const int LD_DEBUG = 1;
+    const int LD_DEBUG = 0;
  
     int i, ld_preload_index = -1;
     for (i = 0; envp[i] != NULL; ++i) {
@@ -638,6 +638,11 @@ udi_event *read_event(udi_process *proc) {
                         &(event->event_type),
                         sizeof(udi_event_type))) != 0 ) break;
         event->event_type = udi_event_type_ntoh(event->event_type);
+
+        if ( (errnum = read_all(proc->events_handle,
+                        &(event->thread_id),
+                        sizeof(event->thread_id))) != 0 ) break;
+        event->thread_id = udi_uint64_t_ntoh(event->thread_id);
 
         if ( (errnum = read_all(proc->events_handle,
                         &(event->length),

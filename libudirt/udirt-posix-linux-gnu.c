@@ -28,17 +28,21 @@
 
 #define _GNU_SOURCE
 
+#include <sys/types.h>
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <dlfcn.h>
 #include <ucontext.h>
 #include <stdint.h>
+#include <thread_db.h>
+#include <sys/procfs.h>
+#include <link.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <sys/mman.h>
 
-// These symbols are not exported through the dynamic symbol table
-// but it turns out that GDB relies on libpthread having these
-// symbols defined to operate correctly
-extern void __nptl_create_event(void) __attribute__((weak));
-extern void __nptl_death_event(void) __attribute__((weak));
+#include "udirt-posix.h"
 
 // exported constants //
 
@@ -222,17 +226,466 @@ int X86_64_CSGSFS_OFFSET = REG_CSGSFS;
 
 int X86_64_FLAGS_OFFSET = REG_EFL;
 
-// pthread events
+/**
+ * Searches for a symbol in the object that is loaded at the specified address
+ *
+ * @param object_load_addr the address at which the object is loaded
+ * @param sym_name the symbol name
+ * @param loaded_offset the loaded offset of the object in the current address space
+ * @param addr output parameter -- the address of the symbol
+ *
+ * @return 0 on success; non-zero on failure
+ */
+static
+int search_for_sym(void *object_load_addr, const char *sym_name, unsigned long loaded_offset, 
+        unsigned long *addr) 
+{
+
+    ElfW(Ehdr) *ehdr = (ElfW(Ehdr) *)object_load_addr;
+
+    // Do some sanity checking to make sure the pointer is valid
+    if (    ehdr->e_ident[EI_MAG0] != ELFMAG0 
+         || ehdr->e_ident[EI_MAG1] != ELFMAG1
+         || ehdr->e_ident[EI_MAG2] != ELFMAG2
+         || ehdr->e_ident[EI_MAG3] != ELFMAG3
+       )
+    {
+        udi_printf("invalid ELF identifier in header: %s\n", ehdr->e_ident);
+        return -1;
+    }
+
+    if (ehdr->e_shoff == 0 || ehdr->e_shnum == 0) {
+        udi_printf("%s\n", "section header format not currently supported");
+        return -1;
+    }
+
+    ElfW(Shdr) *shdrs = (ElfW(Shdr) *)(object_load_addr + ehdr->e_shoff);
+
+    uint16_t i;
+    for (i = 0; i < ehdr->e_shnum; ++i) {
+        ElfW(Shdr) *shdr = &shdrs[i];
+
+        switch (shdr->sh_type) {
+            case SHT_SYMTAB:
+            case SHT_DYNSYM:
+            {
+                ElfW(Shdr) *link_hdr = &shdrs[shdr->sh_link];
+                char *names = (char *)(object_load_addr + link_hdr->sh_offset);
+
+                ElfW(Sym) *syms = (ElfW(Sym) *)(object_load_addr + shdr->sh_offset);
+                uint32_t num_syms = shdr->sh_size / sizeof(ElfW(Sym));
+
+                uint32_t j;
+                for (j = 0; j < num_syms; ++j) {
+                    ElfW(Sym) *sym = &syms[j];
+
+                    if (sym->st_name != 0) {
+                        if (strcmp(sym_name, &names[sym->st_name]) == 0) {
+                            *addr = loaded_offset + sym->st_value;
+                            return 0;
+                        }
+                    }
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    udi_printf("failed to locate symbol %s\n", sym_name);
+    return -1;
+}
+
+/**
+ * Searches the specified symbol in the specified object
+ *
+ * @param object_path the absolute path to the object
+ * @param sym_name the name of the symbol
+ * @param loaded_offset the offset of the object in the current address space
+ * @param addr the address of the symbol -- output parameter
+ *
+ * @return 0 on success; non-zero otherwise
+ */
+static
+int search_for_sym_in_obj(const char *object_path, const char *sym_name, unsigned long loaded_offset, 
+        unsigned long *addr) 
+{
+    // temporarily load the full object to get access to the symbols
+    int obj_fd = open(object_path, O_RDONLY);
+    if (obj_fd == -1) {
+        udi_printf("failed to open %s: %s\n", object_path, strerror(errno));
+        return -1;
+    }
+
+    int search_result = 0;
+    do {
+        struct stat obj_stat;
+        if ( fstat(obj_fd, &obj_stat) != 0 ) {
+            udi_printf("failed to stat %s: %s\n", object_path, strerror(errno));
+            search_result = -1;
+            break;
+        }
+
+        void *object_ptr = mmap(NULL, obj_stat.st_size, PROT_READ, MAP_SHARED, obj_fd, 0);
+        if (object_ptr == NULL) {
+            udi_printf("failed to load %s\n", object_path);
+            search_result = -1;
+            break;
+        }
+
+        if ( (search_result = search_for_sym(object_ptr, sym_name, loaded_offset, addr)) != 0) {
+            udi_printf("failed to locate symbol %s in %s\n",
+                    sym_name, object_path);
+            search_result = -1;
+        }
+
+        if ( munmap(object_ptr, obj_stat.st_size) != 0 ) {
+            udi_printf("failed to unload %s: %s\n", object_path, strerror(errno));
+            search_result = -1;
+        }
+    }while(0);
+
+    close(obj_fd); // explicitly ignore errors
+
+    return search_result;
+}
+
+/**
+ * Gets the address of the specified symbol
+ *
+ * @param object_name the object containing the symbol
+ * @param sym_name the symbol
+ * @param addr output parameter -- address for the symbol
+ *
+ * @return 0 on success; non-zero on failure
+ */
+static
+int get_sym_addr(const char *object_name, const char *sym_name, unsigned long *addr) {
+
+    struct r_debug *r_debug_ptr = &_r_debug;
+    if (r_debug_ptr == NULL) {
+        udi_printf("%s\n", "unable to locate r_debug ptr in current process");
+        return -1;
+    }
+
+    struct link_map *cur_link = r_debug_ptr->r_map;
+    while (cur_link != NULL) {
+        size_t name_length = strlen(cur_link->l_name) + 1;
+        char *name = (char *)udi_malloc(name_length);
+        strncpy(name, cur_link->l_name, name_length);
+        name[name_length-1] = '\0';
+
+        char *obj_base = basename(name);
+
+        if (strcmp(object_name, obj_base) == 0) {
+            return search_for_sym_in_obj(cur_link->l_name, sym_name, cur_link->l_addr, addr);
+        }
+        cur_link = cur_link->l_next;
+    }
+
+    udi_printf("failed to determine address of symbol in %s(%s)\n", sym_name, object_name);
+    return -1;
+}
+
 void (*pthreads_create_event)(void) = NULL;
 void (*pthreads_death_event)(void) = NULL;
 
+// start thread_db support
+
+static
+const char *THREAD_DB = "libthread_db.so";
+
+// Define types for functions pulled from libthread_db
+typedef td_err_e (*td_init_type)(void);
+typedef td_err_e (*td_ta_new_type)(struct ps_prochandle *, td_thragent_t **);
+typedef td_err_e (*td_ta_event_addr_type)(const td_thragent_t *,
+        td_event_e, td_notify_t *);
+typedef td_err_e (*td_ta_set_event_type)(const td_thragent_t *, td_thr_events_t *);
+typedef td_err_e (*td_ta_map_id2thr_type)(const td_thragent_t *, pthread_t, td_thrhandle_t *);
+typedef td_err_e (*td_thr_event_enable_type)(const td_thrhandle_t *, int);
+
+struct ps_prochandle {
+    // empty handle -- thread_db is loaded into every process
+};
+
+static
+struct ps_prochandle ps_handle;
+
 /**
- * Initializes the global pthreads data
+ * Convenience function for calling dlsym
  */
-void find_pthreads_breakpoints() {
-    pthreads_create_event = __nptl_create_event;
-    pthreads_death_event = __nptl_death_event;
+static
+void *local_dlsym(void *handle, const char *symbol, char *lerrmsg, unsigned int errmsg_size) {
+    dlerror();
+    void *result = dlsym(handle, symbol);
+    char *dlerr_msg = dlerror();
+    if (dlerr_msg != NULL) {
+        snprintf(lerrmsg, errmsg_size, "dlsym failed to locate %s: %s", 
+                symbol, dlerr_msg);
+        udi_printf("%s\n", lerrmsg);
+        return NULL;
+    }
+
+    return result;
 }
+
+/**
+ * Initializes pthreads support
+ *
+ * @param lerrmsg the errmsg populated on error
+ * @param unsigned the maximum size of the error message
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int initialize_pthreads_support(char *lerrmsg, unsigned int lerrmsg_size) {
+    // Need to load and initialize thread_db
+    if (get_multithread_capable()) {
+        char *dlerr_msg;
+        td_err_e td_ret;
+
+        void *tdb_handle = dlopen(THREAD_DB, RTLD_NOW | RTLD_LOCAL);
+        if (tdb_handle == NULL) {
+            dlerr_msg = dlerror();
+            snprintf(lerrmsg, lerrmsg_size, "dlopen failed: %s", dlerr_msg);
+            udi_printf("%s\n", lerrmsg);
+            return -1;
+        }
+
+        // get the relevant functions in thread_db
+        td_init_type td_init_func = local_dlsym(tdb_handle, "td_init", lerrmsg, lerrmsg_size);
+        if (td_init_func == NULL) return -1;
+
+        td_ta_new_type td_ta_new_func = local_dlsym(tdb_handle, "td_ta_new", lerrmsg,
+                lerrmsg_size);
+        if (td_ta_new_func == NULL) return -1;
+
+        td_ta_event_addr_type td_ta_event_addr_func = local_dlsym(tdb_handle,
+                "td_ta_event_addr", lerrmsg, lerrmsg_size);
+        if (td_ta_event_addr_func == NULL) return -1;
+
+        td_ta_set_event_type td_ta_set_event_func = local_dlsym(tdb_handle,
+                "td_ta_set_event", lerrmsg, lerrmsg_size);
+        if (td_ta_set_event_func == NULL) return -1;
+
+        td_ta_map_id2thr_type td_ta_map_id2thr_func = local_dlsym(tdb_handle,
+                "td_ta_map_id2thr", lerrmsg, lerrmsg_size);
+        if (td_ta_map_id2thr_func == NULL) return -1;
+
+        td_thr_event_enable_type td_thr_event_enable_func = local_dlsym(tdb_handle,
+                "td_thr_event_enable", lerrmsg, lerrmsg_size);
+        if (td_thr_event_enable_func == NULL) return -1;
+
+        // initialize td_init
+        if ( (td_ret = td_init_func()) != TD_OK ) { 
+            snprintf(lerrmsg, lerrmsg_size, "td_init failed: %d", td_ret);
+            udi_printf("%s\n", lerrmsg);
+            return -1;
+        }
+
+        // get the thread agent handle
+        td_thragent_t *thragent;
+        if ( (td_ret = td_ta_new_func(&ps_handle, &thragent)) != TD_OK ) {
+            snprintf(lerrmsg, lerrmsg_size, "td_ta_new failed: %d", td_ret);
+            udi_printf("%s\n", lerrmsg);
+            return -1;
+        }
+
+        // enable events globally
+        td_thr_events_t events;
+        td_event_emptyset(&events);
+        td_event_addset(&events, TD_DEATH);
+        td_event_addset(&events, TD_CREATE);
+        if ( (td_ret = td_ta_set_event_func(thragent, &events)) != TD_OK ) {
+            snprintf(lerrmsg, lerrmsg_size, "td_ta_set_event failed: %d", td_ret);
+            udi_printf("%s\n", lerrmsg);
+            return -1;
+        }
+
+        // enable events for the initial thread
+        td_thrhandle_t initial_thread;
+        if ( (td_ret = td_ta_map_id2thr_func(thragent, pthread_self(), &initial_thread))
+                != TD_OK )
+        {
+            snprintf(lerrmsg, lerrmsg_size, "td_ta_map_id2thr failed: %d", td_ret);
+            udi_printf("%s\n", lerrmsg);
+            return -1;
+        }
+
+        // enable all the interesting events
+        int thr_events[] = { TD_CREATE, TD_DEATH };
+        for (int i = 0; i < (sizeof(thr_events)/sizeof(thr_events[0])); ++i) {
+            if ( (td_ret = td_thr_event_enable_func(&initial_thread, thr_events[i])) != TD_OK ) {
+                snprintf(lerrmsg, lerrmsg_size, "td_thr_event_enable failed for event %d: %d",
+                        thr_events[i], td_ret);
+                udi_printf("%s\n", lerrmsg);
+                return -1;
+            }
+        }
+
+        // get the addresses for the breakpoints
+        td_notify_t notify_create;
+        if ( (td_ret = td_ta_event_addr_func(thragent, TD_CREATE, &notify_create)) != TD_OK ) {
+            snprintf(lerrmsg, lerrmsg_size, "td_ta_event_addr failed: %d", td_ret);
+            udi_printf("%s\n", lerrmsg);
+            return -1;
+        }
+
+        switch (notify_create.type) {
+            case NOTIFY_BPT:
+                break;
+            case NOTIFY_AUTOBPT:
+            case NOTIFY_SYSCALL:
+                snprintf(lerrmsg, lerrmsg_size, "notify type %d(0x%d) for create event not supported", 
+                        notify_create.type, notify_create.u.syscallno);
+                udi_printf("%s\n", lerrmsg);
+                return -1;
+        }
+
+        pthreads_create_event = (void(*)(void))notify_create.u.bptaddr;
+
+        td_notify_t notify_death;
+        if ( (td_ret = td_ta_event_addr_func(thragent, TD_DEATH, &notify_death)) != TD_OK ) {
+            snprintf(lerrmsg, lerrmsg_size, "td_ta_event_addr failed: %d", td_ret);
+            udi_printf("%s\n", lerrmsg);
+            return -1;
+        }
+
+        switch (notify_death.type) {
+            case NOTIFY_BPT:
+                break;
+            case NOTIFY_SYSCALL:
+            case NOTIFY_AUTOBPT:
+                snprintf(lerrmsg, lerrmsg_size, "notify type %d(0x%d) for death event not supported", 
+                        notify_death.type, notify_death.u.syscallno);
+                udi_printf("%s\n", lerrmsg);
+                return -1;
+        }
+
+        pthreads_death_event = (void(*)(void))notify_death.u.bptaddr;
+    }
+    
+    return 0;
+}
+
+// proc service interface
+
+// copied from the proc_service.h header to make this source portable
+typedef enum {
+    PS_OK,                /* Generic "call succeeded".  */
+    PS_ERR,               /* Generic error. */
+    PS_BADPID,            /* Bad process handle.  */
+    PS_BADLID,            /* Bad LWP identifier.  */
+    PS_BADADDR,           /* Bad address.  */
+    PS_NOSYM,             /* Could not find given symbol.  */
+    PS_NOFREGS            /* FPU register set not available for given LWP.  */
+} ps_err_e;
+
+static const unsigned int ERRMSG_SIZE = 4096;
+static char errmsg[4096];
+
+ps_err_e ps_pdread(struct ps_prochandle *handle, psaddr_t src, void *dst, size_t size) {
+    int result = read_memory(dst, (const void *)src, size, errmsg, ERRMSG_SIZE);
+
+    if (result != 0) {
+        udi_printf("read_memory in ps_pdread failed: %s\n", errmsg);
+    }
+
+    return ( result == 0 ? PS_OK : PS_ERR );
+}
+
+ps_err_e ps_pdwrite(struct ps_prochandle *handle, psaddr_t dst, const void *src, size_t size) {
+    int result = write_memory((void *)dst, src, size, errmsg, ERRMSG_SIZE);
+
+    if (result != 0) {
+        udi_printf("write_memory in ps_pdwrite failed: %s\n", errmsg);
+    }
+
+    return ( result == 0 ? PS_OK : PS_ERR );
+}
+
+ps_err_e ps_ptread(struct ps_prochandle *handle, psaddr_t src, void *dst, size_t size) {
+    return ps_pdread(handle, src, dst, size);
+}
+
+ps_err_e ps_ptwrite(struct ps_prochandle *handle, psaddr_t dst, const void *src, size_t size) {
+    return ps_pdwrite(handle, dst, src, size);
+}
+
+pid_t ps_getpid(struct ps_prochandle *handle) {
+    return getpid();
+}
+
+ps_err_e ps_pglobal_lookup(struct ps_prochandle *handle, const char *object_name, 
+        const char *sym_name, psaddr_t *sym_addr) {
+
+    unsigned long result;
+    if ( get_sym_addr(object_name, sym_name, &result) != 0 ) {
+        return PS_ERR;
+    }
+
+    *sym_addr = (psaddr_t)result;
+
+    return PS_OK;
+}
+
+// the following functions should not be called
+
+ps_err_e ps_lgetregs(struct ps_prochandle *handle, lwpid_t lwp, prgregset_t regset) {
+    udi_abort(__FILE__, __LINE__);
+
+    return PS_ERR;
+}
+
+ps_err_e ps_lsetregs(struct ps_prochandle *handle, lwpid_t lwp, const prgregset_t regset) {
+    udi_abort(__FILE__, __LINE__);
+
+    return PS_ERR;
+}
+ps_err_e ps_lgetfpregs(struct ps_prochandle *handle, lwpid_t lwp, prfpregset_t *regset) {
+    udi_abort(__FILE__, __LINE__);
+
+    return PS_ERR;
+}
+
+ps_err_e ps_lsetfpregs(struct ps_prochandle *handle, lwpid_t lwp, const prfpregset_t *regset) {
+    udi_abort(__FILE__, __LINE__);
+
+    return PS_ERR;
+}
+
+ps_err_e ps_get_thread_area(const struct ps_prochandle *handle, lwpid_t lwp, 
+        int platform_specifc, psaddr_t *dst) {
+    udi_abort(__FILE__, __LINE__);
+
+    return PS_ERR;
+}
+
+ps_err_e ps_pstop(const struct ps_prochandle *handle) {
+    udi_abort(__FILE__, __LINE__);
+
+    return PS_ERR;
+}
+
+ps_err_e ps_pcontinue(const struct ps_prochandle *handle) {
+    udi_abort(__FILE__, __LINE__);
+
+    return PS_ERR;
+}
+
+ps_err_e ps_lstop(const struct ps_prochandle *handle, lwpid_t lwp) {
+    udi_abort(__FILE__, __LINE__);
+
+    return PS_ERR;
+}
+
+ps_err_e ps_lcontinue(const struct ps_prochandle *handle, lwpid_t lwp) {
+    udi_abort(__FILE__, __LINE__);
+
+    return PS_ERR;
+}
+
+// end thread_db support
 
 /**
  * @return the kernel thread id for the currently executing thread

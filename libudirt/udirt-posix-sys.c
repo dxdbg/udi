@@ -184,7 +184,9 @@ int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
             break;
         }
 
-        errnum = install_thread_event_breakpoints(errmsg, errmsg_size);
+        if (get_multithread_capable()) {
+            errnum = install_thread_event_breakpoints(errmsg, errmsg_size);
+        }
 
     }while(0);
 
@@ -218,7 +220,7 @@ event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, uns
     udi_printf("exit entered with status %d\n", exit_result.status);
 
     // create the event
-    udi_event_internal exit_event = create_event_exit(exit_result.status);
+    udi_event_internal exit_event = create_event_exit(get_user_thread_id(), exit_result.status);
 
     // Explicitly ignore errors as there is no way to report them
     do {

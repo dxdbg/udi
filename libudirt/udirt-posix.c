@@ -359,6 +359,11 @@ int write_event_to_fd(int fd, udi_event_internal *event) {
         if ( (errnum = write_all(events_handle, &tmp_type,
                         sizeof(udi_event_type)) != 0 ) ) break;
 
+        uint64_t thread_id = get_user_thread_id();
+        thread_id = udi_uint64_t_hton(thread_id);
+        if ( (errnum = write_all(events_handle, &thread_id,
+                        sizeof(uint64_t))) != 0 ) break;
+
         udi_length tmp_length = event->length;
         tmp_length = udi_length_hton(tmp_length);
         if ( (errnum = write_all(events_handle, &tmp_length,
@@ -869,6 +874,8 @@ static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char 
     rewind_pc(context);
 
     if ( continue_bp == bp ) {
+        udi_printf("continue breakpoint at 0x%"PRIx64"\n", bp->address);
+
         result.wait_for_request = 0;
         continue_bp = NULL;
 
@@ -891,13 +898,14 @@ static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, char 
     continue_bp = create_breakpoint(successor);
 
     if ( is_event_breakpoint(bp) ) {
+        udi_printf("Handling event breakpoint at 0x%"PRIx64"\n", bp->address);
         return handle_event_breakpoint(bp, context, errmsg, errmsg_size);
     }
 
     udi_printf("user breakpoint at 0x%"PRIx64"\n", bp->address);
 
     // create the event
-    udi_event_internal brkpt_event = create_event_breakpoint(bp->address);
+    udi_event_internal brkpt_event = create_event_breakpoint(get_user_thread_id(), bp->address);
 
     // Explicitly ignore errors as there is no way to report them
     do {
@@ -1011,7 +1019,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                         ERRMSG_SIZE);
                 break;
             default: {
-                udi_event_internal event = create_event_unknown();
+                udi_event_internal event = create_event_unknown(get_user_thread_id());
 
                 result.failure = write_event(&event);
                 break;
@@ -1026,7 +1034,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
             // Don't report any more errors after this event
             result.failure = 0;
 
-            udi_event_internal event = create_event_error(errmsg, ERRMSG_SIZE);
+            udi_event_internal event = create_event_error(get_user_thread_id(), errmsg, ERRMSG_SIZE);
 
             // Explicitly ignore any errors -- no way to report them
             if ( event.packed_data != NULL ) {
@@ -1202,26 +1210,216 @@ static int create_udi_filesystem() {
 }
 
 /**
- * Called by the thread support implementation
+ * Allocates and populates a string with the thread directory
  *
- * @param tid the thread id
- * @param errmsg the error message
- * @param errmsg_size the maximum size of the error message
+ * @param thr the thread
+ *
+ * @return the string
+ */ 
+static
+char *get_thread_dir(thread *thr) {
+    char subdir_name[32];
+
+    snprintf(subdir_name, 32, "%"PRIx64, thr->id);
+
+    size_t dir_length = strlen(basedir_name) + DS_LEN + strlen(subdir_name) + 1;
+    char *thread_dir = (char *)udi_malloc(dir_length);
+    if (thread_dir == NULL) {
+        udi_printf("malloc failed: %s\n", strerror(errno));
+        return NULL;
+    }
+
+    snprintf(thread_dir, dir_length, "%s/%s", basedir_name, subdir_name);
+    return thread_dir;
+}
+
+/**
+ * Allocates and populates a string with the thread directory
+ *
+ * @param thr the thread
+ * @param thread_dir the thread directory
+ * @param filename the filename
+ *
+ * @return the string
  */
-int thread_create_callback(uint32_t tid, char *errmsg, unsigned int errmsg_size) {
-    // TODO create the udi filesystem elements
-    return 0;
+static
+char *get_thread_file(thread *thr, char *thread_dir, const char *filename) {
+    size_t file_length = strlen(thread_dir) + DS_LEN + strlen(filename) + 1;
+    char *thread_file = (char *)udi_malloc(file_length);
+    if (thread_file == NULL) {
+        udi_printf("malloc failed: %s\n", strerror(errno));
+        return NULL;
+    }
+
+    snprintf(thread_file, file_length, "%s/%s", thread_dir, filename);
+    return thread_file;
 }
 
 /**
  * Called by the thread support implementation
  *
- * @param tid the thread id
+ * @param thr the thread structure for the created thread
  * @param errmsg the error message
  * @param errmsg_size the maximum size of the error message
+ *
+ * @return 0 on success; non-zero on failure
  */
-int thread_destroy_callback(uint32_t tid, char *errmsg, unsigned int errmsg_size) {
-    // TODO destroy the udi filesystem elements
+int thread_create_callback(thread *thr, char *errmsg, unsigned int errmsg_size) {
+
+    // create the filesystem elements
+    char *thread_dir = NULL, *response_file = NULL, *request_file = NULL;
+
+    int result = 0;
+    do {
+        thread_dir = get_thread_dir(thr);
+        if (thread_dir == NULL) {
+            result = -1;
+            break;
+        }
+
+        if (mkdir(thread_dir, S_IRWXG | S_IRWXU) == -1) {
+            snprintf(errmsg, errmsg_size, "failed to create directory %s: %s", 
+                    thread_dir, strerror(errno));
+            udi_printf("%s\n", errmsg);
+            result = -1;
+            break;
+        }
+
+        response_file = get_thread_file(thr, thread_dir, RESPONSE_FILE_NAME);
+        if (response_file == NULL) {
+            result = -1;
+            break;
+        }
+
+        request_file = get_thread_file(thr, thread_dir, REQUEST_FILE_NAME);
+        if (request_file == NULL) {
+            result = -1;
+            break;
+        }
+
+        if (mkfifo(request_file, S_IRWXG | S_IRWXU) == -1) {
+            snprintf(errmsg, errmsg_size, "failed to create request pipe %s: %s", 
+                    request_file, strerror(errno));
+            udi_printf("%s\n", errmsg);
+            result = -1;
+            break;
+        }
+
+        if (mkfifo(response_file, S_IRWXG | S_IRWXU) == -1) {
+            snprintf(errmsg, errmsg_size, "failed to create response pipe %s: %s", 
+                    response_file, strerror(errno));
+            udi_printf("%s\n", errmsg);
+            result = -1;
+            break;
+        }
+    }while(0);
+
+    udi_free(thread_dir);
+    udi_free(response_file);
+    udi_free(request_file);
+
+    return result;
+}
+
+/**
+ * Performs the handshake with the debugger after the creation of the thread files
+ *
+ * @param thr the thread structure for the destroyed thread
+ * @param errmsg the error message
+ * @param errmsg_size the maximum size of the error message
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int thread_create_handshake(thread *thr, char *errmsg, unsigned int errmsg_size) {
+
+    char *thread_dir = NULL, *response_file = NULL, *request_file = NULL;
+    int result = 0;
+
+    do {
+        thread_dir = get_thread_dir(thr);
+        if (thread_dir == NULL) {
+            result = -1;
+            break;
+        }
+
+        response_file = get_thread_file(thr, thread_dir, RESPONSE_FILE_NAME);
+        if (response_file == NULL) {
+            result = -1;
+            break;
+        }
+
+        request_file = get_thread_file(thr, thread_dir, REQUEST_FILE_NAME);
+        if (request_file == NULL) {
+            result = -1;
+            break;
+        }
+
+        if ( (thr->request_handle = open(request_file, O_RDONLY)) == -1 ) {
+            snprintf(errmsg, errmsg_size, "failed to open %s: %s", request_file, strerror(errno));
+            udi_printf("%s\n", errmsg);
+            result = -1;
+            break;
+        }
+
+        udi_request *init_request = read_request_from_fd(thr->request_handle);
+        if (init_request == NULL) {
+            snprintf(errmsg, errmsg_size, "failed to read init request");
+            udi_printf("%s\n", errmsg);
+            result = -1;
+            break;
+        }
+
+        if (init_request->request_type != UDI_REQ_INIT) {
+            udi_printf("%s", "invalid request type, proceeding anyways");
+        }
+
+        free_request(init_request);
+
+        if ( (thr->response_handle = open(response_file, O_WRONLY)) == -1 ) {
+            snprintf(errmsg, errmsg_size, "failed to open %s: %s", response_file, strerror(errno));
+            udi_printf("%s\n", errmsg);
+            result = -1;
+            break;
+        }
+
+        udi_response init_response = create_response_init(get_protocol_version(),
+                get_architecture(),
+                get_multithread_capable());
+
+        if ( init_response.packed_data == NULL ) {
+            udi_printf("failed to create init response: %s\n",
+                    strerror(errno));
+            result = -1;
+            break;
+        }
+
+        result = write_response(&init_response);
+        udi_free(init_response.packed_data);
+
+        if ( result != 0 ) {
+            snprintf(errmsg, errmsg_size, "failed to write init response");
+            udi_printf("%s\n", errmsg);
+        }
+    }while(0);
+
+    udi_free(thread_dir);
+    udi_free(response_file);
+    udi_free(request_file);
+
+    return result;
+}
+
+/**
+ * Called by the thread support implementation
+ *
+ * @param thr the thread structure for the destroyed thread
+ * @param errmsg the error message
+ * @param errmsg_size the maximum size of the error message
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int thread_destroy_callback(thread *thr, char *errmsg, unsigned int errmsg_size) {
+    // TODO teardown the thread specific request and response files
     return 0;
 }
 
@@ -1301,6 +1499,8 @@ static int handshake_with_debugger(int *output_enabled, char *errmsg,
             udi_printf("%s\n", "failed to write init response");
             *output_enabled = 0;
         }
+
+        udi_free(init_response.packed_data);
     }while(0);
 
     return errnum;
@@ -1343,6 +1543,13 @@ void init_udi_rt() {
                 != 0 ) 
         {
             udi_printf("%s\n", "failed to locate wrapper functions");
+            break;
+        }
+
+        if ( (errnum = initialize_pthreads_support(errmsg, ERRMSG_SIZE))
+                != 0 )
+        {
+            udi_printf("%s\n", "failed to initialize pthreads support");
             break;
         }
 

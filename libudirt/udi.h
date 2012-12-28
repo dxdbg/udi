@@ -256,10 +256,13 @@ typedef enum
 /*
  * Event data
  *
- * +----------------+------------+------------+
- * | udi_event_type | udi_length | void *data |
- * +----------------+------------+------------+
+ * +----------------+-----------+------------+------------+
+ * | udi_event_type | thread id | udi_length | void *data |
+ * +----------------+-----------+------------+------------+
  */
+
+/* the thread id is of type UDI_DATATYPE_INT64 */
+#define UDI_SINGLE_THREAD_ID 0xDEADBEEF
 
 /*
  * Error event data
@@ -282,14 +285,10 @@ typedef enum
 
 /**
  * Thread create event data
- *
- * UDI_DATATYPE_INT32 - the tid for the created thread
  */
 
 /**
  * Thread destroy event data
- *
- * UDI_DATATYPE_INT32 -  the tid for the destroyed thread
  */
 
 /*

@@ -114,6 +114,14 @@ udi_event_type udi_event_type_ntoh(udi_event_type value) {
     return udi_unpack_uint32_t(value);
 }
 
+uint64_t udi_uint64_t_hton(uint64_t value) {
+    return udi_unpack_uint64_t(value);
+}
+
+uint64_t udi_uint64_t_ntoh(uint64_t value) {
+    return udi_unpack_uint64_t(value);
+}
+
 static malloc_type data_allocator = malloc;
 
 void udi_set_malloc(malloc_type allocator) {
