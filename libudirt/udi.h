@@ -247,7 +247,7 @@ typedef enum
     UDI_EVENT_SIGNAL,
     UDI_EVENT_BREAKPOINT,
     UDI_EVENT_THREAD_CREATE,
-    UDI_EVENT_THREAD_DESTORY,
+    UDI_EVENT_THREAD_DEATH,
     UDI_EVENT_PROCESS_EXIT,
     UDI_EVENT_MAX,
     UDI_EVENT_UNKNOWN
@@ -288,7 +288,7 @@ typedef enum
  */
 
 /**
- * Thread destroy event data
+ * Thread death event data
  */
 
 /*

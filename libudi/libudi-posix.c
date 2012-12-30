@@ -524,6 +524,52 @@ int initialize_process(udi_process *proc)
 }
 
 /**
+ * Creates a thread structure for the specified tid
+ *
+ * @param proc  the process in which the thread was created
+ * @param tid   the thread id
+ *
+ * @return the created thread structure or NULL if no thread could be created
+ */
+udi_thread *handle_thread_create(udi_process *proc, uint64_t tid) {
+
+    udi_thread *thr = (udi_thread *)malloc(sizeof(udi_thread));
+    if (thr == NULL) {
+        udi_printf("malloc failed: %s\n", strerror(errno));
+        return NULL;
+    }
+    thr->tid = tid;
+
+    // perform the handshake with the debuggee
+    // TODO
+
+    // link the thread into process thread list
+    udi_thread *iter = proc->threads;
+    while (iter != NULL && iter->next_thread != NULL) {
+        iter = iter->next_thread;
+    }
+
+    if (iter == NULL) {
+        proc->threads = thr;
+    }else{
+        iter->next_thread = thr;
+    }
+
+    return thr;
+}
+
+/**
+ * Handles the death of a thread
+ *
+ * @param proc  the process handle
+ * @param thr   the thread handle
+ */
+void handle_thread_death(udi_process *proc, udi_thread *thr) {
+
+    // TODO
+}
+
+/**
  * Writes a request to the specified process
  *
  * @param req           the request

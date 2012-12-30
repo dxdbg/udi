@@ -71,6 +71,9 @@ int get_proc_pid(udi_process *proc);
 udi_arch_e get_proc_architecture(udi_process *proc);
 int get_multithread_capable(udi_process *proc);
 
+// Thread properties //
+uint64_t get_tid(udi_thread *thr);
+
 // Event handling interface //
 
 /**
@@ -79,6 +82,7 @@ int get_multithread_capable(udi_process *proc);
 typedef struct udi_event_struct {
     udi_event_type event_type;
     udi_process *proc;
+    udi_thread *thr;
     void *event_data;
     struct udi_event_struct *next_event;
 } udi_event;

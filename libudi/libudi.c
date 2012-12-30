@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <inttypes.h>
 
 ////////////////////
 // globals        //
@@ -70,6 +71,26 @@ const char *get_error_message(udi_error_e error_code)
 ///////////////////////
 // Library functions //
 ///////////////////////
+
+/**
+ * Finds the thread structure for the specified tid
+ *
+ * @param proc  the process handle
+ * @param tid   the thread id
+ *
+ * @return the thread structure or NULL if no thread could be found
+ */
+static
+udi_thread *find_thread(udi_process *proc, udi_tid tid) {
+
+    udi_thread *thr = proc->threads;
+    while (thr != NULL) {
+        if ( thr->tid == tid ) break;
+        thr = thr->next_thread;
+    }
+
+    return thr;
+}
 
 /**
  * Initializes the library
@@ -248,6 +269,17 @@ udi_arch_e get_proc_architecture(udi_process *proc) {
  */
 int get_multithread_capable(udi_process *proc) {
     return proc->multithread_capable;
+}
+
+/**
+ * Gets the thread id for the specified thread
+ *
+ * @param thr the thread handle
+ *
+ * @return the thread id for the thread
+ */
+uint64_t get_tid(udi_thread *thr) {
+    return thr->tid;
 }
 
 /**
@@ -570,12 +602,40 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
         udi_printf("failed to malloc udi_event: %s\n", strerror(errno));
         return NULL;
     }
-
+                                
     ret_event->proc = proc;
     ret_event->next_event = NULL;
     ret_event->event_type = event->event_type;
     ret_event->event_data = NULL;
 
+    // get the thread on which the event occurred
+    switch(ret_event->event_type) {
+        case UDI_EVENT_THREAD_CREATE:
+        {
+            udi_thread *tmp = handle_thread_create(proc, event->thread_id);
+            if (tmp == NULL) {
+                udi_printf("failed to create handle for thread 0x%"PRIx64"\n",
+                        event->thread_id);
+                return NULL;
+            }
+
+            ret_event->thr = tmp;
+            break;
+        }
+        default:
+        {
+            udi_thread *tmp = find_thread(proc, event->thread_id);
+            if ( tmp == NULL ) {
+                udi_printf("failed to find thread handle for thread 0x%"PRIx64"\n",
+                        event->thread_id);
+                return NULL;
+            }
+            ret_event->thr = tmp;
+            break;
+        }
+    }
+
+    // create event specific payload
     switch(ret_event->event_type) {
         case UDI_EVENT_ERROR:
         {

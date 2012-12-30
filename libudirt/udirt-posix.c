@@ -1324,7 +1324,7 @@ int thread_create_callback(thread *thr, char *errmsg, unsigned int errmsg_size) 
 /**
  * Performs the handshake with the debugger after the creation of the thread files
  *
- * @param thr the thread structure for the destroyed thread
+ * @param thr the thread structure for the created thread
  * @param errmsg the error message
  * @param errmsg_size the maximum size of the error message
  *
@@ -1412,13 +1412,13 @@ int thread_create_handshake(thread *thr, char *errmsg, unsigned int errmsg_size)
 /**
  * Called by the thread support implementation
  *
- * @param thr the thread structure for the destroyed thread
+ * @param thr the thread structure for the dead thread
  * @param errmsg the error message
  * @param errmsg_size the maximum size of the error message
  *
  * @return 0 on success; non-zero on failure
  */
-int thread_destroy_callback(thread *thr, char *errmsg, unsigned int errmsg_size) {
+int thread_death_callback(thread *thr, char *errmsg, unsigned int errmsg_size) {
     // TODO teardown the thread specific request and response files
     return 0;
 }
