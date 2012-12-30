@@ -39,9 +39,17 @@ extern "C" {
 #ifdef UNIX
 typedef int udi_handle;
 typedef pid_t udi_pid;
+typedef uint64_t udi_tid;
 #else
 #error Unknown platform
 #endif
+
+struct udi_thread_struct {
+    udi_tid tid;
+    udi_handle request_handle;
+    udi_handle response_handle;
+    struct udi_thread_struct *next_thread;
+};
 
 extern const udi_pid INVALID_UDI_PID;
 struct udi_process_struct {
@@ -53,29 +61,35 @@ struct udi_process_struct {
     uint32_t protocol_version;
     int multithread_capable;
     void *user_data;
+    udi_thread *threads;
 };
 
+// platform specific functionality //
 extern const char *udi_root_dir;
 extern int processes_created;
 
+// udi filesystem
 int create_root_udi_filesystem();
+char * const *get_environment();
 
+// process handling
 udi_pid fork_process(const char *executable, char * const argv[],
         char * const envp[]);
-
-char * const *get_environment();
-void check_debug_logging();
-
 int initialize_process(udi_process *proc);
 
+// thread handling
+udi_thread *handle_thread_create(udi_process *proc, uint64_t tid);
+void handle_thread_death(udi_process *proc, udi_thread *thr);
+
+// request handling
 int write_request(udi_request *req, udi_process *proc);
-
 udi_response *read_response(udi_process *proc);
-
 udi_event *read_event(udi_process *proc);
 udi_event *decode_event(udi_process *proc, udi_event_internal *event);
 
+// logging
 void log_error_msg(udi_response *resp, const char *error_file, int error_line);
+void check_debug_logging();
 
 // error logging
 extern int udi_debug_on;

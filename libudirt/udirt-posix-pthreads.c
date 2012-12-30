@@ -50,7 +50,7 @@ static thread *threads = NULL;
 
 // event breakpoints
 static breakpoint *thread_create_bp = NULL;
-static breakpoint *thread_destroy_bp = NULL;
+static breakpoint *thread_death_bp = NULL;
 
 /**
  * Determine if the debuggee is multithread capable (i.e., linked
@@ -142,16 +142,16 @@ int install_thread_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
         return -1;
     }
 
-    thread_destroy_bp = create_and_install((unsigned long)pthreads_death_event, errmsg,
+    thread_death_bp = create_and_install((unsigned long)pthreads_death_event, errmsg,
             errmsg_size);
 
-    if ( thread_destroy_bp == NULL ) {
-        udi_printf("%s\n", "failed to install thread destroy breakpoint");
+    if ( thread_death_bp == NULL ) {
+        udi_printf("%s\n", "failed to install thread death breakpoint");
         return -1;
     }
 
-    udi_printf("thread_create = 0x%"PRIx64" thread_destroy = 0x%"PRIx64"\n",
-            thread_create_bp->address, thread_destroy_bp->address);
+    udi_printf("thread_create = 0x%"PRIx64" thread_death = 0x%"PRIx64"\n",
+            thread_create_bp->address, thread_death_bp->address);
 
     return 0;
 }
@@ -163,7 +163,7 @@ int install_thread_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
  */
 int is_thread_event_breakpoint(breakpoint *bp) {
     if ( thread_create_bp == bp ||
-         thread_destroy_bp == bp ) return 1;
+         thread_death_bp == bp ) return 1;
 
     return 0;
 }
@@ -308,14 +308,14 @@ event_result handle_thread_create(const ucontext_t *context,
 }
 
 /**
- * Handle the thread destroy event
+ * Handle the thread death event
  *
  * @param context the context
  * @param errmsg the error message populated on error
  * @param errmsg_size the maximum size of the error message
  */
 static
-event_result handle_thread_destroy(const ucontext_t *context, char *errmsg,
+event_result handle_thread_death(const ucontext_t *context, char *errmsg,
         unsigned int errmsg_size)
 {
     event_result result;
@@ -324,7 +324,7 @@ event_result handle_thread_destroy(const ucontext_t *context, char *errmsg,
 
     uint32_t tid = get_kernel_thread_id();
 
-    udi_printf("thread destroy event for 0x%lx/%u\n", pthread_self(), tid);
+    udi_printf("thread death event for 0x%lx/%u\n", pthread_self(), tid);
 
     do {
         thread *thr = find_thread(pthread_self());
@@ -333,14 +333,14 @@ event_result handle_thread_destroy(const ucontext_t *context, char *errmsg,
             break;
         }
 
-        if ( thread_destroy_callback(thr, errmsg, errmsg_size) != 0 ) {
+        if ( thread_death_callback(thr, errmsg, errmsg_size) != 0 ) {
             result.failure = 1;
             break;
         }
 
         destroy_thread(pthread_self());
 
-        udi_event_internal event = create_event_thread_destroy(pthread_self());
+        udi_event_internal event = create_event_thread_death(pthread_self());
         if ( event.packed_data == NULL ) {
             result.failure = 1;
             break;
@@ -352,7 +352,7 @@ event_result handle_thread_destroy(const ucontext_t *context, char *errmsg,
     }while(0);
 
     if ( result.failure ) {
-        udi_printf("failed to report thread destroy of 0x%lx/%u\n", pthread_self(), tid);
+        udi_printf("failed to report thread death of 0x%lx/%u\n", pthread_self(), tid);
     }
 
     return result;
@@ -371,8 +371,8 @@ event_result handle_thread_event_breakpoint(breakpoint *bp, const ucontext_t *co
         return handle_thread_create(context, errmsg, errmsg_size);
     }
 
-    if (bp == thread_destroy_bp) {
-        return handle_thread_destroy(context, errmsg, errmsg_size);
+    if (bp == thread_death_bp) {
+        return handle_thread_death(context, errmsg, errmsg_size);
     }
 
     event_result err_result;

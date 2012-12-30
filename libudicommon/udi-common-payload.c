@@ -186,15 +186,15 @@ udi_event_internal create_event_thread_create(uint64_t thread_id) {
 }
 
 /**
- * Creates a thread destroy event
+ * Creates a thread death event
  *
  * @param tid the user level thread id for the thread that is about to be destroyed
  *
  * @return the created event
  */
-udi_event_internal create_event_thread_destroy(uint64_t thread_id) {
+udi_event_internal create_event_thread_death(uint64_t thread_id) {
     udi_event_internal thread_destroy;
-    thread_destroy.event_type = UDI_EVENT_THREAD_DESTORY;
+    thread_destroy.event_type = UDI_EVENT_THREAD_DEATH;
     thread_destroy.thread_id = thread_id;
     thread_destroy.length = 0;
 

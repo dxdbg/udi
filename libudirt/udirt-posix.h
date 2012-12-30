@@ -118,7 +118,7 @@ event_result handle_thread_event_breakpoint(breakpoint *bp, const ucontext_t *co
         char *errmsg, unsigned int errmsg_size);
 int thread_create_callback(thread *thr, char *errmsg, unsigned int errmsg_size);
 int thread_create_handshake(thread *thr, char *errmsg, unsigned int errmsg_size);
-int thread_destroy_callback(thread *thr, char *errmsg, unsigned int errmsg_size);
+int thread_death_callback(thread *thr, char *errmsg, unsigned int errmsg_size);
 
 // pthreads support
 extern void (*pthreads_create_event)(void);

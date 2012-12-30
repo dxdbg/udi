@@ -115,7 +115,7 @@ udi_event_internal create_event_unknown(uint64_t thread_id);
 udi_event_internal create_event_breakpoint(uint64_t thread_id, udi_address bp_address);
 udi_event_internal create_event_exit(uint64_t thread_id, uint32_t exit_status);
 udi_event_internal create_event_thread_create(uint64_t thread_id);
-udi_event_internal create_event_thread_destroy(uint64_t thread_id);
+udi_event_internal create_event_thread_death(uint64_t thread_id);
 
 int unpack_event_error(udi_event_internal *event, char **errmsg, unsigned int *errmsg_size);
 int unpack_event_exit(udi_event_internal *event, int *exit_code);
