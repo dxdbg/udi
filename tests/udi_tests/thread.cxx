@@ -30,6 +30,7 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#include <map>
 
 #include "libudi.h"
 #include "libuditest.h"
@@ -39,6 +40,9 @@
 using std::cout;
 using std::endl;
 using std::stringstream;
+using std::map;
+using std::make_pair;
+using std::string;
 
 class test_thread : public UDITestCase {
     public:
@@ -49,75 +53,69 @@ class test_thread : public UDITestCase {
         bool operator()(void);
 };
 
+static const int NUM_THREADS = 5;
+
 static const char *TEST_BINARY = THREAD_BINARY_PATH;
 static udi_address TEST_FUNCTION = THREAD_BREAK_FUNC;
 
 static test_thread testInstance;
 
 bool test_thread::operator()(void) {
-    if ( init_libudi() != 0 ) {
-        cout << "Failed to initialize libudi" << endl;
-        return false;
-    }
 
-    char *argv[] = { (char *)TEST_BINARY, (char *)"5", NULL };
+    udi_thread * threads[NUM_THREADS];
+
+    udi_error_e result = init_libudi();
+    assert_no_error(result);
+
+    stringstream num_threads_str;
+    num_threads_str << NUM_THREADS;
+
+    string num_threads = num_threads_str.str();
+
+    char *argv[] = { (char *)TEST_BINARY, (char *)num_threads.c_str(), NULL };
 
     udi_process *proc = create_process(TEST_BINARY, argv, NULL);
-    if ( proc == NULL ) {
-        cout << "Failed to create process" << endl;
-        return false;
-    }
+    test_assert(proc != NULL);
+    test_assert(get_multithread_capable(proc));
 
-    if ( get_multithread_capable(proc) == 0 ) {
-        cout << proc << " incorrectly marked as non-multithread capable" << endl;
-        return false;
-    }
+    udi_thread *initial_thr = get_initial_thread(proc);
+    test_assert(initial_thr != NULL);
 
-    udi_error_e result = create_breakpoint(proc, TEST_FUNCTION);
-
-    if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to create breakpoint " << get_error_message(result) << endl;
-        return false;
-    }
+    result = create_breakpoint(proc, TEST_FUNCTION);
+    assert_no_error(result);
 
     result = install_breakpoint(proc, TEST_FUNCTION);
-
-    if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to install breakpoint: " << get_error_message(result) << endl;
-        return false;
-    }
+    assert_no_error(result);
 
     result = continue_process(proc);
+    assert_no_error(result);
 
-    if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to continue process " << get_error_message(result) << endl;
-        return false;
+    map<udi_thread *, udi_event_type> thread_events;
+    for (int i = 0; i < NUM_THREADS; ++i) {
+        threads[i] = wait_for_thread_create(proc);
+
+        // Ensure duplicate create events are not being created
+        for (int j = i-1; j >= 0; --j) {
+            test_assert(threads[i] != threads[j]);
+        }
+
+        thread_events.insert(make_pair(threads[i], UDI_EVENT_BREAKPOINT));
+
+        result = continue_process(proc);
+        assert_no_error(result);
     }
 
-    /*
-    if ( !wait_for_breakpoint(proc, TEST_FUNCTION) ) {
-        cout << "Failed to wait for breakpoint at 0x" << std::hex
-             << TEST_FUNCTION << std::dec << endl;
-        return false;
-    }
+    wait_for_debuggee_pipe(proc);
 
-    result = continue_process(proc);
+    release_debuggee_threads(proc);
 
-    if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to continue process " << get_error_message(result) << endl;
-        return false;
-    }
-    */
+    // Wait for all the breakpoints to occur
+    map<udi_process *, map<udi_thread *, udi_event_type> > proc_events;
+    proc_events.insert(make_pair(proc, thread_events));
 
-    if ( !wait_for_debuggee_pipe(proc) ) {
-        cout << "Failed to wait for debuggee pipe to exist " << proc << endl;
-        return false;
-    }
+    wait_for_events(proc_events);
 
-    if ( !release_debuggee_threads(proc) ) {
-        cout << "Failed to release threads for " << proc << endl;
-        return false;
-    }
+    wait_for_exit(initial_thr, EXIT_SUCCESS);
 
-    return wait_for_exit(proc, EXIT_SUCCESS);
+    return true;
 }

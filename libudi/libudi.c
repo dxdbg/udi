@@ -95,16 +95,16 @@ udi_thread *find_thread(udi_process *proc, udi_tid tid) {
 /**
  * Initializes the library
  *
- * @return zero on success, non-zero on success
+ * @return UDI_ERROR_NONE on success
  */
-int init_libudi() {
+udi_error_e init_libudi() {
     if ( udi_root_dir == NULL ) {
         udi_root_dir = DEFAULT_UDI_ROOT_DIR;
     }
 
     check_debug_logging();
 
-    return 0;
+    return UDI_ERROR_NONE;
 }
 
 /**
@@ -182,13 +182,13 @@ udi_process *create_process(const char *executable, char * const argv[],
  *
  * @param proc          the process handle
  *
- * @return 0, if the resources are released successfully; non-zero, otherwise
+ * @return UDI_ERROR_NONE if the resources are released successfully
  */
-int free_process(udi_process *proc) {
+udi_error_e free_process(udi_process *proc) {
     // TODO detach from the process, etc.
     free(proc);
 
-    return 0;
+    return UDI_ERROR_NONE;
 }
 
 /**
@@ -199,22 +199,22 @@ int free_process(udi_process *proc) {
  * Cannot be set if processes already created
  *
  * @param root_dir the directory to set as the root
- * @return zero on success, non-zero on success
+ *
+ * @return UDI_ERROR_NONE on success
  */
-int set_udi_root_dir(const char *root_dir) {
+udi_error_e set_udi_root_dir(const char *root_dir) {
     if ( processes_created > 0 ) return -1;
 
     size_t length = strlen(root_dir);
 
     udi_root_dir = (char *)malloc(length);
-
     if (udi_root_dir == NULL) {
-        return -1;
+        return UDI_ERROR_LIBRARY;
     }
 
     strncpy((char *)udi_root_dir, root_dir, length);
 
-    return 0;
+    return UDI_ERROR_NONE;
 }
 
 /**
@@ -280,6 +280,36 @@ int get_multithread_capable(udi_process *proc) {
  */
 uint64_t get_tid(udi_thread *thr) {
     return thr->tid;
+}
+
+/**
+ * Gets the process for the specified thread
+ *
+ * @param thr the thread handle
+ *
+ * @return the process handle
+ */
+udi_process *get_process(udi_thread *thr) {
+    return thr->proc;
+}
+
+/**
+ * Gets the initial thread in the specified process
+ *
+ * @param proc the process handle
+ *
+ * @return the thread handle or NULL if no initial thread could be found
+ */
+udi_thread *get_initial_thread(udi_process *proc) {
+    udi_thread *iter = proc->threads;
+
+    while (iter != NULL) {
+        if (iter->initial) break;
+
+        iter = iter->next_thread;
+    }
+
+    return iter;
 }
 
 /**
@@ -616,6 +646,7 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
             if (tmp == NULL) {
                 udi_printf("failed to create handle for thread 0x%"PRIx64"\n",
                         event->thread_id);
+                free_event(ret_event);
                 return NULL;
             }
 
@@ -628,6 +659,7 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
             if ( tmp == NULL ) {
                 udi_printf("failed to find thread handle for thread 0x%"PRIx64"\n",
                         event->thread_id);
+                free_event(ret_event);
                 return NULL;
             }
             ret_event->thr = tmp;
@@ -635,8 +667,26 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
         }
     }
 
+    // event specific processing before passing the event to the user
+    switch(ret_event->event_type) {
+        case UDI_EVENT_THREAD_DEATH:
+            if ( handle_thread_death(proc, ret_event->thr) != 0 ) {
+                udi_printf("failed to complete platform-specific processing of thread death for "
+                        " thread 0x%"PRIx64, ret_event->thr->tid);
+                free_event(ret_event);
+                return NULL;
+            }
+            break;
+        default:
+            break;
+    }
+
+
     // create event specific payload
     switch(ret_event->event_type) {
+        case UDI_EVENT_THREAD_CREATE:
+        case UDI_EVENT_THREAD_DEATH:
+            break;
         case UDI_EVENT_ERROR:
         {
             udi_event_error *err_event = (udi_event_error *)

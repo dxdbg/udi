@@ -31,23 +31,25 @@
 #include <vector>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 
 using std::vector;
 using std::cout;
 using std::endl;
+using std::string;
 
 /** Globally maintained list of test cases */
-vector<UDITestCase *> UDITestCase::testCases_;
+vector<UDITestCase *> UDITestCase::testCases;
 
 /**
  * Constructor.
  *
  * @param testName      the name of this test
  */
-UDITestCase::UDITestCase(std::string testName) 
-    : testName_(testName)
+UDITestCase::UDITestCase(const std::string &testName) 
+    : testName(testName)
 {
-    testCases_.push_back(this);
+    testCases.push_back(this);
 }
 
 /**
@@ -64,11 +66,31 @@ UDITestCase::~UDITestCase() {
  * @param argv  the argv argument to the main function (currently unused)
  */
 int UDITestCase::executeTests(int /*argc*/, char ** /*argv[]*/) {
-    for (vector<UDITestCase *>::iterator i = testCases_.begin();
-            i != testCases_.end(); ++i)
+    for (vector<UDITestCase *>::iterator i = testCases.begin();
+            i != testCases.end(); ++i)
     {
         UDITestCase *currentCase = *i;
-        bool testResult = (*currentCase)();
+        bool testResult = false;
+
+        try {
+            testResult = (*currentCase)();
+        }catch (const UDITestError &e) {
+            cout << currentCase->name() 
+                 << " failed with exception at " 
+                 << e.getFile()
+                 << ":"
+                 << e.getLine();
+
+            if (!string(e.what()).empty()) {
+                cout << " -- "
+                     << e.what();
+            }
+
+            cout << endl;
+
+            testResult = false;
+            return EXIT_FAILURE;
+        }
 
         if (!testResult) {
             cout << currentCase->name() << " failed" << endl;
@@ -85,5 +107,5 @@ int UDITestCase::executeTests(int /*argc*/, char ** /*argv[]*/) {
  * @return the name for this test case
  */
 const std::string &UDITestCase::name() const {
-    return testName_;
+    return testName;
 }

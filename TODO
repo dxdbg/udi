@@ -11,6 +11,7 @@ A list of enhancements/bugfixes for the future
 * handle case where user creates breakpoint at exit function
 
 * thread support
+  - libudi handling of thread-specific handles is incorrect
 
 * revamp libudi error handling to be maintained per-process
 

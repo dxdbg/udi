@@ -195,6 +195,7 @@ thread *create_thread(uint64_t tid) {
     if (new_thr == NULL) return NULL;
 
     new_thr->id = tid;
+    new_thr->dead = 0;
     new_thr->request_handle = -1;
     new_thr->response_handle = -1;
     new_thr->next_thread = NULL;
@@ -254,6 +255,23 @@ thread *find_thread(uint64_t tid) {
 }
 
 /**
+ * @return the head of the thread list
+ */
+thread *get_thread_list() {
+    return threads;
+}
+
+/**
+ * Creates the initial thread
+ *
+ * @return the created thread or null if there was an error
+ */
+thread *create_initial_thread() {
+
+    return create_thread(get_user_thread_id());
+}
+
+/**
  * Handle the thread create event
  *
  * @param context the context
@@ -268,12 +286,17 @@ event_result handle_thread_create(const ucontext_t *context,
     result.wait_for_request = 1;
     result.failure = 0;
 
-    uint32_t tid = get_kernel_thread_id();
-
-    udi_printf("thread create event for 0x%lx/%u\n", pthread_self(), tid);
-
+    uint64_t tid;
     do {
-        thread *thr = create_thread(pthread_self());
+        tid = initialize_thread(errmsg, errmsg_size);
+        if ( tid == 0 ) {
+            result.failure = 1;
+            break;
+        }
+
+        udi_printf("thread create event for 0x%"PRIx64"\n", tid);
+
+        thread *thr = create_thread(tid);
         if (thr == NULL) {
             result.failure = 1;
             break;
@@ -284,15 +307,8 @@ event_result handle_thread_create(const ucontext_t *context,
             break;
         }
 
-        udi_event_internal event = create_event_thread_create(pthread_self());
-        if ( event.packed_data == NULL ) {
-            result.failure = 1;
-            break;
-        }
-
+        udi_event_internal event = create_event_thread_create(tid);
         result.failure = write_event(&event);
-
-        udi_free(event.packed_data);
 
         if ( thread_create_handshake(thr, errmsg, errmsg_size) != 0 ) {
             result.failure = 1;
@@ -301,7 +317,7 @@ event_result handle_thread_create(const ucontext_t *context,
     }while(0);
 
     if ( result.failure ) {
-        udi_printf("failed to report thread create of 0x%lx/%u\n", pthread_self(), tid);
+        udi_printf("failed to report thread create of 0x%"PRIx64"\n", tid);
     }
 
     return result;
@@ -322,12 +338,18 @@ event_result handle_thread_death(const ucontext_t *context, char *errmsg,
     result.wait_for_request = 1;
     result.failure = 0;
 
-    uint32_t tid = get_kernel_thread_id();
-
-    udi_printf("thread death event for 0x%lx/%u\n", pthread_self(), tid);
-
+    uint64_t tid;
     do {
-        thread *thr = find_thread(pthread_self());
+        tid = finalize_thread(errmsg, errmsg_size);
+
+        if (tid == 0) {
+            result.failure = 1;
+            break;
+        }
+    
+        udi_printf("thread death event for 0x%"PRIx64"\n", tid);
+
+        thread *thr = find_thread(tid);
         if (thr == NULL) {
             result.failure = 1;
             break;
@@ -338,21 +360,14 @@ event_result handle_thread_death(const ucontext_t *context, char *errmsg,
             break;
         }
 
-        destroy_thread(pthread_self());
+        destroy_thread(tid);
 
-        udi_event_internal event = create_event_thread_death(pthread_self());
-        if ( event.packed_data == NULL ) {
-            result.failure = 1;
-            break;
-        }
-
+        udi_event_internal event = create_event_thread_death(tid);
         result.failure = write_event(&event);
-
-        udi_free(event.packed_data);
     }while(0);
 
     if ( result.failure ) {
-        udi_printf("failed to report thread death of 0x%lx/%u\n", pthread_self(), tid);
+        udi_printf("failed to report thread death of 0x%"PRIx64"\n", tid);
     }
 
     return result;

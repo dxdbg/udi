@@ -106,6 +106,9 @@ int install_breakpoint(breakpoint *bp, char *errmsg,
 int remove_breakpoint(breakpoint *bp, char *errmsg,
         unsigned int errmsg_size);
 
+int remove_breakpoint_for_continue(breakpoint *bp, char *errmsg,
+        unsigned int errmsg_size);
+
 int delete_breakpoint(breakpoint *bp, char *errmsg,
         unsigned int errmsg_size);
 

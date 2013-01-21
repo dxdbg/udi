@@ -119,8 +119,33 @@ creating/attaching multiple processes at once. The debuggee will create the
 specific files for itself under this root directory.
 
 Once the events file is created, the debugger should open the request file for
-writing, the events and response files for reading and then issue an INIT
-request to the debuggee via the request file, in that order.
+writing, and then issue an INIT request to the debuggee via the request file.
+After the issuing this request, the debugger should open the events and
+response files for reading and wait for a response to the INIT request from the
+debuggee.
+
+Once the debuggee completes the initialization for the process, the thread
+initialization handshake should be completed for the initial thread.
+
+3.2.1 Thread initialization
+
+When a thread is created, the debuggee library will create a request and 
+response file in the udi pseudo-filesystem in a directory named the
+thread id for the thread. After writing an event to the events file for
+the process, the debuggee will wait for an init request on the thread's
+request file. After receiving the thread create event, the debugger should
+open the request file for writing and issue an INIT request. After issuing
+this request, the debugger should open the response file for reading and
+wait for the INIT response.
+
+3.2.2 Thread destruction
+
+When a thread dies, the debuggee library will deliver the thread death event.
+The debugger should close the request and response file for the thread prior to
+continuing the process. Additionally, no thread-specific requests will be acted
+upon if the request is for a thread for which a thread death event has already
+been reported. After the continue request is issued, the directory for the
+thread in the pseudo-filesystem will be removed by the debuggee.
 
 3.3 Debugging primitives
 

@@ -274,6 +274,24 @@ int remove_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
 }
 
 /**
+ * Removes the breakpoint from memory in preparation for a continue
+ *
+ * @param bp the breakpoint to remove
+ * @param errmsg the errmsg populated by the memory access
+ * @param errmsg_size the maximum size of the error message
+ *
+ * @return 0 on success; non-zero otherwise
+ */
+int remove_breakpoint_for_continue(breakpoint *bp, char *errmsg,
+        unsigned int errmsg_size) {
+
+    if ( !bp->in_memory ) return 0;
+
+    // Don't set the in memory flag
+    return write_saved_bytes(bp, errmsg, errmsg_size);
+}
+
+/**
  * Deletes the breakpoint
  *
  * @param bp the breakpoint to delete

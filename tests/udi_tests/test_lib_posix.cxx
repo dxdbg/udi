@@ -28,6 +28,7 @@
 
 #include "test_lib.h"
 #include "libudi.h"
+#include "libuditest.h"
 
 #include <sstream>
 #include <cerrno>
@@ -42,7 +43,12 @@ using std::string;
 
 static const string PIPE_BASE_NAME("/tmp/waitthread-");
 
-bool release_debuggee_threads(udi_process *proc) {
+/**
+ * Releases the debuggee threads via the pipe
+ *
+ * @param proc the process
+ */
+void release_debuggee_threads(udi_process *proc) {
     stringstream pipe_name;
 
     pipe_name << PIPE_BASE_NAME << get_proc_pid(proc);
@@ -50,24 +56,26 @@ bool release_debuggee_threads(udi_process *proc) {
     int pipe_fd = open(pipe_name.str().c_str(), O_WRONLY);
     if (pipe_fd == -1) {
         perror("open");
-        return false;
+        test_assert(false);
     }
 
     char character = 'e';
 
     if ( write(pipe_fd, &character, sizeof(char)) == -1 ) {
         perror("write");
-        return false;
+        test_assert(false);
     }
 
     // Explicitly ignore errors
     close(pipe_fd);
-
-    return true;
 }
 
-
-bool wait_for_debuggee_pipe(udi_process *proc) {
+/**
+ * Waits for debuggee pipe to be created
+ *
+ * @param proc the process
+ */
+void wait_for_debuggee_pipe(udi_process *proc) {
 
     stringstream pipe_name;
 
@@ -82,10 +90,8 @@ bool wait_for_debuggee_pipe(udi_process *proc) {
         }else{
             if (errno != ENOENT ) {
                 perror("stat");
-                return false;
+                test_assert(false);
             }
         }
     }
-
-    return true;
 }

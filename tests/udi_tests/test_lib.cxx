@@ -31,7 +31,10 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#include <map>
+#include <typeinfo>
 
+#include "libuditest.h"
 #include "libudi.h"
 #include "test_lib.h"
 
@@ -39,6 +42,9 @@ using std::cout;
 using std::endl;
 using std::stringstream;
 using std::ostream;
+using std::map;
+using std::pair;
+using std::make_pair;
 
 ostream& operator<<(ostream &os, udi_process *proc) {
     os << "process[" << get_proc_pid(proc) << "]";
@@ -47,119 +53,126 @@ ostream& operator<<(ostream &os, udi_process *proc) {
 }
 
 /**
+ * Waits for a set of events to happen in the specified collection of threads, ordered by their
+ * processes
+ *
+ * @param events the specification for expected events
+ * 
+ * @return the events that occurred, ordered by their threads
+ */ 
+map<udi_thread *, udi_event *> wait_for_events(
+        const map<udi_process *, map<udi_thread *, udi_event_type> > &events) {
+
+    map<udi_thread *, udi_event *> results;
+    for(map<udi_process *, map<udi_thread *, udi_event_type> >::const_iterator i = events.begin();
+            i != events.end();
+            ++i)
+    {
+        udi_process *proc = i->first;
+        map<udi_thread *, udi_event_type> thr_events = i->second;
+
+        while (!thr_events.empty()) {
+            udi_event *event = wait_for_events(&proc, 1);
+            test_assert(event != NULL);
+
+            map<udi_thread *, udi_event_type>::iterator iter = thr_events.find(event->thr);
+            test_assert(iter != thr_events.end());
+            test_assert(iter->second == event->event_type);
+
+            results.insert(make_pair(event->thr, event));
+            thr_events.erase(iter);
+
+            udi_error_e result = continue_process(proc);
+            assert_no_error(result);
+        }
+    }
+
+    return results;
+}
+
+/**
+ * Waits for a thread to be created in the specified process
+ *
+ * @param proc the process to wait on
+ *
+ * @return the thread that was created
+ */
+udi_thread *wait_for_thread_create(udi_process *proc) {
+    udi_event *event = wait_for_events(&proc, 1);
+
+    test_assert(event != NULL);
+    test_assert(event->proc == proc);
+    test_assert(event->event_type == UDI_EVENT_THREAD_CREATE);
+    test_assert(event->next_event == NULL);
+
+    udi_thread *thr = event->thr;
+    free_event_list(event);
+
+    return thr;
+}
+
+/**
+ * Waits for the death of the specified thread
+ *
+ * @param thr the thread
+ */
+void wait_for_thread_death(udi_thread *thr) {
+    udi_process *proc = get_process(thr);
+    udi_event *event = wait_for_events(&proc, 1);
+
+    test_assert(event->proc == proc);
+    test_assert(event->thr == thr);
+    test_assert(event->event_type == UDI_EVENT_THREAD_DEATH);
+
+    free_event_list(event);
+}
+
+/**
  * Waits for the specified process to hit the expected breakpoint
  *
- * @param proc  the process to wait on
- *
- * @return True, if an breakpoint event was seen; False otherwise
+ * @param thr the thread
  */
-bool wait_for_breakpoint(udi_process *proc, udi_address breakpoint) {
-    udi_event *events = wait_for_events(&proc, 1);
+void wait_for_breakpoint(udi_thread *thr, udi_address breakpoint) {
 
-    udi_event *iter = events;
+    udi_process *proc = get_process(thr);
 
-    bool saw_breakpoint_event = false;
-    while (iter != NULL) {
-        if ( iter->proc != proc ) {
-            cout << "Received event for unknown " << iter->proc << endl;
-            return false;
-        }
+    udi_event *event = wait_for_events(&proc, 1);
 
-        if ( iter->event_type != UDI_EVENT_BREAKPOINT ) {
-            cout << "Received unexpected event " << get_event_type_str(iter->event_type) << endl;
-            if (iter->event_type == UDI_EVENT_ERROR) {
-                cout << "Error message: " << ((udi_event_error_struct *)iter->event_data)->errstr << endl;
-            }
+    test_assert(event->proc == proc);
+    test_assert(event->thr == thr);
+    test_assert(event->event_type == UDI_EVENT_BREAKPOINT);
 
-            return false;
-        }
+    udi_event_breakpoint *proc_breakpoint = (udi_event_breakpoint *)event->event_data;
+    test_assert(proc_breakpoint->breakpoint_addr == breakpoint);
+    test_assert(event->next_event == NULL);
 
-        udi_event_breakpoint *proc_breakpoint = (udi_event_breakpoint *)iter->event_data;
-        if ( proc_breakpoint->breakpoint_addr != breakpoint ) {
-            cout << "Observed unexpected breakpoint at 0x" << std::hex
-                 << proc_breakpoint->breakpoint_addr << " (expected " << breakpoint
-                 << ")" << std::dec << endl;
-            return false;
-        }
-
-        saw_breakpoint_event = true;
-
-        iter = iter->next_event;
-    }
-
-    if ( events != NULL ) {
-        free_event_list(events);
-    }
-
-    if ( !saw_breakpoint_event ) {
-        cout << "Failed to observe breakpoint event for " << proc << endl;
-        return false;
-    }
-
-    return true;
+    free_event_list(event);
 }
 
 /**
  * Waits for the specified process to exit
  *
- * @param proc  the process to wait for
+ * @param thr the thread that will trigger the exit
  * @param expected_status the expected status for the process exit
- *
- * @return True, if an exit event was seen; False otherwise
  */
-bool wait_for_exit(udi_process *proc, int expected_status) {
-    udi_event *events = wait_for_events(&proc, 1);
+void wait_for_exit(udi_thread *thr, int expected_status) {
 
-    udi_event *iter = events;
+    udi_process *proc = get_process(thr);
 
-    bool saw_exit_event = false;
-    while ( iter != NULL ) {
-        if ( iter->proc != proc ) {
-            cout << "Received event for unknown " << proc << endl;
-            return false;
-        }
+    udi_event *event = wait_for_events(&proc, 1);
+    test_assert(event->proc == proc);
+    test_assert(event->thr == thr);
+    test_assert(event->event_type == UDI_EVENT_PROCESS_EXIT);
 
-        if ( iter->event_type != UDI_EVENT_PROCESS_EXIT ) {
-            cout << "Received unexpected event " << get_event_type_str(iter->event_type) << endl;
-            if (iter->event_type == UDI_EVENT_ERROR) {
-                cout << "Error message: " << ((udi_event_error_struct *)iter->event_data)->errstr << endl;
+    udi_event_process_exit *proc_exit = (udi_event_process_exit *)event->event_data;
+    test_assert(proc_exit->exit_code == expected_status);
+    test_assert(event->next_event == NULL);
 
-                continue_process(proc);
-            }
-
-            return false;
-        }
-
-        saw_exit_event = true;
-        udi_event_process_exit *proc_exit = (udi_event_process_exit *)iter->event_data;
-        if ( proc_exit->exit_code != expected_status ) {
-            cout << "Process unexpectedly exited with " << proc_exit->exit_code << " exit code" << endl;
-            return false;
-        }
-
-        iter = iter->next_event;
-    }
+    free_event_list(event);
 
     udi_error_e result = continue_process(proc);
+    assert_no_error(result);
 
-    if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to continue process " << get_error_message(result) << endl;
-        return false;
-    }
-
-    if ( events != NULL ) {
-        free_event_list(events);
-    }
-
-    if ( !saw_exit_event ) {
-        cout << "Failed to observe exit event for " << proc << endl;
-        return false;
-    }
-
-    if ( free_process(proc) ) {
-        cout << "Failed to free " << proc << endl;
-        return false;
-    }
-
-    return true;
+    result = free_process(proc);
+    assert_no_error(result);
 }
