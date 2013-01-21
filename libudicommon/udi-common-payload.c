@@ -181,6 +181,7 @@ udi_event_internal create_event_thread_create(uint64_t thread_id) {
     thread_create.event_type = UDI_EVENT_THREAD_CREATE;
     thread_create.thread_id = thread_id;
     thread_create.length = 0;
+    thread_create.packed_data = NULL;
 
     return thread_create;
 }
@@ -197,6 +198,7 @@ udi_event_internal create_event_thread_death(uint64_t thread_id) {
     thread_destroy.event_type = UDI_EVENT_THREAD_DEATH;
     thread_destroy.thread_id = thread_id;
     thread_destroy.length = 0;
+    thread_destroy.packed_data = NULL;
 
     return thread_destroy;
 }
@@ -262,20 +264,22 @@ udi_response create_response_read(const void *data, udi_length num_bytes) {
  * @param protocol_version version of the protocol being spoken
  * @param arch the architecture of the debuggee
  * @param multithread the multithread capability of the debuggee
+ * @param tid the thread id for the initial thread
  *
  * @return the created response
  */
 udi_response create_response_init(udi_version_e protocol_version,
-        udi_arch_e arch, int multithread)
+        udi_arch_e arch, int multithread, uint64_t tid)
 {
     udi_response init_response;
     init_response.response_type = UDI_RESP_VALID;
     init_response.request_type = UDI_REQ_INIT;
-    init_response.length = sizeof(uint32_t)*3;
+    init_response.length = sizeof(uint32_t)*3 + sizeof(uint64_t);
     init_response.packed_data = udi_pack_data(init_response.length,
             UDI_DATATYPE_INT32, protocol_version,
             UDI_DATATYPE_INT32, arch,
-            UDI_DATATYPE_INT32, multithread);
+            UDI_DATATYPE_INT32, multithread,
+            UDI_DATATYPE_INT64);
 
     return init_response;
 }
@@ -548,16 +552,19 @@ int unpack_response_error(udi_response *resp, udi_length *size, char **errmsg) {
  * @param protocol_version the protocol version output parameter
  * @param architecture the architecture output parameter
  * @param multithread_capable the multithread capabable output parameter
+ * @param tid the tid for the initial thread
  *
  * @return 0 on success; non-zero on failure
  */
 int unpack_response_init(udi_response *resp,  uint32_t *protocol_version,
-        udi_arch_e *architecture, int *multithread_capable) {
+        udi_arch_e *architecture, int *multithread_capable, uint64_t *tid) {
 
     if (udi_unpack_data(resp->packed_data, resp->length,
                 UDI_DATATYPE_INT32, protocol_version,
                 UDI_DATATYPE_INT32, architecture,
-                UDI_DATATYPE_INT32, multithread_capable)) {
+                UDI_DATATYPE_INT32, multithread_capable,
+                UDI_DATATYPE_INT64, tid))
+    {
         return -1;
     }
 

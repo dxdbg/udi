@@ -120,8 +120,6 @@ typedef enum
 
 /* Init request and response
  *
- * It is an error to send this request to a thread pipe
- *
  * Request arguments:
  *      None
  *
@@ -129,6 +127,7 @@ typedef enum
  *      UDI_DATATYPE_INT32 - the UDI protocol version
  *      UDI_DATATYPE_INT32 - the architecture of the debuggee
  *      UDI_DATATYPE_INT32 - whether the debuggee is multi-thread capable
+ *      UDI_DATATYPE_INT64 - the tid for the initial thread
  */
 
 /* Continue request and response

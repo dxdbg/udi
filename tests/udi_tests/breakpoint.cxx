@@ -56,53 +56,32 @@ static udi_length TEST_FUNCTION_INST = SIMPLE_FUNCTION1_INST_LENGTH;
 static test_breakpoint testInstance;
 
 bool test_breakpoint::operator()(void) {
-    if ( init_libudi() != 0 ) {
-        cout << "Failed to initialize libudi" << endl;
-        return false;
-    }
+    udi_error_e result = init_libudi();
+    assert_no_error(result);
 
     char *argv[] = { NULL };
 
     udi_process *proc = create_process(TEST_BINARY, argv, NULL);
-    if ( proc == NULL ) {
-        cout << "Failed to create process" << endl;
-        return false;
-    }
+    test_assert(proc != NULL);
 
-    // Create and install breakpoint
-    udi_error_e result = create_breakpoint(proc, TEST_FUNCTION);
+    udi_thread *thr = get_initial_thread(proc);
+    test_assert(thr != NULL);
 
-    if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to create breakpoint " << get_error_message(result) << endl;
-        return false;
-    }
+    result = create_breakpoint(proc, TEST_FUNCTION);
+    assert_no_error(result);
 
     result = install_breakpoint(proc, TEST_FUNCTION);
-
-    if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to install breakpoint: " << get_error_message(result) << endl;
-        return false;
-    }
+    assert_no_error(result);
 
     result = continue_process(proc);
+    assert_no_error(result);
 
-    if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to continue process: " << get_error_message(result) << endl;
-        return false;
-    }
-
-    if ( !wait_for_breakpoint(proc, TEST_FUNCTION) ) {
-        cout << "Failed to wait for breakpoint at 0x" << std::hex
-             << TEST_FUNCTION << std::dec << endl;
-        return false;
-    }
+    wait_for_breakpoint(thr, TEST_FUNCTION);
 
     result = continue_process(proc);
+    assert_no_error(result);
 
-    if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to continue process: " << get_error_message(result) << endl;
-        return false;
-    }
+    wait_for_exit(thr, EXIT_FAILURE);
 
-    return wait_for_exit(proc, EXIT_FAILURE);
+    return true;
 }

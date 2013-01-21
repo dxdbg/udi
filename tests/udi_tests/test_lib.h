@@ -30,14 +30,23 @@
 #define _TEST_LIB_H_ 1
 
 #include <iostream>
+#include <map>
 
 #include "libudi.h"
 
-bool wait_for_exit(udi_process *proc, int expected_status);
-bool wait_for_breakpoint(udi_process *proc, udi_address breakpoint);
-bool release_debuggee_threads(udi_process *proc);
-bool wait_for_debuggee_pipe(udi_process *proc);
+std::map<udi_thread *, udi_event *> wait_for_events(
+        const std::map<udi_process *, std::map<udi_thread *, udi_event_type> > &events);
+
+void wait_for_exit(udi_thread *thr, int expected_status);
+void wait_for_breakpoint(udi_thread *thr, udi_address breakpoint);
+udi_thread *wait_for_thread_create(udi_process *proc);
+void wait_for_thread_death(udi_thread *thr);
+
+void release_debuggee_threads(udi_process *proc);
+void wait_for_debuggee_pipe(udi_process *proc);
 
 std::ostream& operator<<(std::ostream &os, udi_process *proc);
+
+#define assert_no_error(e) test_assert_msg(get_error_message(e), e == UDI_ERROR_NONE)
 
 #endif

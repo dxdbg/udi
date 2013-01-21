@@ -40,6 +40,18 @@ const size_t ALLOC_SIZE = 16384; // 16KB
 static
 unsigned long global_max_size = 10485760; // 10 MB default
 
+static
+const int TRACING = 0; // set to 1 to enable HEAP tracing
+
+#define trace(format, ...) \
+    do {\
+        if( TRACING ) {\
+            fprintf(stderr, "%s[%d]: " format, __FILE__, __LINE__,\
+                    ## __VA_ARGS__);\
+        }\
+    }while(0)
+
+
 // Terms used in this implementation
 // Heap    - collection of segments
 // Segment - collection of chunks
@@ -135,6 +147,8 @@ segment *allocate_segment() {
         heap.num_segments++;
     }
 
+    trace("allocated new segment at 0x%p\n", ret);
+
     return ret;
 }
 
@@ -176,11 +190,12 @@ void udi_free(void *in_ptr) {
             udi_abort(__FILE__, __LINE__);
         }
 
+        trace("deallocated segment at 0x%p\n", parent_segment);
+
         heap.num_segments--;
         
         return;
     }
-
 
     // Need to add the chunk to the free list
     chunk *tmp = parent_segment->free_list;
@@ -209,18 +224,24 @@ void udi_free(void *in_ptr) {
         last_chunk->size += sizeof(chunk) + chunk_ptr->size;
     // Case 3: free'd chunk is adjacent to free chunk after it
     }else if ( (tmp_addr - sizeof(chunk) - chunk_ptr->size) == chunk_addr ) {
-        chunk_ptr += sizeof(chunk) + tmp->size;
+        chunk_ptr += sizeof(chunk) + chunk_ptr->size;
         if ( tmp == parent_segment->free_list ) {
             parent_segment->free_list = chunk_ptr;
         }else{
             last_chunk->next_chunk = chunk_ptr;
             chunk_ptr->next_chunk = tmp->next_chunk;
         }
-    // Case 4: free'd chunk is not adjacent to any free chunk
+    // Case 4: free'd chunk is before the first chunk in the free list
+    }else if ( ((unsigned long)parent_segment->free_list) > chunk_addr ) {
+        chunk_ptr->next_chunk = parent_segment->free_list;
+        parent_segment->free_list = chunk_ptr;
+    // Case 5: free'd chunk is not adjacent to any free chunk
     }else{
         last_chunk->next_chunk = chunk_ptr;
         chunk_ptr->next_chunk = tmp;
     }
+
+    trace("deallocated chunk of size %d at 0x%p\n", chunk_ptr->size, chunk_ptr);
 }
 
 /**
@@ -254,6 +275,11 @@ void *udi_malloc(size_t length) {
                 errno = ENOMEM;
                 return NULL;
             }
+
+            // Handle initial allocation
+            if (tmp_head == NULL) {
+                tmp_head = tmp_segment;
+            }
         }
 
         // Now search the segments free_list for a suitable free chunk
@@ -277,7 +303,11 @@ void *udi_malloc(size_t length) {
         if (    tmp_chunk->size == length 
              || ((tmp_chunk->size - length) < (sizeof(chunk) + 1)) ) 
         {
-            last_chunk->next_chunk = tmp_chunk->next_chunk;
+            if ( tmp_chunk == tmp_segment->free_list ) {
+                tmp_segment->free_list = tmp_chunk->next_chunk;
+            }else{
+                last_chunk->next_chunk = tmp_chunk->next_chunk;
+            }
             tmp_segment->free_space -= sizeof(chunk) + tmp_chunk->size;
         // Case 2: the found chunk is greater than size requested and there is
         // enough space left over for another chunk
@@ -285,6 +315,7 @@ void *udi_malloc(size_t length) {
             // create new chunk and allocate tmp_chunk
             chunk new_chunk;
             new_chunk.size = tmp_chunk->size - length - sizeof(chunk);
+            tmp_chunk->size = length;
             new_chunk.parent_segment = tmp_segment;
             new_chunk.next_chunk = tmp_chunk->next_chunk;
 
@@ -300,8 +331,10 @@ void *udi_malloc(size_t length) {
                 tmp_segment->free_list = (chunk *)new_chunk_addr;
             }
 
-            tmp_segment->free_space -= sizeof(chunk) + new_chunk.size;
+            tmp_segment->free_space -= sizeof(chunk) + tmp_chunk->size;
         }
+
+        trace("allocated chunk of size %lu at 0x%p\n", tmp_chunk->size, tmp_chunk);
         
         return (void *)(((unsigned char *)tmp_chunk) + sizeof(chunk));
     }while(1);
@@ -311,6 +344,7 @@ void *udi_malloc(size_t length) {
 void dump_heap() {
     fprintf(stderr, "Num segments: %d\n", heap.num_segments);
     fprintf(stderr, "Last segment: %p\n", heap.last_segment);
+    fprintf(stderr, "\n");
 
     segment *seg_ptr = heap.segment_list;
     while (seg_ptr != NULL) {
@@ -326,6 +360,7 @@ void dump_heap() {
             fprintf(stderr, "\tParent segment: %p\n", chunk_ptr->parent_segment);
             fprintf(stderr, "\tSize: %d\n", chunk_ptr->size);
             fprintf(stderr, "\tNext chunk: %p\n", chunk_ptr->next_chunk);
+            fprintf(stderr, "\n");
 
             chunk_ptr = chunk_ptr->next_chunk;
         }
@@ -333,3 +368,4 @@ void dump_heap() {
         seg_ptr = seg_ptr->next_segment;
     }
 }
+

@@ -124,12 +124,12 @@ int unpack_event_breakpoint(udi_event_internal *event, udi_address *addr);
 udi_response create_response_error(const char *errmsg, unsigned int errmsg_size);
 udi_response create_response_read(const void *data, udi_length num_bytes);
 udi_response create_response_init(udi_version_e protocol_version,
-        udi_arch_e arch, int multithread);
+        udi_arch_e arch, int multithread, uint64_t tid);
 
 int unpack_response_read(udi_response *resp, udi_length *num_bytes, void **value);
 int unpack_response_error(udi_response *resp, udi_length *size, char **errmsg);
 int unpack_response_init(udi_response *resp,  uint32_t *protocol_version,
-        udi_arch_e *architecture, int *multithread_capable);
+        udi_arch_e *architecture, int *multithread_capable, uint64_t *tid);
 
 int unpack_request_continue(udi_request *req, uint32_t *sig_val, char *errmsg, 
         unsigned int errmsg_size);

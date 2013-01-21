@@ -102,6 +102,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context);
 // threads support
 typedef struct thread_struct {
     uint64_t id;
+    int dead;
     int request_handle;
     int response_handle;
     struct thread_struct *next_thread;
@@ -110,6 +111,7 @@ typedef struct thread_struct {
 int get_num_threads();
 int get_multithread_capable();
 int setsigmask(int how, const sigset_t *new_set, sigset_t *old_set);
+thread *get_thread_list();
 uint64_t get_user_thread_id();
 uint32_t get_kernel_thread_id();
 int install_thread_event_breakpoints(char *errmsg, unsigned int errmsg_size);
@@ -124,6 +126,9 @@ int thread_death_callback(thread *thr, char *errmsg, unsigned int errmsg_size);
 extern void (*pthreads_create_event)(void);
 extern void (*pthreads_death_event)(void);
 int initialize_pthreads_support(char *errmsg, unsigned int errmsg_size);
+uint64_t initialize_thread(char *errmsg, unsigned int errmsg_size);
+uint64_t finalize_thread(char *errmsg, unsigned int errmsg_size);
+thread *create_initial_thread();
 
 #ifdef __cplusplus
 } // extern C

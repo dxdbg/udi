@@ -45,9 +45,11 @@ typedef uint64_t udi_tid;
 #endif
 
 struct udi_thread_struct {
+    int initial;
     udi_tid tid;
     udi_handle request_handle;
     udi_handle response_handle;
+    struct udi_process_struct *proc;
     struct udi_thread_struct *next_thread;
 };
 
@@ -61,7 +63,7 @@ struct udi_process_struct {
     uint32_t protocol_version;
     int multithread_capable;
     void *user_data;
-    udi_thread *threads;
+    struct udi_thread_struct *threads;
 };
 
 // platform specific functionality //
@@ -79,7 +81,7 @@ int initialize_process(udi_process *proc);
 
 // thread handling
 udi_thread *handle_thread_create(udi_process *proc, uint64_t tid);
-void handle_thread_death(udi_process *proc, udi_thread *thr);
+int handle_thread_death(udi_process *proc, udi_thread *thr);
 
 // request handling
 int write_request(udi_request *req, udi_process *proc);

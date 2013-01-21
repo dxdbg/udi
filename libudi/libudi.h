@@ -55,13 +55,13 @@ typedef enum {
 
 // Global state functions //
 const char *get_error_message(udi_error_e error_code);
-int init_libudi();
-int set_udi_root_dir(const char *root_dir);
+udi_error_e init_libudi();
+udi_error_e set_udi_root_dir(const char *root_dir);
 
 // Process management //
 udi_process *create_process(const char *executable, char * const argv[],
         char * const envp[]);
-int free_process(udi_process *proc);
+udi_error_e free_process(udi_process *proc);
 udi_error_e continue_process(udi_process *proc);
 
 // Process properties //
@@ -70,9 +70,11 @@ void *get_user_data(udi_process *proc);
 int get_proc_pid(udi_process *proc);
 udi_arch_e get_proc_architecture(udi_process *proc);
 int get_multithread_capable(udi_process *proc);
+udi_thread *get_initial_thread(udi_process *proc);
 
 // Thread properties //
 uint64_t get_tid(udi_thread *thr);
+udi_process *get_process(udi_thread *thr);
 
 // Event handling interface //
 
@@ -80,7 +82,7 @@ uint64_t get_tid(udi_thread *thr);
  * Encapsulates an event in the debuggee
  */
 typedef struct udi_event_struct {
-    udi_event_type event_type;
+    udi_event_type_e event_type;
     udi_process *proc;
     udi_thread *thr;
     void *event_data;

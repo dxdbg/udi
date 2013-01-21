@@ -54,25 +54,22 @@ static const char *TEST_BINARY = SIMPLE_BINARY_PATH;
 static test_create testInstance;
 
 bool test_create::operator()(void) {
-    if ( init_libudi() != 0 ) {
-        cout << "Failed to initialize libudi" << endl;
-        return false;
-    }
+    udi_error_e result = init_libudi();
+    assert_no_error(result);
 
     char *argv[] = { NULL };
 
     udi_process *proc = create_process(TEST_BINARY, argv, NULL);
-    if ( proc == NULL ) {
-        cout << "Failed to create process" << endl;
-        return false;
-    }
+    test_assert(proc != NULL);
+    test_assert(get_multithread_capable(proc) == 0);
 
-    udi_error_e result = continue_process(proc);
+    udi_thread *thr = get_initial_thread(proc);
+    test_assert(thr != NULL);
+    
+    result = continue_process(proc);
+    assert_no_error(result);
 
-    if ( result != UDI_ERROR_NONE ) {
-        cout << "Failed to continue process " << get_error_message(result) << endl;
-        return false;
-    }
+    wait_for_exit(thr, EXIT_FAILURE);
 
-    return wait_for_exit(proc, EXIT_FAILURE);
+    return true;
 }
