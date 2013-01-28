@@ -22,6 +22,7 @@ void signal_handler(int signal) {
     bin_printf("Received signal %d\n", signal);
     sleep(5);
     bin_printf("Done sleeping\n");
+    kill(getpid(), SIGUSR1);
 }
 
 int main(int argc, char *argv[]) {

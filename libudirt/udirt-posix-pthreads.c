@@ -29,6 +29,8 @@
 // Thread support for pthreads
 
 #include <inttypes.h>
+#include <unistd.h>
+#include <errno.h>
 
 #include "udi.h"
 #include "udirt.h"
@@ -43,6 +45,7 @@
 
 extern int pthread_sigmask(int how, const sigset_t *new_set, sigset_t *old_set) __attribute__((weak));
 extern pthread_t pthread_self() __attribute__((weak));
+extern int pthread_kill(pthread_t, int) __attribute__((weak));
 
 // the threads list
 static int num_threads = 0;
@@ -56,11 +59,21 @@ static breakpoint *thread_death_bp = NULL;
  * Determine if the debuggee is multithread capable (i.e., linked
  * against pthreads).
  * 
- * @return non-zero if the debugee is multithread capable
+ * @return non-zero if the debuggee is multithread capable
  */
 inline
 int get_multithread_capable() {
     return pthread_sigmask != 0;
+}
+
+/**
+ * Determine if the debuggee is multithreaded
+ *
+ * @return non-zero if the debuggee is multithread capable
+ */
+inline
+int get_multithreaded() {
+    return get_multithread_capable() && get_num_threads() > 1;
 }
 
 /**
@@ -171,6 +184,7 @@ int is_thread_event_breakpoint(breakpoint *bp) {
 /**
  * @return The number of threads in this process
  */
+inline
 int get_num_threads() {
     return num_threads;
 }
@@ -182,6 +196,19 @@ int get_num_threads() {
  */
 static
 thread *create_thread(uint64_t tid) {
+
+    int control_pipe[2];
+    if ( get_multithread_capable() ) {
+        // Create the pipes for synchronizing signal handler access
+        if ( pipe(control_pipe) != 0 ) {
+            udi_printf("failed to create sync pipe: %s\n", strerror(errno));
+            return NULL;
+        }
+    }else{
+        control_pipe[0] = -1;
+        control_pipe[1] = -1;
+    }
+
     // find the end of the list
     thread *cur_thread = threads;
     thread *last_thread = threads;
@@ -192,18 +219,25 @@ thread *create_thread(uint64_t tid) {
     }
 
     thread *new_thr = (thread *)udi_malloc(sizeof(thread));
-    if (new_thr == NULL) return NULL;
+    if (new_thr == NULL) {
+        close(control_pipe[0]);
+        close(control_pipe[1]);
+        return NULL;
+    }
 
     new_thr->id = tid;
+    new_thr->alive = 0;
     new_thr->dead = 0;
     new_thr->request_handle = -1;
     new_thr->response_handle = -1;
     new_thr->next_thread = NULL;
+    new_thr->control_read = control_pipe[0];
+    new_thr->control_write = control_pipe[1];
+    new_thr->ts = TS_RUNNING;
+    num_threads++;
 
     if (last_thread == NULL) {
         threads = new_thr;
-        if (threads == NULL) return NULL;
-        return threads;
     }else{
         last_thread->next_thread = new_thr;
     }
@@ -262,13 +296,36 @@ thread *get_thread_list() {
 }
 
 /**
+ * @return the current thread
+ */
+thread *get_current_thread() {
+    uint64_t tid = get_user_thread_id();
+
+    thread *thr = threads;
+    while (thr != NULL) {
+        if (thr->id == tid) break;
+        thr = thr->next_thread;
+    }
+
+    if ( thr == NULL ) {
+        udi_abort(__FILE__, __LINE__);
+    }
+
+    return thr;
+}
+
+/**
  * Creates the initial thread
  *
  * @return the created thread or null if there was an error
  */
 thread *create_initial_thread() {
 
-    return create_thread(get_user_thread_id());
+    thread *thr = create_thread(get_user_thread_id());
+
+    // the initial thread is already alive
+    thr->alive = 1;
+    return thr;
 }
 
 /**
@@ -399,4 +456,164 @@ event_result handle_thread_event_breakpoint(breakpoint *bp, const ucontext_t *co
     udi_printf("%s\n", errmsg); 
 
     return err_result;
+}
+
+/// rendezvous used to synchronize actions with other threads
+static rendezvous thread_rend = { 0, -1, -1 };
+
+/**
+ * Initializes the thread synchronization mechanism
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int initialize_thread_sync() {
+    thread_rend.sync_var = 0;
+
+    if ( get_multithread_capable() ) {
+        int control_pipe[2];
+        if ( pipe(control_pipe) != 0 ) {
+            udi_printf("failed to create sync pipe for rendezvous: %s\n", strerror(errno));
+            return -1;
+        }
+
+        thread_rend.read_handle = control_pipe[0];
+        thread_rend.write_handle = control_pipe[1];
+    }else{
+        thread_rend.read_handle = -1;
+        thread_rend.write_handle = -1;
+    }
+
+    return 0;
+}
+
+/// the sentinel used to send signals to other threads
+static const unsigned char sentinel = 0x21;
+
+/**
+ * The first thread that calls this function forces all other threads into the UDI signal handler,
+ * which eventually routes to this function. 
+ *
+ * If a thread isn't the first thread calling this function, it will block until the library
+ * decides the thread should continue executing, which is a combination of the user's desired
+ * run state for a thread and the libraries desired run state for a thread.
+ *
+ * @return less than 0 if there is an error
+ * @return 0 if the thread was the first thread
+ * @return greater than 0 if the thread was not the first thread
+ */
+int block_other_threads() {
+
+    int result = 0;
+    if (get_multithreaded()) {
+        thread *thr = get_current_thread();
+        if ( thr == NULL ) {
+            udi_printf("found unknown thread 0x%"PRIx64"\n", get_user_thread_id());
+            return -1;
+        }
+
+        // Determine whether this is the first thread or not
+        unsigned int sync_var = __sync_val_compare_and_swap(&(thread_rend.sync_var), 0, 1);
+        if (sync_var == 0) {
+            // the first thread
+            thread *iter = threads;
+            while (iter != NULL) {
+                if (iter != thr) {
+                    if ( pthread_kill((pthread_t)iter->id, SIGUSR1) != 0 ) {
+                        udi_printf("failed to send signal to 0x%"PRIx64"\n",
+                                iter->id);
+                        return -1;
+                    }
+                }
+                iter = iter->next_thread;
+            }
+
+            // wait for the other threads to reach this function
+            int i;
+            for (i = 0; i < num_threads-1; ++i) {
+                unsigned char trigger;
+                if ( read(thread_rend.read_handle, &trigger, 1) != 1 ) {
+                    udi_printf("failed to read trigger from pipe: %s\n", strerror(errno));
+                    return -1;
+                }
+
+                if ( trigger != sentinel ) {
+                    udi_abort(__FILE__, __LINE__);
+                    return -1;
+                }
+            }
+        }else{
+            // other thread
+
+            // signal that thread is now waiting to be released
+            if ( write(thread_rend.write_handle, &sentinel, 1) != 1 ) {
+                udi_printf("failed to write trigger to pipe: %s\n", strerror(errno));
+                return -1;
+            }
+
+            // wait to be released
+            thread *thr = get_current_thread();
+
+            udi_printf("thread 0x%"PRIx64" waiting to be released\n", thr->id);
+
+            unsigned char trigger;
+            if ( read(thr->control_read, &trigger, 1) != 1 ) {
+                udi_printf("failed to read control trigger from pipe: %s\n", strerror(errno));
+                return -1;
+            }
+
+            if ( trigger != sentinel ) {
+                udi_abort(__FILE__, __LINE__);
+                return -1;
+            }
+
+            result = 1;
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Releases the other threads that are blocked in block_other_threads
+ *
+ * Marks any threads that were created during this request handling
+ *
+ * @return 0 on success
+ * @return non-zero on failure
+ */
+int release_other_threads() {
+    int result = 0;
+    if (get_multithreaded()) {
+        thread *thr = get_current_thread();
+        if ( thr == NULL ) {
+            udi_printf("found unknown thread 0x%"PRIx64"\n", get_user_thread_id());
+            return -1;
+        }
+
+        // clear "lock" for future entrances to block_other_threads
+        //
+        // Note: it's possible that the sync var is already 0 when the first thread was created
+        // -- just ignore this case as the below code handles this case correctly
+        __sync_val_compare_and_swap(&(thread_rend.sync_var), 1, 0);
+
+        // release the other threads, if they should be running
+        thread *iter = threads;
+        while ( iter != NULL ) {
+            if ( iter != thr && iter->ts == TS_RUNNING ) {
+                if ( iter->alive ) {
+                    if ( write(iter->control_write, &sentinel, 1) != 1 ) {
+                        udi_printf("failed to write control trigger to pipe: %s\n",
+                                strerror(errno));
+                        return -1;
+                    }
+                }else{
+                    udi_printf("Marking 0x%"PRIx64" alive\n", iter->id);
+                    iter->alive = 1;
+                }
+            }
+            iter = iter->next_thread;
+        }
+    }
+
+    return result;
 }

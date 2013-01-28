@@ -31,6 +31,9 @@
 // This header needs to be included first because it sets feature macros
 #include "udirt-platform.h"
 
+// This nonsense is needed because Linux headers redefine signal as __sysv_signal
+void (*signal(int signum, void (*handler)(int)) )(int) __asm__ ("" "signal");
+
 #include "udirt-posix.h"
 
 #include <errno.h>
@@ -76,6 +79,7 @@ struct sigaction default_lib_action;
 sigaction_type real_sigaction;
 fork_type real_fork;
 execve_type real_execve;
+signal_type real_signal;
 
 // event breakpoints
 static breakpoint *exit_bp = NULL;
@@ -142,6 +146,15 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
         }
 
         real_execve = (execve_type) dlsym(UDI_RTLD_NEXT, "execve");
+        errmsg_tmp = dlerror();
+        if (errmsg_tmp != NULL) {
+            udi_printf("symbol lookup error: %s\n", errmsg_tmp);
+            strncpy(errmsg, errmsg_tmp, errmsg_size-1);
+            errnum = -1;
+            break;
+        }
+
+        real_signal = (signal_type) dlsym(UDI_RTLD_NEXT, "signal");
         errmsg_tmp = dlerror();
         if (errmsg_tmp != NULL) {
             udi_printf("symbol lookup error: %s\n", errmsg_tmp);
@@ -281,29 +294,49 @@ int sigaction(int signum, const struct sigaction *act,
     int block_result = setsigmask(SIG_SETMASK, &full_set, &orig_set);
     if ( block_result != 0 ) return EINVAL;
 
-    // Validate the arguments
-    int result = real_sigaction(signum, act, oldact);
-    if ( result != 0 ) return result;
+    int result = 0;
+    do {
+        // Validate the arguments
+        int result = real_sigaction(signum, act, oldact);
+        if ( result != 0 ) break;
 
-    // Reset action back to library default
-    result = real_sigaction(signum, &default_lib_action, NULL);
-    if ( result != 0 ) return result;
+        // Reset action back to library default
+        result = real_sigaction(signum, &default_lib_action, NULL);
+        if ( result != 0 ) break;
 
-    // Store new application action for future use
-    int signal_index = signal_map[(signum % MAX_SIGNAL_NUM)];
-    if ( oldact != NULL ) {
-        *oldact = app_actions[signal_index];
-    }
+        // Store new application action for future use
+        int signal_index = signal_map[(signum % MAX_SIGNAL_NUM)];
+        if ( oldact != NULL ) {
+            *oldact = app_actions[signal_index];
+        }
 
-    if ( act != NULL ) {
-        app_actions[signal_index] = *act;
-    }
+        if ( act != NULL ) {
+            app_actions[signal_index] = *act;
+        }
+    }while(0);
 
     // Unblock signals
     block_result = setsigmask(SIG_SETMASK, &orig_set, NULL);
     if ( block_result != 0 ) return EINVAL;
 
-    return 0;
+    return result;
+}
+
+/**
+ * Wrapper function for signal
+ *
+ * See the manpage for signal for information about the parameters and return
+ */
+void (*signal(int signum, void (*handler)(int)) )(int) {
+
+    struct sigaction current, old;
+    current.sa_handler = handler;
+
+    if ( sigaction(signum, &current, &old) != 0 ) {
+        return SIG_ERR;
+    }
+
+    return old.sa_handler;
 }
 
 /**
