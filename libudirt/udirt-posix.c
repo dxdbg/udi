@@ -474,8 +474,6 @@ int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
                 }
             }
             cur_thr = cur_thr->next_thread;
-
-            // TODO handle suspended/resumed threads
         }
     }
     
@@ -484,6 +482,8 @@ int continue_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
     if ( result == REQ_SUCCESS ) {
         pass_signal = sig_val;
         kill(getpid(), sig_val);
+
+        udi_printf("continuing with signal %d\n", sig_val);
     }
 
     return result;
@@ -1011,11 +1011,6 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     char errmsg[ERRMSG_SIZE];
     errmsg[ERRMSG_SIZE-1] = '\0';
 
-    udi_printf("signal entry for 0x%lx/%u with %d\n",
-            get_user_thread_id(),
-            get_kernel_thread_id(),
-            signal);
-
     ucontext_t *context = (ucontext_t *)v_context;
 
     if ( pipe_write_failure && signal == SIGPIPE ) {
@@ -1039,7 +1034,38 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
         return;
     }
 
+    udi_printf(">>> signal entry for 0x%"PRIx64"/%u with %d\n",
+            get_user_thread_id(),
+            get_kernel_thread_id(),
+            signal);
+    if ( is_performing_mem_access() ) {
+        udi_printf("memory access at 0x%lx in progress\n", (unsigned long)get_mem_access_addr());
+    }
+
+    if ( get_multithreaded() ) {
+        thread *thr = get_current_thread();
+        if ( thr == NULL ) {
+            udi_abort(__FILE__, __LINE__);
+        }
+
+        thr->last_siginfo = *siginfo;
+    }
+
     udi_in_sig_handler++;
+
+    if (!is_performing_mem_access() && continue_bp == NULL) {
+        int block_result = block_other_threads();
+        if ( block_result == -1 ) {
+            udi_printf("%s", "failed to block other threads\n");
+            udi_abort(__FILE__, __LINE__);
+            return;
+        }
+
+        if ( block_result > 0 ) {
+            udi_printf("<<< waiting thread 0x%"PRIx64" exiting signal handler\n", get_user_thread_id());
+            return;
+        }
+    }
 
     // create event
     // Note: each decoder function will call write_event to avoid unnecessary
@@ -1124,9 +1150,19 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
             udi_printf("Aborting due to request failure: %s\n", errmsg);
             udi_abort(__FILE__, __LINE__);
         }
+    }else{
+        // Cleanup before returning to user code
+        if ( get_multithread_capable() && continue_bp == NULL ) {
+            release_other_threads();
+        }
     }
 
     udi_in_sig_handler--;
+
+    udi_printf("<<< signal exit for 0x%"PRIx64"/%u with %d\n",
+            get_user_thread_id(),
+            get_kernel_thread_id(),
+            signal);
 }
 
 /**
@@ -1707,6 +1743,11 @@ void init_udi_rt() {
                 != 0 )
         {
             udi_printf("%s\n", "failed to initialize pthreads support");
+            break;
+        }
+
+        if ( (errnum = initialize_thread_sync()) != 0 ) {
+            udi_printf("%s\n", "failed to initialize thread sync");
             break;
         }
 

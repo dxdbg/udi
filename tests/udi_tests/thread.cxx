@@ -53,7 +53,7 @@ class test_thread : public UDITestCase {
         bool operator()(void);
 };
 
-static const int NUM_THREADS = 5;
+static const int NUM_THREADS = 2;
 
 static const char *TEST_BINARY = THREAD_BINARY_PATH;
 static udi_address TEST_FUNCTION = THREAD_BREAK_FUNC;

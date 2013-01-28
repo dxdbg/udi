@@ -611,7 +611,7 @@ int initialize_pthreads_support(char *errmsg, unsigned int errmsg_size) {
 
         // enable events for the initial thread
         td_thrhandle_t initial_thread;
-        if ( (td_ret = td_ta_map_id2thr_func(thragent, pthread_self(), &initial_thread))
+        if ( (td_ret = td_ta_map_id2thr_func(thragent, get_user_thread_id(), &initial_thread))
                 != TD_OK )
         {
             snprintf(errmsg, errmsg_size, "td_ta_map_id2thr failed: %d", td_ret);

@@ -54,6 +54,7 @@ typedef int (*sigaction_type)(int, const struct sigaction *,
         struct sigaction *);
 typedef pid_t (*fork_type)(void);
 typedef int (*execve_type)(const char *, char *const *, char *const *);
+typedef void (* (*signal_type)(int, void (*handler)(int)))(int);
 
 extern sigaction_type real_sigaction;
 extern fork_type real_fork;
@@ -99,36 +100,62 @@ int setup_signal_handlers();
 void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context);
 void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context);
 
-// threads support
+// pthreads support
+typedef enum {
+    TS_RUNNING = 0,
+    TS_SUSPENDED,
+} thread_state_e;
+
 typedef struct thread_struct {
     uint64_t id;
+    thread_state_e ts;
+    int alive;
     int dead;
     int request_handle;
     int response_handle;
+    int control_write;
+    int control_read;
     struct thread_struct *next_thread;
+    siginfo_t last_siginfo;
 } thread;
 
 int get_num_threads();
 int get_multithread_capable();
+int get_multithreaded();
 int setsigmask(int how, const sigset_t *new_set, sigset_t *old_set);
 thread *get_thread_list();
 uint64_t get_user_thread_id();
 uint32_t get_kernel_thread_id();
+thread *get_current_thread();
+
+// thread synchronization
+typedef struct rendezvous_struct {
+    unsigned int sync_var;
+    int read_handle;
+    int write_handle;
+} rendezvous;
+int initialize_thread_sync();
+int block_other_threads();
+int release_other_threads();
+
+// thread events
+extern void (*pthreads_create_event)(void);
+extern void (*pthreads_death_event)(void);
+
+int initialize_pthreads_support(char *errmsg, unsigned int errmsg_size);
+
 int install_thread_event_breakpoints(char *errmsg, unsigned int errmsg_size);
 int is_thread_event_breakpoint(breakpoint *bp);
 event_result handle_thread_event_breakpoint(breakpoint *bp, const ucontext_t *context,
         char *errmsg, unsigned int errmsg_size);
+
+thread *create_initial_thread();
 int thread_create_callback(thread *thr, char *errmsg, unsigned int errmsg_size);
 int thread_create_handshake(thread *thr, char *errmsg, unsigned int errmsg_size);
-int thread_death_callback(thread *thr, char *errmsg, unsigned int errmsg_size);
-
-// pthreads support
-extern void (*pthreads_create_event)(void);
-extern void (*pthreads_death_event)(void);
-int initialize_pthreads_support(char *errmsg, unsigned int errmsg_size);
 uint64_t initialize_thread(char *errmsg, unsigned int errmsg_size);
+
+int thread_death_callback(thread *thr, char *errmsg, unsigned int errmsg_size);
 uint64_t finalize_thread(char *errmsg, unsigned int errmsg_size);
-thread *create_initial_thread();
 
 #ifdef __cplusplus
 } // extern C
