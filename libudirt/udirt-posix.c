@@ -1042,17 +1042,9 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
         udi_printf("memory access at 0x%lx in progress\n", (unsigned long)get_mem_access_addr());
     }
 
-    if ( get_multithreaded() ) {
-        thread *thr = get_current_thread();
-        if ( thr == NULL ) {
-            udi_abort(__FILE__, __LINE__);
-        }
-
-        thr->last_siginfo = *siginfo;
-    }
-
     udi_in_sig_handler++;
 
+    thread *thr = get_current_thread();
     if (!is_performing_mem_access() && continue_bp == NULL) {
         int block_result = block_other_threads();
         if ( block_result == -1 ) {
@@ -1061,9 +1053,31 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
             return;
         }
 
+
         if ( block_result > 0 ) {
+            if ( thr != NULL && signal != THREAD_SUSPEND_SIGNAL) {
+                // save this signal as deferred, will hijack the sent suspend signal to handle
+                // the signal
+                thr->deferred.signal = signal;
+                thr->deferred.siginfo = *siginfo;
+                thr->deferred.context = *context;
+            }
+
             udi_printf("<<< waiting thread 0x%"PRIx64" exiting signal handler\n", get_user_thread_id());
             return;
+        }
+
+        if ( thr != NULL && thr->deferred.signal != 0 ) {
+            signal = thr->deferred.signal;
+            *siginfo = thr->deferred.siginfo;
+            *context = thr->deferred.context;
+
+            memset(&(thr->deferred), 0, sizeof(signal_state));
+
+            udi_printf("deferred signal of %d for 0x%"PRIx64"/%u\n",
+                    signal,
+                    get_user_thread_id(),
+                    get_kernel_thread_id());
         }
     }
 

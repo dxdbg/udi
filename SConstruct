@@ -26,10 +26,10 @@ Export('topenv')
 
 if topenv['CC'] == 'gcc':
     # C compiler flags
-    topenv.Append(CFLAGS = "-Wall -fPIC -std=gnu99 -g")
+    topenv.Append(CFLAGS = "-Wall -Werror -fPIC -std=gnu99 -g")
 
     # C++ compiler flags
-    topenv.Append(CXXFLAGS = "-Wall -g -fPIC")
+    topenv.Append(CXXFLAGS = "-Wall -Werror -g -fPIC")
 
     if 'ENABLE_OPT' in os.environ:
         topenv.Append(CFLAGS = "-O2")

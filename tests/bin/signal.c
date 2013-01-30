@@ -22,13 +22,14 @@ void signal_handler(int signal) {
     bin_printf("Received signal %d\n", signal);
     sleep(5);
     bin_printf("Done sleeping\n");
-    kill(getpid(), SIGUSR1);
 }
 
 int main(int argc, char *argv[]) {
     init_bin();
 
     signal(SIGUSR1, signal_handler);
+    signal(SIGSEGV, signal_handler);
+    signal(SIGUSR2, signal_handler);
 
     while (!wait_flag) {
         pause();

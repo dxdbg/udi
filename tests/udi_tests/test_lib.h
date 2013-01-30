@@ -44,6 +44,7 @@ void wait_for_thread_death(udi_thread *thr);
 
 void release_debuggee_threads(udi_process *proc);
 void wait_for_debuggee_pipe(udi_process *proc);
+void cleanup_debuggee_pipe(udi_process *proc);
 
 std::ostream& operator<<(std::ostream &os, udi_process *proc);
 

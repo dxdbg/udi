@@ -127,7 +127,7 @@ unsigned long compute_relative_location(struct ud_operand *op, unsigned long pc)
 // flag masks
 static int CF = 0x1;
 static int PF = 0x4;
-static int AF = 0x10;
+// static int AF = 0x10; unused right now
 static int ZF = 0x40;
 static int SF = 0x80;
 static int OF = 0x800;

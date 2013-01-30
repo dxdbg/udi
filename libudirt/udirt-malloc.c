@@ -334,7 +334,7 @@ void *udi_malloc(size_t length) {
             tmp_segment->free_space -= sizeof(chunk) + tmp_chunk->size;
         }
 
-        trace("allocated chunk of size %lu at 0x%p\n", tmp_chunk->size, tmp_chunk);
+        trace("allocated chunk of size %hu at 0x%p\n", tmp_chunk->size, tmp_chunk);
         
         return (void *)(((unsigned char *)tmp_chunk) + sizeof(chunk));
     }while(1);

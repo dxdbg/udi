@@ -505,25 +505,48 @@ uint64_t initialize_thread(char *errmsg, unsigned int errmsg_size) {
  *
  * @return the tid for the finalized thread, 0 on error
  */   
+volatile int value = 0;
 uint64_t finalize_thread(char *errmsg, unsigned int errmsg_size) {
 
+    /* for some reason, libthread_db is not returning consistent results for td_thr_event_getmsg
     td_err_e td_ret; 
-    td_event_msg_t event_msg;
-    if ( (td_ret = td_ta_event_getmsg_func(thragent, &event_msg)) != TD_OK ) {
-        snprintf(errmsg, errmsg_size, "td_ta_event_getmsg failed: %d", td_ret);
+    td_thrhandle_t dead_handle;
+    if ( (td_ret = td_ta_map_id2thr_func(thragent, get_user_thread_id(), &dead_handle))
+            != TD_OK )
+    {
+        snprintf(errmsg, errmsg_size, "td_ta_map_id2thr failed: %d", td_ret);
         udi_printf("%s\n", errmsg);
         return 0;
     }
 
-    const td_thrhandle_t *dead_handle = event_msg.th_p;
+    while (!value) {
+        sleep(1);
+    }
+
+    td_event_msg_t event_msg;
+    if ( (td_ret = td_thr_event_getmsg_func(&dead_handle, &event_msg)) != TD_OK ) {
+        snprintf(errmsg, errmsg_size, "td_thr_event_getmsg failed: %d", td_ret);
+        udi_printf("%s\n", errmsg);
+        return 0;
+    }
+
+    if ( event_msg.event != TD_DEATH ) {
+        snprintf(errmsg, errmsg_size, "unexpected event type: %d", event_msg.event);
+        udi_printf("%s\n", errmsg);
+        return 0;
+    }
+
+    const td_thrhandle_t *actual_handle = event_msg.th_p;
     td_thrinfo_t dead_info;
-    if ( (td_ret = td_thr_get_info_func(dead_handle, &dead_info)) != TD_OK ) {
+    if ( (td_ret = td_thr_get_info_func(actual_handle, &dead_info)) != TD_OK ) {
         snprintf(errmsg, errmsg_size, "td_thr_get_info failed: %d", td_ret);
         udi_printf("%s\n", errmsg);
         return 0;
     }
 
     return (uint64_t)dead_info.ti_tid;
+    */
+    return get_user_thread_id();
 }
 
 /**

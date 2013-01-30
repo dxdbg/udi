@@ -21,6 +21,7 @@
 struct threadArg {
     int id;
     pthread_mutex_t *mutex;
+    pthread_mutex_t *term_mutex;
 };
 
 struct threadArg threadStruct = { -1, NULL };
@@ -60,6 +61,22 @@ void *entry(void *arg) {
     bin_printf("%ld released lock\n", lwp_id);
 
     breakpoint_func();
+
+    bin_printf("%ld waiting on term lock\n", lwp_id);
+
+    if ( pthread_mutex_lock(thisArg->term_mutex) != 0 ) {
+        perror("pthread_mutex_lock");
+        return NULL;
+    }
+
+    bin_printf("%ld obtained term lock\n", lwp_id);
+
+    if ( pthread_mutex_unlock(thisArg->term_mutex) != 0 ) {
+        perror("pthread_mutex_unlock");
+        return NULL;
+    }
+
+    bin_printf("%ld released term lock\n", lwp_id);
     
     return NULL;
 }
@@ -89,7 +106,14 @@ int main(int argc, char **argv) {
 
     pthread_mutex_t *mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
 
+    pthread_mutex_t *term_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+
     if( pthread_mutex_init(mutex, NULL) != 0 ) {
+        perror("pthread_mutex_init");
+        return EXIT_FAILURE;
+    }
+
+    if ( pthread_mutex_init(term_mutex, NULL) != 0 ) {
         perror("pthread_mutex_init");
         return EXIT_FAILURE;
     }
@@ -99,11 +123,17 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
+    if( pthread_mutex_lock(term_mutex) != 0 ) {
+        perror("pthread_mutex_lock");
+        return EXIT_FAILURE;
+    }
+
     int i;
     for(i = 0; i < numThreads; ++i) {
         struct threadArg *arg = (struct threadArg *)malloc(sizeof(struct threadArg));
         arg->id = i;
         arg->mutex = mutex;
+        arg->term_mutex = term_mutex;
         assert( !pthread_create(&threads[i], NULL, &entry, (void *)arg) );
     }
 
@@ -128,13 +158,20 @@ int main(int argc, char **argv) {
     }while(1);
 
     unsigned char byte;
-    if( fread(&byte, sizeof(unsigned char), 1, fifo) != 1 ) {
-        perror("fread");
-    }
+    do {
+        if( fread(&byte, sizeof(unsigned char), 1, fifo) != 1 ) {
+            if ( errno == EINTR ) continue;
 
-    fclose(fifo);
+            if ( feof(fifo) ) {
+                fprintf(stderr, "unexpected end of file\n");
+            }else{
+                perror("fread release");
+            }
 
-    unlink(FIFO_NAME);
+            return EXIT_FAILURE;
+        }
+        break;
+    }while(1);
 
     bin_printf("Received notification\n");
 
@@ -143,11 +180,39 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    bin_printf("Unlocked mutex, joining\n");
+    bin_printf("Unlocked mutex, waiting for breakpoint notification\n");
+
+    do {
+        if( fread(&byte, sizeof(unsigned char), 1, fifo) != 1 ) {
+            if ( errno == EINTR ) continue;
+
+            if ( feof(fifo) ) {
+                fprintf(stderr, "unexpected end of file\n");
+            }else{
+                perror("fread release");
+            }
+
+            return EXIT_FAILURE;
+        }
+        break;
+    }while(1);
+
+    bin_printf("Received notification\n");
+
+    if ( pthread_mutex_unlock(term_mutex) != 0 ) {
+        perror("pthread_mutex_unlock");
+        return EXIT_FAILURE;
+    }
+
+    bin_printf("Unlocked term mutex, joining\n");
 
     for(i = 0; i < numThreads; ++i ) {
         assert( !pthread_join(threads[i], NULL) );
     }
+
+    fclose(fifo);
+
+    unlink(FIFO_NAME);
 
     return EXIT_SUCCESS;
 }

@@ -32,16 +32,21 @@
 
 #include <sstream>
 #include <cerrno>
+#include <map>
 
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+
 using std::stringstream;
 using std::string;
+using std::map;
 
 static const string PIPE_BASE_NAME("/tmp/waitthread-");
+
+static map<udi_process *, int> pipe_fds;
 
 /**
  * Releases the debuggee threads via the pipe
@@ -49,15 +54,10 @@ static const string PIPE_BASE_NAME("/tmp/waitthread-");
  * @param proc the process
  */
 void release_debuggee_threads(udi_process *proc) {
-    stringstream pipe_name;
+    map<udi_process *, int>::iterator iter = pipe_fds.find(proc);
+    test_assert( iter != pipe_fds.end());
 
-    pipe_name << PIPE_BASE_NAME << get_proc_pid(proc);
-
-    int pipe_fd = open(pipe_name.str().c_str(), O_WRONLY);
-    if (pipe_fd == -1) {
-        perror("open");
-        test_assert(false);
-    }
+    int pipe_fd = iter->second;
 
     char character = 'e';
 
@@ -65,6 +65,19 @@ void release_debuggee_threads(udi_process *proc) {
         perror("write");
         test_assert(false);
     }
+
+}
+
+/**
+ * Cleans up the resources for the debuggee pipe
+ *
+ * @param proc the process
+ */
+void cleanup_debuggee_pipe(udi_process *proc) {
+    map<udi_process *, int>::iterator iter = pipe_fds.find(proc);
+    test_assert( iter != pipe_fds.end());
+
+    int pipe_fd = iter->second;
 
     // Explicitly ignore errors
     close(pipe_fd);
@@ -77,15 +90,17 @@ void release_debuggee_threads(udi_process *proc) {
  */
 void wait_for_debuggee_pipe(udi_process *proc) {
 
-    stringstream pipe_name;
+    stringstream pipe_name_stream;
 
-    pipe_name << PIPE_BASE_NAME << get_proc_pid(proc);
+    pipe_name_stream << PIPE_BASE_NAME << get_proc_pid(proc);
+
+    string pipe_name = pipe_name_stream.str();
 
     struct stat pipe_stat;
 
     // Wait for the pipe to exist
     while(1) {
-        if ( stat(pipe_name.str().c_str(), &pipe_stat) == 0 ) {
+        if ( stat(pipe_name.c_str(), &pipe_stat) == 0 ) {
             break;
         }else{
             if (errno != ENOENT ) {
@@ -94,4 +109,12 @@ void wait_for_debuggee_pipe(udi_process *proc) {
             }
         }
     }
+
+    int pipe_fd = open(pipe_name.c_str(), O_WRONLY);
+    if (pipe_fd == -1) {
+        perror("open");
+        test_assert(false);
+    }
+
+    pipe_fds[proc] = pipe_fd;
 }
