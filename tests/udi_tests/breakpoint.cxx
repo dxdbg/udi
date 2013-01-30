@@ -51,7 +51,6 @@ class test_breakpoint : public UDITestCase {
 
 static const char *TEST_BINARY = SIMPLE_BINARY_PATH;
 static udi_address TEST_FUNCTION = SIMPLE_FUNCTION1;
-static udi_length TEST_FUNCTION_INST = SIMPLE_FUNCTION1_INST_LENGTH;
 
 static test_breakpoint testInstance;
 

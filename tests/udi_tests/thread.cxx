@@ -90,7 +90,8 @@ bool test_thread::operator()(void) {
     result = continue_process(proc);
     assert_no_error(result);
 
-    map<udi_thread *, udi_event_type> thread_events;
+    map<udi_thread *, udi_event_type> thread_brk_events;
+    map<udi_thread *, udi_event_type> thread_death_events;
     for (int i = 0; i < NUM_THREADS; ++i) {
         threads[i] = wait_for_thread_create(proc);
 
@@ -99,7 +100,8 @@ bool test_thread::operator()(void) {
             test_assert(threads[i] != threads[j]);
         }
 
-        thread_events.insert(make_pair(threads[i], UDI_EVENT_BREAKPOINT));
+        thread_brk_events.insert(make_pair(threads[i], UDI_EVENT_BREAKPOINT));
+        thread_death_events.insert(make_pair(threads[i], UDI_EVENT_THREAD_DEATH));
 
         result = continue_process(proc);
         assert_no_error(result);
@@ -107,15 +109,26 @@ bool test_thread::operator()(void) {
 
     wait_for_debuggee_pipe(proc);
 
+    // tell debuggee to run threads into breakpoints
     release_debuggee_threads(proc);
 
     // Wait for all the breakpoints to occur
     map<udi_process *, map<udi_thread *, udi_event_type> > proc_events;
-    proc_events.insert(make_pair(proc, thread_events));
+    proc_events.insert(make_pair(proc, thread_brk_events));
+
+    wait_for_events(proc_events);
+
+    // tell debuggee to let threads die
+    release_debuggee_threads(proc);
+
+    proc_events.clear();
+    proc_events.insert(make_pair(proc, thread_death_events));
 
     wait_for_events(proc_events);
 
     wait_for_exit(initial_thr, EXIT_SUCCESS);
+
+    cleanup_debuggee_pipe(proc);
 
     return true;
 }

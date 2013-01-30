@@ -106,6 +106,14 @@ typedef enum {
     TS_SUSPENDED,
 } thread_state_e;
 
+// signal handling
+typedef struct signal_state_struct {
+    int signal;
+    siginfo_t siginfo;
+    ucontext_t context;
+} signal_state;
+extern int THREAD_SUSPEND_SIGNAL;
+
 typedef struct thread_struct {
     uint64_t id;
     thread_state_e ts;
@@ -115,8 +123,8 @@ typedef struct thread_struct {
     int response_handle;
     int control_write;
     int control_read;
+    signal_state deferred;
     struct thread_struct *next_thread;
-    siginfo_t last_siginfo;
 } thread;
 
 int get_num_threads();

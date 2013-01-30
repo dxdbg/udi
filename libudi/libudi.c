@@ -651,6 +651,7 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
             }
 
             ret_event->thr = tmp;
+            udi_printf("thread 0x%"PRIx64" created\n", event->thread_id);
             break;
         }
         default:
@@ -676,6 +677,7 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
                 free_event(ret_event);
                 return NULL;
             }
+            udi_printf("thread 0x%"PRIx64" dead\n", event->thread_id);
             break;
         default:
             break;

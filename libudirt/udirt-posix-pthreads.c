@@ -55,6 +55,8 @@ static thread *threads = NULL;
 static breakpoint *thread_create_bp = NULL;
 static breakpoint *thread_death_bp = NULL;
 
+int THREAD_SUSPEND_SIGNAL = SIGUSR1;
+
 /**
  * Determine if the debuggee is multithread capable (i.e., linked
  * against pthreads).
@@ -269,7 +271,11 @@ void destroy_thread(uint64_t tid) {
         last_thread->next_thread = thr->next_thread;
     }
 
+    close(thr->control_write);
+    close(thr->control_read);
+
     udi_free(thr);
+    num_threads--;
 }
 
 /**
@@ -305,10 +311,6 @@ thread *get_current_thread() {
     while (thr != NULL) {
         if (thr->id == tid) break;
         thr = thr->next_thread;
-    }
-
-    if ( thr == NULL ) {
-        udi_abort(__FILE__, __LINE__);
     }
 
     return thr;
@@ -518,7 +520,7 @@ int block_other_threads() {
             thread *iter = threads;
             while (iter != NULL) {
                 if (iter != thr) {
-                    if ( pthread_kill((pthread_t)iter->id, SIGUSR1) != 0 ) {
+                    if ( pthread_kill((pthread_t)iter->id, THREAD_SUSPEND_SIGNAL) != 0 ) {
                         udi_printf("failed to send signal to 0x%"PRIx64"\n",
                                 iter->id);
                         return -1;
@@ -541,6 +543,7 @@ int block_other_threads() {
                     return -1;
                 }
             }
+            udi_printf("thread 0x%"PRIx64" blocked other threads\n", thr->id);
         }else{
             // other thread
 
@@ -583,12 +586,9 @@ int block_other_threads() {
  */
 int release_other_threads() {
     int result = 0;
-    if (get_multithreaded()) {
+    if (get_multithread_capable()) {
         thread *thr = get_current_thread();
-        if ( thr == NULL ) {
-            udi_printf("found unknown thread 0x%"PRIx64"\n", get_user_thread_id());
-            return -1;
-        }
+        // it is okay if this thr is NULL -- this occurs when a thread hits the death breakpoint
 
         // clear "lock" for future entrances to block_other_threads
         //
@@ -613,6 +613,7 @@ int release_other_threads() {
             }
             iter = iter->next_thread;
         }
+        udi_printf("thread 0x%"PRIx64" released other threads\n", get_user_thread_id());
     }
 
     return result;
