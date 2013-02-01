@@ -77,7 +77,7 @@ map<udi_thread *, udi_event *> wait_for_events(
 
             map<udi_thread *, udi_event_type>::iterator iter = thr_events.find(event->thr);
             test_assert(iter != thr_events.end());
-            test_assert(iter->second == event->event_type);
+            test_assert(iter->second == udi_event_type(event->event_type));
 
             results.insert(make_pair(event->thr, event));
             thr_events.erase(iter);

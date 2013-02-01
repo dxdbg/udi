@@ -143,6 +143,7 @@ udi_process *create_process(const char *executable, char * const argv[],
     }
 
     udi_process *proc = (udi_process *)malloc(sizeof(udi_process));
+    memset(proc, 0, sizeof(udi_process));
     do{
         if ( proc == NULL ) {
             udi_printf("%s\n", "malloc failed");
