@@ -279,7 +279,7 @@ udi_response create_response_init(udi_version_e protocol_version,
             UDI_DATATYPE_INT32, protocol_version,
             UDI_DATATYPE_INT32, arch,
             UDI_DATATYPE_INT32, multithread,
-            UDI_DATATYPE_INT64);
+            UDI_DATATYPE_INT64, tid);
 
     return init_response;
 }
