@@ -122,7 +122,7 @@ uint64_t udi_uint64_t_ntoh(uint64_t value) {
     return udi_unpack_uint64_t(value);
 }
 
-static malloc_type data_allocator = malloc;
+malloc_type data_allocator = malloc;
 
 void udi_set_malloc(malloc_type allocator) {
     data_allocator = allocator;

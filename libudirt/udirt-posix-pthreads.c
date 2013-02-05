@@ -234,7 +234,7 @@ thread *create_thread(uint64_t tid) {
     new_thr->next_thread = NULL;
     new_thr->control_read = control_pipe[0];
     new_thr->control_write = control_pipe[1];
-    new_thr->ts = TS_RUNNING;
+    new_thr->ts = UDI_TS_RUNNING;
     num_threads++;
 
     if (last_thread == NULL) {

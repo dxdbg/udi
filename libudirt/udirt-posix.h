@@ -100,11 +100,7 @@ int setup_signal_handlers();
 void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context);
 void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context);
 
-// pthreads support
-typedef enum {
-    TS_RUNNING = 0,
-    TS_SUSPENDED,
-} thread_state_e;
+// pthreads support //
 
 // signal handling
 typedef struct signal_state_struct {
@@ -116,7 +112,7 @@ extern int THREAD_SUSPEND_SIGNAL;
 
 typedef struct thread_struct {
     uint64_t id;
-    thread_state_e ts;
+    udi_thread_state_e ts;
     int alive;
     int dead;
     int request_handle;

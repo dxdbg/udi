@@ -285,6 +285,35 @@ udi_response create_response_init(udi_version_e protocol_version,
 }
 
 /**
+ * Creates a state response
+ *
+ * @param num_threads the number of threads
+ * @param states the array of states to place in the response
+ *
+ * @return the created response
+ */
+udi_response create_response_state(int num_threads, thread_state *states) {
+
+    size_t single_thread_length = sizeof(uint64_t) + sizeof(uint16_t);
+
+    udi_response state_response;
+    state_response.response_type = UDI_RESP_VALID;
+    state_response.request_type = UDI_REQ_INIT;
+    state_response.length = single_thread_length*num_threads;
+    state_response.packed_data = data_allocator(state_response.length);
+
+    int i;
+    for (i = 0; i < num_threads; ++i) {
+        memcpy(((unsigned char *)state_response.packed_data) + single_thread_length*i,
+                &states[i].tid, sizeof(&states[i].tid));
+        memcpy(((unsigned char *)state_response.packed_data) + single_thread_length*i 
+                + sizeof(&states[i].tid), &states[i].state, sizeof(&states[i].state));
+    }
+
+    return state_response;
+}
+
+/**
  * Unpacks the data contained in the continue request
  *
  * @param req the continue request
