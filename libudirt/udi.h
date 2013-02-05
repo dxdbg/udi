@@ -72,6 +72,14 @@ typedef enum {
     UDI_PROTOCOL_VERSION_1 = 1
 } udi_version_e;
 
+/**
+ * The running state for a thread
+ */
+typedef enum {
+    UDI_TS_RUNNING = 0,
+    UDI_TS_SUSPENDED,
+} udi_thread_state_e;
+
 /* 
  * Request specification:
  *
@@ -231,7 +239,9 @@ typedef enum
  *      None
  *
  * Response values:
- *      TBD
+ *      UDI_DATATYPE_INT64 - thread id 1
+ *      UDI_DATATYPE_INT16 - thread state 1
+ *      ... (continued for number of threads in process)
  */
 
 /* Event specification

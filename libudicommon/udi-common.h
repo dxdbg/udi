@@ -86,6 +86,7 @@ const char *event_type_str(udi_event_type event_type);
 
 /* self-contained data structure serialization */
 typedef void *(*malloc_type)(size_t);
+extern malloc_type data_allocator;
 void udi_set_malloc(malloc_type allocator);
 
 void *udi_pack_data(udi_length length, ...);
@@ -125,6 +126,12 @@ udi_response create_response_error(const char *errmsg, unsigned int errmsg_size)
 udi_response create_response_read(const void *data, udi_length num_bytes);
 udi_response create_response_init(udi_version_e protocol_version,
         udi_arch_e arch, int multithread, uint64_t tid);
+
+typedef struct thread_state_struct {
+    uint64_t tid;
+    uint16_t state;
+} thread_state;
+udi_response create_response_state(int num_threads, thread_state *states);
 
 int unpack_response_read(udi_response *resp, udi_length *num_bytes, void **value);
 int unpack_response_error(udi_response *resp, udi_length *size, char **errmsg);

@@ -581,7 +581,28 @@ int write_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
  * Standard request handler interface
  */
 int state_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
-    // TODO
+
+    thread_state *states = udi_malloc(sizeof(thread_state)*get_num_threads());
+
+    thread *thr = get_thread_list();
+
+    int i = 0;
+    while (thr != NULL) {
+        states[i].state = (uint16_t)thr->ts;
+        states[i].tid = thr->id;
+
+        thr = thr->next_thread;
+        i++;
+    }
+
+    udi_response state_response = create_response_state(get_num_threads(), states);
+
+    if ( state_response.packed_data == NULL ) {
+        snprintf(errmsg, errmsg_size, "%s", "failed to allocate data for state response");
+        udi_printf("%s\n", errmsg);
+        return REQ_FAILURE;
+    }
+
     return REQ_SUCCESS;
 }
 
@@ -1441,7 +1462,7 @@ int release_other_threads() {
         // release the other threads, if they should be running
         thread *iter = get_thread_list();
         while ( iter != NULL ) {
-            if ( iter != thr && iter->ts == TS_RUNNING ) {
+            if ( iter != thr && iter->ts == UDI_TS_RUNNING ) {
                 if ( iter->alive ) {
                     if ( write(iter->control_write, &sentinel, 1) != 1 ) {
                         udi_printf("failed to write control trigger to pipe: %s\n",
