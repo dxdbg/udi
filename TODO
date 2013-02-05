@@ -10,9 +10,6 @@ A list of enhancements/bugfixes for the future
 
 * handle case where user creates breakpoint at exit function
 
-* thread support
-  - need to handle signal handling race condition
-
 * revamp libudi error handling to be maintained per-process
 
 * implement register interface
@@ -24,3 +21,5 @@ A list of enhancements/bugfixes for the future
 * add Doxygen documentation generation
 
 * use rpath during linking to avoid use of LD_LIBRARY_PATH
+
+* create type for error string (replace errmsg and errmsg_size)
