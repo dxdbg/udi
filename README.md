@@ -22,3 +22,7 @@ tools installed:
 * scons
 * gcc/g++
 * libudis86 (headers and library)
+
+## License ##
+
+UDI is licensed under the 3-clause BSD license.
