@@ -252,6 +252,8 @@ void udi_free(void *in_ptr) {
  * @return the allocated memory, NULL on failure
  */
 void *udi_malloc(size_t length) {
+    if ( length == 0 ) return NULL;
+
     if ( length > (ALLOC_SIZE - sizeof(chunk)) ) {
         errno = ENOMEM;
         return NULL;

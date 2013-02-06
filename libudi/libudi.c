@@ -31,6 +31,7 @@
 #include "udi-common.h"
 #include "libudi-private.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -295,6 +296,17 @@ udi_process *get_process(udi_thread *thr) {
 }
 
 /**
+ * Gets the state for the specified thread
+ *
+ * @param thr thre thread handle
+ *
+ * @return the thread handle
+ */
+udi_thread_state_e get_state(udi_thread *thr) {
+    return thr->state;
+}
+
+/**
  * Gets the initial thread in the specified process
  *
  * @param proc the process handle
@@ -311,6 +323,23 @@ udi_thread *get_initial_thread(udi_process *proc) {
     }
 
     return iter;
+}
+
+/**
+ * Iterates over all the threads in the process and calls the supplied callback for every thread
+ *
+ * @param proc          the process
+ * @param user_arg      the user argument passed to the callback
+ * @param callback      the callback invoked for each thread -- can terminate the iteration
+ */
+void iter_threads(udi_process *proc, void *user_arg, thr_callback callback) {
+    udi_thread *iter = proc->threads;
+
+    int user_continue = 1;
+    while (user_continue && iter != NULL) {
+        user_continue = callback(user_arg, proc, iter);
+        iter = iter->next_thread;
+    }
 }
 
 /**
@@ -543,6 +572,45 @@ udi_error_e continue_process(udi_process *proc) {
 
     return submit_request_noresp(proc, &req, "continue request",
             __FILE__, __LINE__);
+}
+
+/**
+ * Refreshes the state of the specified process
+ *
+ * @param proc          the process handle
+ *
+ * @return the result of the operation
+ */
+udi_error_e refresh_state(udi_process *proc) {
+    udi_request req = create_request_state();
+
+    udi_response *resp = NULL;
+
+    udi_error_e sub_result = submit_request(proc, &req, &resp, "state request",
+            __FILE__, __LINE__);
+
+    if ( sub_result == UDI_ERROR_NONE ) {
+        int num_threads = 0;
+        thread_state *states = NULL;
+        if ( !unpack_response_state(resp, &num_threads, &states) ) {
+            int i;
+            for (i = 0; i < num_threads; ++i) {
+                udi_thread *thr = find_thread(proc, states[i].tid);
+                if ( thr == NULL ) {
+                    sub_result = UDI_ERROR_LIBRARY;
+                    break;
+                }
+                thr->state = states[i].state;
+            }
+        }else{
+            sub_result = UDI_ERROR_LIBRARY;
+        }
+            
+    }
+
+    free_response(resp);
+
+    return sub_result;
 }
 
 /**

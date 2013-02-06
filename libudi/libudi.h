@@ -30,7 +30,6 @@
 #define _LIBUDI_H 1
 
 #include "udi.h"
-#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,6 +62,7 @@ udi_process *create_process(const char *executable, char * const argv[],
         char * const envp[]);
 udi_error_e free_process(udi_process *proc);
 udi_error_e continue_process(udi_process *proc);
+udi_error_e refresh_state(udi_process *proc);
 
 // Process properties //
 void set_user_data(udi_process *proc, void *user_data);
@@ -75,6 +75,21 @@ udi_thread *get_initial_thread(udi_process *proc);
 // Thread properties //
 uint64_t get_tid(udi_thread *thr);
 udi_process *get_process(udi_thread *thr);
+udi_thread_state_e get_state(udi_thread *thr);
+
+/// callback for thread iter -- non-zero means continue, zero means stop iteration
+typedef int (*thr_callback)(void *user_arg, udi_process *proc, udi_thread *thr);
+void iter_threads(udi_process *proc, void *user_arg, thr_callback callback);
+
+// Breakpoint interface //
+udi_error_e create_breakpoint(udi_process *proc, udi_address addr);
+udi_error_e install_breakpoint(udi_process *proc, udi_address addr);
+udi_error_e remove_breakpoint(udi_process *proc, udi_address addr);
+udi_error_e delete_breakpoint(udi_process *proc, udi_address addr);
+
+// Memory access interface //
+udi_error_e mem_access(udi_process *proc, int write, void *value, 
+        udi_length size, udi_address addr);
 
 // Event handling interface //
 
@@ -116,16 +131,6 @@ typedef struct udi_event_breakpoint_struct {
 udi_event *wait_for_events(udi_process *procs[], int num_procs);
 const char *get_event_type_str(udi_event_type event_type);
 void free_event_list(udi_event *event_list);
-
-// Breakpoint interface //
-udi_error_e create_breakpoint(udi_process *proc, udi_address addr);
-udi_error_e install_breakpoint(udi_process *proc, udi_address addr);
-udi_error_e remove_breakpoint(udi_process *proc, udi_address addr);
-udi_error_e delete_breakpoint(udi_process *proc, udi_address addr);
-
-// Memory access interface //
-udi_error_e mem_access(udi_process *proc, int write, void *value, 
-        udi_length size, udi_address addr);
 
 #ifdef __cplusplus
 } // "C"

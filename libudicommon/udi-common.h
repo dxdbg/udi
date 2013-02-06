@@ -56,6 +56,9 @@ extern const char *DEFAULT_UDI_ROOT_DIR;
 extern const char *UDI_DS;
 extern const unsigned int DS_LEN;
 
+/* useful macro */
+#define member_sizeof(s,m) ( sizeof( ((s *)0)->m ) )
+
 /*
  * data structures
  */
@@ -137,6 +140,7 @@ int unpack_response_read(udi_response *resp, udi_length *num_bytes, void **value
 int unpack_response_error(udi_response *resp, udi_length *size, char **errmsg);
 int unpack_response_init(udi_response *resp,  uint32_t *protocol_version,
         udi_arch_e *architecture, int *multithread_capable, uint64_t *tid);
+int unpack_response_state(udi_response *resp, int *num_threads, thread_state **states);
 
 int unpack_request_continue(udi_request *req, uint32_t *sig_val, char *errmsg, 
         unsigned int errmsg_size);
@@ -153,6 +157,7 @@ udi_request create_request_breakpoint(udi_request_type request_type, udi_address
 udi_request create_request_read(udi_address addr, udi_length num_bytes);
 udi_request create_request_write(udi_address addr, udi_length num_bytes, void *value);
 udi_request create_request_continue(uint32_t sig_val);
+udi_request create_request_state();
 
 #ifdef __cplusplus
 } // extern C

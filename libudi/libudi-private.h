@@ -49,6 +49,7 @@ struct udi_thread_struct {
     udi_tid tid;
     udi_handle request_handle;
     udi_handle response_handle;
+    udi_thread_state_e state;
     struct udi_process_struct *proc;
     struct udi_thread_struct *next_thread;
 };
