@@ -32,7 +32,7 @@
 #include <iostream>
 #include <sstream>
 #include <map>
-#include <typeinfo>
+#include <set>
 
 #include "libuditest.h"
 #include "libudi.h"
@@ -45,6 +45,8 @@ using std::ostream;
 using std::map;
 using std::pair;
 using std::make_pair;
+using std::vector;
+using std::set;
 
 ostream& operator<<(ostream &os, udi_process *proc) {
     os << "process[" << get_proc_pid(proc) << "]";
@@ -175,4 +177,73 @@ void wait_for_exit(udi_thread *thr, int expected_status) {
 
     result = free_process(proc);
     assert_no_error(result);
+}
+
+static
+int build_thread_vector(void *user_arg, udi_process *proc, udi_thread *thr) {
+
+    vector<udi_thread *> *threads = static_cast< vector<udi_thread *> *>(user_arg);
+
+    threads->push_back(thr);
+
+    return 1;
+}
+
+/**
+ * Gets a vector containing all the threads
+ *
+ * @param proc the process
+ *
+ * @return the vector
+ */
+vector<udi_thread *> get_threads(udi_process *proc) {
+    vector<udi_thread *> output;
+
+    iter_threads(proc, &output, build_thread_vector);
+
+    return output;
+}
+
+/**
+ * Validates that all threads in the specified process have the specified state
+ * 
+ * @param proc the process
+ * @param state the state
+ */
+void validate_thread_state(udi_process *proc, udi_thread_state_e state) {
+
+    udi_error_e refresh_result = refresh_state(proc);
+    assert_no_error(refresh_result);
+
+    vector<udi_thread *> threads = get_threads(proc);
+    for (vector<udi_thread *>::iterator i = threads.begin(); i != threads.end(); ++i) {
+        test_assert(get_state(*i) == state);
+    }
+}
+
+/**
+ * Validates the states for the specified threads
+ *
+ * @param states the map of expected states
+ */
+void validate_thread_state(map<udi_thread *, udi_thread_state_e> &states) {
+    set<udi_process *> procs;
+    for (map<udi_thread *, udi_thread_state_e>::iterator i = states.begin();
+            i != states.end(); ++i)
+    {
+        procs.insert(get_process(i->first));
+    }
+
+    for (set<udi_process *>::iterator i = procs.begin();
+            i != procs.end(); ++i)
+    {
+        udi_error_e refresh_result = refresh_state(*i);
+        assert_no_error(refresh_result);
+    }
+
+    for (map<udi_thread *, udi_thread_state_e>::iterator i = states.begin();
+            i != states.end(); ++i)
+    {
+        test_assert(get_state(i->first) == i->second);
+    }
 }

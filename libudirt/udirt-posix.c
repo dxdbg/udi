@@ -595,15 +595,21 @@ int state_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
         i++;
     }
 
-    udi_response state_response = create_response_state(get_num_threads(), states);
+    int num_threads = get_num_threads();
 
-    if ( state_response.packed_data == NULL ) {
+    udi_response state_response = create_response_state(num_threads, states);
+
+    if ( num_threads != 0 && state_response.packed_data == NULL ) {
         snprintf(errmsg, errmsg_size, "%s", "failed to allocate data for state response");
         udi_printf("%s\n", errmsg);
         return REQ_FAILURE;
     }
 
-    return REQ_SUCCESS;
+    int result = write_response_to_request(&state_response);
+
+    udi_free(state_response.packed_data);
+
+    return result;
 }
 
 /**

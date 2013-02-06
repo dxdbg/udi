@@ -49,6 +49,8 @@ void free_event_internal(udi_event_internal *event) {
  * @param resp the response
  */
 void free_response(udi_response *resp) {
+    if ( resp == NULL ) return;
+
     if ( resp->packed_data != NULL ) free(resp->packed_data);
     free(resp);
 }
@@ -302,12 +304,14 @@ udi_response create_response_state(int num_threads, thread_state *states) {
     state_response.length = single_thread_length*num_threads;
     state_response.packed_data = data_allocator(state_response.length);
 
-    int i;
-    for (i = 0; i < num_threads; ++i) {
-        memcpy(((unsigned char *)state_response.packed_data) + single_thread_length*i,
-                &states[i].tid, sizeof(&states[i].tid));
-        memcpy(((unsigned char *)state_response.packed_data) + single_thread_length*i 
-                + sizeof(&states[i].tid), &states[i].state, sizeof(&states[i].state));
+    if ( state_response.packed_data != NULL ) {
+        int i;
+        for (i = 0; i < num_threads; ++i) {
+            memcpy(((unsigned char *)state_response.packed_data) + single_thread_length*i,
+                    &states[i].tid, sizeof(states[i].tid));
+            memcpy(((unsigned char *)state_response.packed_data) + single_thread_length*i 
+                    + sizeof(&states[i].tid), &states[i].state, sizeof(states[i].state));
+        }
     }
 
     return state_response;
@@ -537,6 +541,20 @@ udi_request create_request_continue(uint32_t sig_val) {
 }
 
 /**
+ * Creates a state request
+ *
+ * @return the created request
+ */
+udi_request create_request_state() {
+    udi_request req;
+    req.request_type = UDI_REQ_STATE;
+    req.length = 0;
+    req.packed_data = NULL;
+
+    return req;
+}
+
+/**
  * Unpacks the read response
  *
  * @param resp the response
@@ -585,7 +603,7 @@ int unpack_response_error(udi_response *resp, udi_length *size, char **errmsg) {
  *
  * @return 0 on success; non-zero on failure
  */
-int unpack_response_init(udi_response *resp,  uint32_t *protocol_version,
+int unpack_response_init(udi_response *resp, uint32_t *protocol_version,
         udi_arch_e *architecture, int *multithread_capable, uint64_t *tid) {
 
     if (udi_unpack_data(resp->packed_data, resp->length,
@@ -596,6 +614,47 @@ int unpack_response_init(udi_response *resp,  uint32_t *protocol_version,
     {
         return -1;
     }
+
+    return 0;
+}
+
+
+/**
+ * Unpacks the state response
+ *
+ * @param resp the repsonse
+ * @param num_threads the number of threads
+ * @param states the states of the threads
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int unpack_response_state(udi_response *resp, int *num_threads, thread_state **states) {
+
+    size_t single_thread_length = 
+            member_sizeof(thread_state, state) + member_sizeof(thread_state, tid);
+
+    // Calculate the number of threads
+    int threads = resp->length / single_thread_length;
+
+    thread_state *local_states = data_allocator(sizeof(thread_state)*threads);
+
+    if ( local_states == NULL ) {
+        return -1;
+    }
+
+    // Populate the threads
+    int i;
+    for (i = 0; i < threads; ++i) {
+        thread_state *cur_state = &local_states[i];
+
+        memcpy(&(cur_state->state),((unsigned char *)resp->packed_data) + single_thread_length*i,
+                member_sizeof(thread_state, state));
+        memcpy(&(cur_state->tid), ((unsigned char *)resp->packed_data) + single_thread_length*i +
+                member_sizeof(thread_state, state), member_sizeof(thread_state, tid));
+    }
+
+    *num_threads = threads;
+    *states = local_states;
 
     return 0;
 }
