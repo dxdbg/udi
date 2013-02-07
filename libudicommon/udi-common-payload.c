@@ -646,11 +646,11 @@ int unpack_response_state(udi_response *resp, int *num_threads, thread_state **s
     int i;
     for (i = 0; i < threads; ++i) {
         thread_state *cur_state = &local_states[i];
+        memcpy(&(cur_state->tid), ((unsigned char *)resp->packed_data) + single_thread_length*i,
+                member_sizeof(thread_state, tid));
 
-        memcpy(&(cur_state->state),((unsigned char *)resp->packed_data) + single_thread_length*i,
-                member_sizeof(thread_state, state));
-        memcpy(&(cur_state->tid), ((unsigned char *)resp->packed_data) + single_thread_length*i +
-                member_sizeof(thread_state, state), member_sizeof(thread_state, tid));
+        memcpy(&(cur_state->state),((unsigned char *)resp->packed_data) + single_thread_length*i
+                + member_sizeof(thread_state, tid), member_sizeof(thread_state, state));
     }
 
     *num_threads = threads;

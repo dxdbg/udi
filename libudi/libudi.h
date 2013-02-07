@@ -76,10 +76,7 @@ udi_thread *get_initial_thread(udi_process *proc);
 uint64_t get_tid(udi_thread *thr);
 udi_process *get_process(udi_thread *thr);
 udi_thread_state_e get_state(udi_thread *thr);
-
-/// callback for thread iter -- non-zero means continue, zero means stop iteration
-typedef int (*thr_callback)(void *user_arg, udi_process *proc, udi_thread *thr);
-void iter_threads(udi_process *proc, void *user_arg, thr_callback callback);
+udi_thread *get_next_thread(udi_thread *thr);
 
 // Breakpoint interface //
 udi_error_e create_breakpoint(udi_process *proc, udi_address addr);

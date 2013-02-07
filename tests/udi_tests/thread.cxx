@@ -30,7 +30,7 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
-#include <map>
+#include <set>
 
 #include "libudi.h"
 #include "libuditest.h"
@@ -40,9 +40,9 @@
 using std::cout;
 using std::endl;
 using std::stringstream;
-using std::map;
-using std::make_pair;
 using std::string;
+using std::set;
+using std::pair;
 
 class test_thread : public UDITestCase {
     public:
@@ -60,9 +60,63 @@ static udi_address TEST_FUNCTION = THREAD_BREAK_FUNC;
 
 static test_thread testInstance;
 
-bool test_thread::operator()(void) {
+/**
+ * Used to process breakpoint events
+ */
+class BrkCallback : public EventCallback {
 
-    udi_thread * threads[NUM_THREADS];
+    public:
+        BrkCallback(const set<udi_thread *> &threads)
+            : threads(threads)
+        {}
+
+        bool allEventsReceived() const { return threads.size() == 0; }
+
+        virtual void operator()(udi_event *event);
+
+    private:
+        set<udi_thread *> threads;
+};
+
+void BrkCallback::operator()(udi_event *event) {
+    test_assert(event->event_type == UDI_EVENT_BREAKPOINT);
+
+    udi_event_breakpoint *brkpt = static_cast<udi_event_breakpoint *>(event->event_data);
+    test_assert(brkpt->breakpoint_addr == THREAD_BREAK_FUNC);
+
+    threads.erase(event->thr);
+
+    udi_error_e result = continue_process(event->proc);
+    assert_no_error(result);
+}
+
+/**
+ * Used to process death events
+ */
+class DeathCallback : public EventCallback {
+    public:
+        DeathCallback(const set<udi_thread *> &threads)
+            : threads(threads)
+        {}
+
+        bool allEventsReceived() const { return threads.size() == 0; }
+
+        virtual void operator()(udi_event *event);
+
+    private:
+        set<udi_thread *> threads;
+};
+
+void DeathCallback::operator()(udi_event *event) {
+    test_assert(event->event_type == UDI_EVENT_THREAD_DEATH);
+
+    threads.erase(event->thr);
+
+    udi_error_e result = continue_process(event->proc);
+    assert_no_error(result);
+}
+
+bool test_thread::operator()(void) {
 
     udi_error_e result = init_libudi();
     assert_no_error(result);
@@ -87,21 +141,20 @@ bool test_thread::operator()(void) {
     result = install_breakpoint(proc, TEST_FUNCTION);
     assert_no_error(result);
 
+    validate_thread_state(proc, UDI_TS_RUNNING);
+
     result = continue_process(proc);
     assert_no_error(result);
 
-    map<udi_thread *, udi_event_type> thread_brk_events;
-    map<udi_thread *, udi_event_type> thread_death_events;
+    set<udi_thread *> threads;
     for (int i = 0; i < NUM_THREADS; ++i) {
-        threads[i] = wait_for_thread_create(proc);
+        udi_thread *thr = wait_for_thread_create(proc);
+        test_assert(thr != NULL);
 
-        // Ensure duplicate create events are not being created
-        for (int j = i-1; j >= 0; --j) {
-            test_assert(threads[i] != threads[j]);
-        }
+        pair<set<udi_thread *>::iterator, bool> ins_result = threads.insert(thr);
+        test_assert(ins_result.second);
 
-        thread_brk_events.insert(make_pair(threads[i], UDI_EVENT_BREAKPOINT));
-        thread_death_events.insert(make_pair(threads[i], UDI_EVENT_THREAD_DEATH));
+        validate_thread_state(proc, UDI_TS_RUNNING);
 
         result = continue_process(proc);
         assert_no_error(result);
@@ -113,18 +166,18 @@ bool test_thread::operator()(void) {
     release_debuggee_threads(proc);
 
     // Wait for all the breakpoints to occur
-    map<udi_process *, map<udi_thread *, udi_event_type> > proc_events;
-    proc_events.insert(make_pair(proc, thread_brk_events));
-
-    wait_for_events(proc_events);
+    BrkCallback brkCallback(threads);
+    while (!brkCallback.allEventsReceived()) {
+        wait_for_events(proc, brkCallback);
+    }
 
     // tell debuggee to let threads die
     release_debuggee_threads(proc);
 
-    proc_events.clear();
-    proc_events.insert(make_pair(proc, thread_death_events));
-
-    wait_for_events(proc_events);
+    DeathCallback deathCallback(threads);
+    while (!deathCallback.allEventsReceived()) {
+        wait_for_events(proc, deathCallback);
+    }
 
     wait_for_exit(initial_thr, EXIT_SUCCESS);
 

@@ -55,41 +55,53 @@ ostream& operator<<(ostream &os, udi_process *proc) {
 }
 
 /**
- * Waits for a set of events to happen in the specified collection of threads, ordered by their
- * processes
+ * Wait for events to occur in the specified process and calls the specified callback for
+ * each event
  *
- * @param events the specification for expected events
- * 
- * @return the events that occurred, ordered by their threads
- */ 
-map<udi_thread *, udi_event *> wait_for_events(
-        const map<udi_process *, map<udi_thread *, udi_event_type> > &events) {
+ * @param proc          the process
+ * @param callback      the event callback
+ */
+void wait_for_events(udi_process *proc, EventCallback &callback) {
 
-    map<udi_thread *, udi_event *> results;
-    for(map<udi_process *, map<udi_thread *, udi_event_type> >::const_iterator i = events.begin();
-            i != events.end();
-            ++i)
-    {
-        udi_process *proc = i->first;
-        map<udi_thread *, udi_event_type> thr_events = i->second;
+    udi_event *events = wait_for_events(&proc, 1);
+    test_assert(events != NULL);
 
-        while (!thr_events.empty()) {
-            udi_event *event = wait_for_events(&proc, 1);
-            test_assert(event != NULL);
+    udi_event *event = events;
+    while (event != NULL) {
+        callback(event);
+        event = event->next_event;
+    }
+    free_event_list(events);
+}
 
-            map<udi_thread *, udi_event_type>::iterator iter = thr_events.find(event->thr);
-            test_assert(iter != thr_events.end());
-            test_assert(iter->second == udi_event_type(event->event_type));
+/**
+ * Waits for events to occur in the specified processes and calls the specified callback for
+ * each event
+ *
+ * @param procs           the processes
+ * @param callback        the event callback
+ */
+void wait_for_events(const set<udi_process *> &procs, EventCallback &callback) {
+    // Build the list of processes to wait for events
+    udi_process **proc_list = new udi_process *[procs.size()];
 
-            results.insert(make_pair(event->thr, event));
-            thr_events.erase(iter);
+    int j = 0;
+    for (set<udi_process *>::const_iterator i = procs.begin(); i != procs.end(); ++i) {
+        proc_list[j] = *i;
 
-            udi_error_e result = continue_process(proc);
-            assert_no_error(result);
-        }
+        j++;
     }
 
-    return results;
+    udi_event *events = wait_for_events(proc_list, procs.size());
+    test_assert(events != NULL);
+
+    udi_event *event = events;
+    while (event != NULL) {
+        callback(event);
+        event = event->next_event;
+    }
+    free_event_list(events);
+    delete[] proc_list;
 }
 
 /**
@@ -179,31 +191,6 @@ void wait_for_exit(udi_thread *thr, int expected_status) {
     assert_no_error(result);
 }
 
-static
-int build_thread_vector(void *user_arg, udi_process *proc, udi_thread *thr) {
-
-    vector<udi_thread *> *threads = static_cast< vector<udi_thread *> *>(user_arg);
-
-    threads->push_back(thr);
-
-    return 1;
-}
-
-/**
- * Gets a vector containing all the threads
- *
- * @param proc the process
- *
- * @return the vector
- */
-vector<udi_thread *> get_threads(udi_process *proc) {
-    vector<udi_thread *> output;
-
-    iter_threads(proc, &output, build_thread_vector);
-
-    return output;
-}
-
 /**
  * Validates that all threads in the specified process have the specified state
  * 
@@ -215,9 +202,12 @@ void validate_thread_state(udi_process *proc, udi_thread_state_e state) {
     udi_error_e refresh_result = refresh_state(proc);
     assert_no_error(refresh_result);
 
-    vector<udi_thread *> threads = get_threads(proc);
-    for (vector<udi_thread *>::iterator i = threads.begin(); i != threads.end(); ++i) {
-        test_assert(get_state(*i) == state);
+    udi_thread *thr = get_initial_thread(proc);
+    test_assert(thr != NULL);
+
+    while (thr != NULL) {
+        test_assert(get_state(thr) == state);
+        thr = get_next_thread(thr);
     }
 }
 

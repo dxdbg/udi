@@ -27,7 +27,7 @@
  */
 
 #ifndef LIB_UDI_TEST_H
-#define LIB_UDI_TEST
+#define LIB_UDI_TEST_H
 
 #include <vector>
 #include <string>
