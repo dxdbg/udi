@@ -30,20 +30,29 @@
 #define _TEST_LIB_H_ 1
 
 #include <iostream>
+#include <set>
 #include <map>
 #include <vector>
 
 #include "libudi.h"
+#include "libuditest.h"
 
-std::map<udi_thread *, udi_event *> wait_for_events(
-        const std::map<udi_process *, std::map<udi_thread *, udi_event_type> > &events);
+/**
+ * Mix-in for implementing an event callback
+ */
+class EventCallback {
+    public:
+        virtual void operator()(udi_event *event) = 0;
+};
+
+void wait_for_events(udi_process *proc, EventCallback &callback);
+void wait_for_events(const std::set<udi_process *> &procs,EventCallback &callback);
 
 void wait_for_exit(udi_thread *thr, int expected_status);
 void wait_for_breakpoint(udi_thread *thr, udi_address breakpoint);
+
 udi_thread *wait_for_thread_create(udi_process *proc);
 void wait_for_thread_death(udi_thread *thr);
-
-std::vector<udi_thread *> get_threads(udi_process *proc);
 
 void validate_thread_state(udi_process *proc, udi_thread_state_e state);
 void validate_thread_state(udi_process *proc, std::map<udi_thread *, udi_thread_state_e> &states);

@@ -306,7 +306,7 @@ udi_thread_state_e get_state(udi_thread *thr) {
     return thr->state;
 }
 
-/**
+/*
  * Gets the initial thread in the specified process
  *
  * @param proc the process handle
@@ -326,20 +326,14 @@ udi_thread *get_initial_thread(udi_process *proc) {
 }
 
 /**
- * Iterates over all the threads in the process and calls the supplied callback for every thread
+ * Gets the next thread
+ * 
+ * @param thr the thread
  *
- * @param proc          the process
- * @param user_arg      the user argument passed to the callback
- * @param callback      the callback invoked for each thread -- can terminate the iteration
+ * @return the thread or NULL if no more threads
  */
-void iter_threads(udi_process *proc, void *user_arg, thr_callback callback) {
-    udi_thread *iter = proc->threads;
-
-    int user_continue = 1;
-    while (user_continue && iter != NULL) {
-        user_continue = callback(user_arg, proc, iter);
-        iter = iter->next_thread;
-    }
+udi_thread *get_next_thread(udi_thread *thr) {
+    return thr->next_thread;
 }
 
 /**
@@ -365,10 +359,12 @@ udi_error_e submit_request(udi_process *proc,
 
     do {
         // Perform the request
-        if ( req->packed_data == NULL ) {
-            udi_printf("failed to pack data for %s\n", desc);
-            error_code = UDI_ERROR_LIBRARY;
-            break;
+        if ( req->request_type != UDI_REQ_STATE ) {
+            if ( req->packed_data == NULL ) {
+                udi_printf("failed to pack data for %s\n", desc);
+                error_code = UDI_ERROR_LIBRARY;
+                break;
+            }
         }
 
         if ( write_request(req, proc) != 0 ) {
@@ -592,7 +588,7 @@ udi_error_e refresh_state(udi_process *proc) {
     if ( sub_result == UDI_ERROR_NONE ) {
         int num_threads = 0;
         thread_state *states = NULL;
-        if ( !unpack_response_state(resp, &num_threads, &states) ) {
+        if ( unpack_response_state(resp, &num_threads, &states) == 0) {
             int i;
             for (i = 0; i < num_threads; ++i) {
                 udi_thread *thr = find_thread(proc, states[i].tid);

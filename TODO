@@ -1,5 +1,7 @@
 A list of enhancements/bugfixes for the future
 ----------------------------------------------
+* implement thread suspend and resume requests
+
 * allow user to specify the runtime library to be loaded when creating processes in libudi
 
 * Need to handle abnormal termination of debuggee (via debuggee library error or SIGKILL)
@@ -14,12 +16,10 @@ A list of enhancements/bugfixes for the future
 
 * implement register interface
 
-* implement state command
-
-* implement debuggee-side conditional breakpoints
-
 * add Doxygen documentation generation
 
 * use rpath during linking to avoid use of LD_LIBRARY_PATH
 
 * create type for error string (replace errmsg and errmsg_size)
+
+* implement debuggee-side conditional breakpoints
