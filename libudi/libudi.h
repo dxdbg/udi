@@ -78,6 +78,10 @@ udi_process *get_process(udi_thread *thr);
 udi_thread_state_e get_state(udi_thread *thr);
 udi_thread *get_next_thread(udi_thread *thr);
 
+// Thread control //
+udi_error_e resume_thread(udi_thread *thr);
+udi_error_e suspend_thread(udi_thread *thr);
+
 // Breakpoint interface //
 udi_error_e create_breakpoint(udi_process *proc, udi_address addr);
 udi_error_e install_breakpoint(udi_process *proc, udi_address addr);

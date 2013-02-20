@@ -555,6 +555,30 @@ udi_request create_request_state() {
 }
 
 /**
+ * Creates a request to resume or suspend a thread
+ *
+ * @param state the desired state of thread
+ *
+ * @return the created request
+ */
+udi_request create_request_thr_state(udi_thread_state_e state) {
+    udi_request req;
+    switch (state) {
+        case UDI_TS_RUNNING:
+            req.request_type = UDI_REQ_THREAD_RESUME;
+            break;
+        case UDI_TS_SUSPENDED:
+            req.request_type = UDI_REQ_THREAD_SUSPEND;
+            break;
+    }
+    req.length = 0;
+    req.packed_data = NULL;
+
+    return req;
+}
+
+
+/**
  * Unpacks the read response
  *
  * @param resp the response

@@ -45,6 +45,7 @@
 #include <fcntl.h>
 #include <pwd.h>
 #include <sys/mman.h>
+#include <sys/select.h>
 #include <inttypes.h>
 
 #include "udi.h"
@@ -113,6 +114,7 @@ int breakpoint_create_handler(udi_request *req, char *errmsg, unsigned int errms
 int breakpoint_install_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 int breakpoint_remove_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 int breakpoint_delete_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
+int invalid_handler(udi_request *req, char *errmsg, unsigned int errmsg_size);
 
 static
 request_handler req_handlers[] = {
@@ -124,8 +126,32 @@ request_handler req_handlers[] = {
     breakpoint_create_handler,
     breakpoint_install_handler,
     breakpoint_remove_handler,
-    breakpoint_delete_handler
+    breakpoint_delete_handler,
+    invalid_handler,
+    invalid_handler
 };
+
+// thread specific request handling
+typedef int (*thr_request_handler)(thread *, udi_request *, char *, unsigned int);
+
+int thr_state_handler(thread *thr, udi_request *req, char *errmsg, unsigned int errmsg_size);
+int thr_invalid_handler(thread *thr, udi_request *req, char *errmsg, unsigned int errmsg_size);
+
+static
+thr_request_handler thr_req_handlers[] = {
+    thr_invalid_handler,
+    thr_invalid_handler,
+    thr_invalid_handler,
+    thr_invalid_handler,
+    thr_invalid_handler,
+    thr_invalid_handler,
+    thr_invalid_handler,
+    thr_invalid_handler,
+    thr_invalid_handler,
+    thr_state_handler,
+    thr_state_handler
+};
+
 
 ////////////////////////////////////
 // Functions
@@ -271,13 +297,58 @@ udi_request *read_request_from_fd(int fd) {
 }
 
 /**
- * Reads the request from the library's request handle
+ * Reads the request from the possible request handles
+ *
+ * @param thr the output parameter for the thread -- set to NULL if request is for process
  *
  * @return the read request
  */
-udi_request *read_request()
-{
-    return read_request_from_fd(request_handle);
+udi_request *read_request(thread **thr) {
+    int max_fd = request_handle;
+
+    fd_set read_set;
+    FD_ZERO(&read_set);
+    FD_SET(request_handle, &read_set);
+
+    thread *iter = get_thread_list();
+    while (iter != NULL) {
+        FD_SET(iter->request_handle, &read_set);
+        if ( iter->request_handle > max_fd ) {
+            max_fd = iter->request_handle;
+        }
+        iter = iter->next_thread;
+    }
+
+    do {
+        fd_set changed_set = read_set;
+        int result = select(max_fd + 1, &changed_set, NULL, NULL, NULL);
+
+        if ( result == -1 ) {
+            if ( errno == EINTR ) {
+                udi_printf("%s\n", "select call interrupted, trying again");
+                continue;
+            }
+            udi_printf("failed to wait for request: %s\n", strerror(errno));
+        }else if ( result == 0 ) {
+            udi_printf("%s\n", "select unexpectedly returned 0");
+        }else{
+            if ( FD_ISSET(request_handle, &changed_set) ) {
+                *thr = NULL;
+                return read_request_from_fd(request_handle);
+            }
+            iter = get_thread_list();
+            while (iter != NULL) {
+                if ( FD_ISSET(iter->request_handle, &changed_set) ) {
+                    *thr = iter;
+                    return read_request_from_fd(iter->request_handle);
+                }
+                iter = iter->next_thread;
+            }
+        }
+        break;
+    }while(1);
+
+    return NULL;
 }
 
 /**
@@ -342,6 +413,22 @@ int write_response(udi_response *response) {
  */
 int write_response_to_request(udi_response *response) {
     int write_result = write_response(response);
+
+    if ( write_result < 0 ) return REQ_ERROR;
+    if ( write_result > 0 ) return write_result;
+    return REQ_SUCCESS;
+}
+
+/**
+ * Writes the response to a thread-specific request. Helper function to 
+ * translate write result into a request handling result.
+ *
+ * @return REQ_SUCCESS on success
+ * @return REQ_ERROR on unrecoverable failure
+ * @return errno otherwise
+ */
+int write_response_to_thr_request(thread *thr, udi_response *response) {
+    int write_result = write_response_to_fd(thr->response_handle, response);
 
     if ( write_result < 0 ) return REQ_ERROR;
     if ( write_result > 0 ) return write_result;
@@ -428,7 +515,8 @@ const char *get_mem_errstr() {
  *
  * @return 0 on success; non-zero otherwise
  */
-static int send_valid_response(udi_request_type req_type) {
+static 
+int send_valid_response(udi_request_type req_type) {
 
     udi_response resp;
     resp.response_type = UDI_RESP_VALID;
@@ -437,6 +525,26 @@ static int send_valid_response(udi_request_type req_type) {
     resp.packed_data = NULL;
 
     return write_response_to_request(&resp);
+}
+
+/**
+ * Sends a valid response for the specified request type
+ *
+ * @param req_type the request type
+ *
+ * @return 0 on success
+ * @return non-zero otherwise
+ */
+static
+int send_valid_response_thr(thread *thr, udi_request_type req_type) {
+
+    udi_response resp;
+    resp.response_type = UDI_RESP_VALID;
+    resp.request_type = req_type;
+    resp.length = 0;
+    resp.packed_data = NULL;
+
+    return write_response_to_thr_request(thr, &resp);
 }
 
 /**
@@ -729,6 +837,70 @@ int breakpoint_delete_handler(udi_request *req, char *errmsg, unsigned int errms
     return send_valid_response(UDI_REQ_DELETE_BREAKPOINT);
 }
 
+/**
+ * Used to handle requests that are invalid for a process
+ *
+ * Standard request handler interface
+ */
+int invalid_handler(udi_request *req, char *errmsg, unsigned int errmsg_size) {
+
+    snprintf(errmsg, errmsg_size, "invalid request for process");
+    udi_printf("%s\n", errmsg);
+    return REQ_FAILURE;
+}
+
+/**
+ * Thread state request handler
+ *
+ * Standard request handler interface
+ */
+int thr_state_handler(thread *thr, udi_request *req, char *errmsg, unsigned int errmsg_size) {
+    switch (req->request_type) {
+        case UDI_REQ_THREAD_SUSPEND:
+        {
+            // Need to check that this isn't the last running thread
+            int change_valid = 0;
+            thread *iter = get_thread_list();
+            while (iter != NULL) {
+                if ( iter != thr && iter->ts == UDI_TS_RUNNING) {
+                    change_valid = 1;
+                    break;
+                }
+                iter = iter->next_thread;
+            }
+            if ( !change_valid ) {
+                snprintf(errmsg, errmsg_size, "cannot suspend last running thread 0x%"PRIx64,
+                        thr->id);
+                udi_printf("%s\n", errmsg);
+                return REQ_FAILURE;
+            }
+            udi_printf("suspended thread 0x%"PRIx64"\n", thr->id);
+            thr->ts = UDI_TS_SUSPENDED;
+            break;
+        }
+        case UDI_REQ_THREAD_RESUME:
+            udi_printf("resumed thread 0x%"PRIx64"\n", thr->id);
+            thr->ts = UDI_TS_RUNNING;
+            break;
+        default:
+            return thr_invalid_handler(thr, req, errmsg, errmsg_size);
+    }
+
+    return send_valid_response_thr(thr, req->request_type);
+}
+
+/**
+ * Thread invalid request handler
+ *
+ * Standard request handler interface
+ */
+int thr_invalid_handler(thread *thr, udi_request *req, char *errmsg, unsigned int errmsg_size) {
+
+    snprintf(errmsg, errmsg_size, "invalid request for thread 0x%"PRIx64, thr->id);
+    udi_printf("%s\n", errmsg);
+    return REQ_FAILURE;
+}
+
 ///////////////////////////
 // End handler functions //
 ///////////////////////////
@@ -807,7 +979,8 @@ static int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
     int result = 0;
 
     while(1) {
-        udi_request *req = read_request();
+        thread *thr = NULL;
+        udi_request *req = read_request(&thr);
         if ( req == NULL ) {
             snprintf(errmsg, errmsg_size, "%s", "failed to read command");
             udi_printf("%s\n", "failed to read request");
@@ -815,11 +988,20 @@ static int wait_and_execute_command(char *errmsg, unsigned int errmsg_size) {
             break;
         }
 
-        result = req_handlers[req->request_type](req, errmsg, errmsg_size);
-        if ( result != REQ_SUCCESS ) {
-            udi_printf("failed to handle command %s\n", 
-                    request_type_str(req->request_type));
-            break;
+        if ( thr == NULL ) {
+            result = req_handlers[req->request_type](req, errmsg, errmsg_size);
+            if ( result != REQ_SUCCESS ) {
+                udi_printf("failed to handle command %s\n", 
+                        request_type_str(req->request_type));
+                break;
+            }
+        }else{
+            result = thr_req_handlers[req->request_type](thr, req, errmsg, errmsg_size);
+            if ( result != REQ_SUCCESS ) {
+                udi_printf("failed to handle command %s\n",
+                        request_type_str(req->request_type));
+                break;
+            }
         }
 
         if ( req->request_type == UDI_REQ_CONTINUE ) break;
@@ -1385,22 +1567,25 @@ int block_other_threads() {
         // Determine whether this is the first thread or not
         unsigned int sync_var = __sync_val_compare_and_swap(&(thread_rend.sync_var), 0, 1);
         if (sync_var == 0) {
-            // the first thread
+            int num_suspended = 0;
             thread *iter = get_thread_list();
             while (iter != NULL) {
-                if (iter != thr) {
+                // only force running threads into the signal handler, suspended threads are
+                // already in the signal handler
+                if (iter != thr && iter->ts != UDI_TS_SUSPENDED) {
                     if ( pthread_kill((pthread_t)iter->id, THREAD_SUSPEND_SIGNAL) != 0 ) {
                         udi_printf("failed to send signal to 0x%"PRIx64"\n",
                                 iter->id);
                         return -1;
                     }
+                    num_suspended++;
                 }
                 iter = iter->next_thread;
             }
 
             // wait for the other threads to reach this function
-            int i, num_threads = get_num_threads();
-            for (i = 0; i < num_threads-1; ++i) {
+            int i;
+            for (i = 0; i < num_suspended; ++i) {
                 unsigned char trigger;
                 if ( read(thread_rend.read_handle, &trigger, 1) != 1 ) {
                     udi_printf("failed to read trigger from pipe: %s\n", strerror(errno));
@@ -1454,7 +1639,6 @@ int block_other_threads() {
  * @return non-zero on failure
  */
 int release_other_threads() {
-    int result = 0;
     if (get_multithread_capable()) {
         thread *thr = get_current_thread();
         // it is okay if this thr is NULL -- this occurs when a thread hits the death breakpoint
@@ -1483,9 +1667,25 @@ int release_other_threads() {
             iter = iter->next_thread;
         }
         udi_printf("thread 0x%"PRIx64" released other threads\n", get_user_thread_id());
+
+        if ( thr != NULL && thr->ts == UDI_TS_SUSPENDED ) {
+            // If the current thread was suspended in this signal handler call, block here
+            udi_printf("thread 0x%"PRIx64" waiting to be released\n", thr->id);
+
+            unsigned char trigger;
+            if ( read(thr->control_read, &trigger, 1) != 1 ) {
+                udi_printf("failed to read control trigger from pipe: %s\n", strerror(errno));
+                return -1;
+            }
+
+            if ( trigger != sentinel ) {
+                udi_abort(__FILE__, __LINE__);
+                return -1;
+            }
+        }
     }
 
-    return result;
+    return 0;
 }
 
 /**
@@ -1820,7 +2020,7 @@ int handshake_with_debugger(int *output_enabled, char *errmsg,
             break;
         }
 
-        udi_request *init_request = read_request();
+        udi_request *init_request = read_request_from_fd(request_handle);
         if ( init_request == NULL ) {
             snprintf(errmsg, errmsg_size, "%s", 
                     "failed reading init request");

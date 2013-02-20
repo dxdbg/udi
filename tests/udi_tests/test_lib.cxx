@@ -216,9 +216,9 @@ void validate_thread_state(udi_process *proc, udi_thread_state_e state) {
  *
  * @param states the map of expected states
  */
-void validate_thread_state(map<udi_thread *, udi_thread_state_e> &states) {
+void validate_thread_state(const map<udi_thread *, udi_thread_state_e> &states) {
     set<udi_process *> procs;
-    for (map<udi_thread *, udi_thread_state_e>::iterator i = states.begin();
+    for (map<udi_thread *, udi_thread_state_e>::const_iterator i = states.begin();
             i != states.end(); ++i)
     {
         procs.insert(get_process(i->first));
@@ -231,7 +231,7 @@ void validate_thread_state(map<udi_thread *, udi_thread_state_e> &states) {
         assert_no_error(refresh_result);
     }
 
-    for (map<udi_thread *, udi_thread_state_e>::iterator i = states.begin();
+    for (map<udi_thread *, udi_thread_state_e>::const_iterator i = states.begin();
             i != states.end(); ++i)
     {
         test_assert(get_state(i->first) == i->second);

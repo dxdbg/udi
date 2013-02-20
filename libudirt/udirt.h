@@ -56,12 +56,15 @@ void *udi_malloc(size_t length);
 unsigned char *map_mem(size_t length);
 int unmap_mem(void *addr, size_t length);
 
+// opaque (at this level) thread handle
+typedef struct thread_struct thread;
+
 // request handling
 udi_version_e get_protocol_version();
 int write_response(udi_response *response);
 int write_response_to_request(udi_response *response);
 int write_event(udi_event_internal *event);
-udi_request *read_request();
+udi_request *read_request(thread **thr);
 void free_request(udi_request *request);
 
 extern const int REQ_SUCCESS;

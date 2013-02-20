@@ -51,7 +51,14 @@ const char *request_type_str(udi_request_type req_type) {
         CASE_TO_STR(UDI_REQ_WRITE_MEM);
         CASE_TO_STR(UDI_REQ_STATE);
         CASE_TO_STR(UDI_REQ_INIT);
+        CASE_TO_STR(UDI_REQ_CREATE_BREAKPOINT);
+        CASE_TO_STR(UDI_REQ_INSTALL_BREAKPOINT);
+        CASE_TO_STR(UDI_REQ_REMOVE_BREAKPOINT);
+        CASE_TO_STR(UDI_REQ_DELETE_BREAKPOINT);
+        CASE_TO_STR(UDI_REQ_THREAD_SUSPEND);
+        CASE_TO_STR(UDI_REQ_THREAD_RESUME);
         CASE_TO_STR(UDI_REQ_MAX);
+        CASE_TO_STR(UDI_REQ_INVALID);
         default: return "UNKNOWN";
     }
 }

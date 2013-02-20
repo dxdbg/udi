@@ -359,6 +359,21 @@ udi_error_e submit_request(udi_process *proc,
 
     do {
         // Perform the request
+
+        int valid_request_type = 1;
+        switch (req->request_type) {
+            case UDI_REQ_THREAD_SUSPEND:
+            case UDI_REQ_THREAD_RESUME:
+                error_code = UDI_ERROR_REQUEST;
+                snprintf(errmsg, ERRMSG_SIZE-1, "request invalid for process");
+                udi_printf("%s\n", errmsg);
+                valid_request_type = 0;
+                break;
+            default:
+                break;
+        }
+        if ( !valid_request_type ) break;
+
         if ( req->request_type != UDI_REQ_STATE ) {
             if ( req->packed_data == NULL ) {
                 udi_printf("failed to pack data for %s\n", desc);
@@ -419,6 +434,87 @@ udi_error_e submit_request_noresp(udi_process *proc,
     udi_response *resp = NULL;
 
     udi_error_e error_code = submit_request(proc, req, &resp, desc,
+            file, line);
+
+    if ( resp != NULL ) free_response(resp);
+
+    return error_code;
+}
+
+/**
+ * Submits the specified request to the specified process
+ *
+ * @param thr           the thread
+ * @param req           the request
+ * @param resp          the resulting response
+ * @param desc          the description of the request
+ * @param file          the file of the call to this function
+ * @param line          the line of the call to this function
+ *
+ * @return the result of the operation, if UDI_ERROR_NONE then
+ * the resp parameter will be populated with the response
+ */
+static
+udi_error_e submit_request_thr(udi_thread *thr, udi_request *req, udi_response **resp,
+        const char *desc, const char *file, int line)
+{
+
+    udi_error_e error_code = UDI_ERROR_NONE;
+
+    do {
+        // Perform the request
+        if ( write_request_thr(req, thr) != 0 ) {
+            udi_printf("failed to write %s\n", desc);
+            error_code = UDI_ERROR_LIBRARY;
+            break;
+        }
+
+        // Get the response
+        *resp = read_response_thr(thr);
+
+        if ( *resp == NULL ) {
+            udi_printf("failed to read response for %s\n", desc);
+            error_code = UDI_ERROR_LIBRARY;
+            break;
+        }
+
+        if ( (*resp)->response_type == UDI_RESP_ERROR ) {
+            log_error_msg(*resp, file, line);
+            error_code = UDI_ERROR_REQUEST;
+            break;
+        }
+    }while(0);
+
+    if ( req->packed_data != NULL ) free(req->packed_data);
+    if (    error_code != UDI_ERROR_NONE
+         && *resp != NULL ) 
+    {
+        free_response(*resp);
+        *resp = NULL;
+    }
+
+    return error_code;
+
+}
+
+/**
+ * Submits a request where a no-op response is expected
+ *
+ * @param thr           the thread
+ * @param req           the request
+ * @param desc          a description of the request
+ * @param file          the file of the call to this function
+ * @param line          the line of the call to this function
+ *
+ * @return the result of the operation
+ */
+static
+udi_error_e submit_request_thr_noresp(udi_thread *thr,
+        udi_request *req, const char *desc, const char *file,
+        int line)
+{
+    udi_response *resp = NULL;
+    udi_error_e error_code = submit_request_thr(thr, req, &resp, desc,
             file, line);
 
     if ( resp != NULL ) free_response(resp);
@@ -607,6 +703,28 @@ udi_error_e refresh_state(udi_process *proc) {
     free_response(resp);
 
     return sub_result;
+}
+
+/**
+ * Resumes the specified thread.
+ *
+ * @return the result of the operation
+ */
+udi_error_e resume_thread(udi_thread *thr) {
+    udi_request req = create_request_thr_state(UDI_TS_RUNNING);
+
+    return submit_request_thr_noresp(thr, &req, "thread resume", __FILE__, __LINE__);
+}
+
+/**
+ * Suspend the specified thread.
+ *
+ * @return the result of the operation. it is an error to suspend all the threads in a process
+ */
+udi_error_e suspend_thread(udi_thread *thr) {
+    udi_request req = create_request_thr_state(UDI_TS_SUSPENDED);
+
+    return submit_request_thr_noresp(thr, &req, "thread suspend", __FILE__, __LINE__);
 }
 
 /**

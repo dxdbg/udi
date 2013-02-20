@@ -86,7 +86,9 @@ int handle_thread_death(udi_process *proc, udi_thread *thr);
 
 // request handling
 int write_request(udi_request *req, udi_process *proc);
+int write_request_thr(udi_request *req, udi_thread *thr);
 udi_response *read_response(udi_process *proc);
+udi_response *read_response_thr(udi_thread *thr);
 udi_event *read_event(udi_process *proc);
 udi_event *decode_event(udi_process *proc, udi_event_internal *event);
 
