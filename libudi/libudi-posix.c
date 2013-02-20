@@ -100,12 +100,25 @@ int write_request(udi_request *req, udi_process *proc) {
 }
 
 /**
+ * Writes a request to the specified thread
+ *
+ * @param req           the request
+ * @param thr           the thread
+ *
+ * @return 0 on success, non-zero on failure; if result >0, it is errno
+ */
+int write_request_thr(udi_request *req, udi_thread *thr) {
+    return write_request_fd(req, thr->request_handle);
+}
+
+/**
  * Reads a response from the specified process
  *
  * @param proc  the process handle
  *
  * @return 0 on success, non-zero on failure; if result > 0, it is errno
  */
+static
 udi_response *read_response_fd(int fd) 
 {
     int errnum = 0;
@@ -166,6 +179,17 @@ udi_response *read_response_fd(int fd)
  */
 udi_response *read_response(udi_process *proc) {
     return read_response_fd(proc->response_handle);
+}
+
+/**
+ * Reads a response from the specified thread
+ *
+ * @param thr the thread
+ *
+ * @return 0 on success, non-zero on failure; if result > 0, it is errno
+ */
+udi_response *read_response_thr(udi_thread *thr) {
+    return read_response_fd(thr->response_handle);
 }
 
 /**
@@ -552,8 +576,7 @@ udi_pid fork_process(const char *executable, char * const argv[],
  *
  * @return 0 on success, non-zero on failure; if result > 0, it is errno
  */
-int initialize_process(udi_process *proc) 
-{
+int initialize_process(udi_process *proc) {
     uid_t uid = geteuid();
     struct passwd *passwd_info = getpwuid(uid);
 

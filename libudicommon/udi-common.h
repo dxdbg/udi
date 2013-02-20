@@ -158,6 +158,7 @@ udi_request create_request_read(udi_address addr, udi_length num_bytes);
 udi_request create_request_write(udi_address addr, udi_length num_bytes, void *value);
 udi_request create_request_continue(uint32_t sig_val);
 udi_request create_request_state();
+udi_request create_request_thr_state(udi_thread_state_e state);
 
 #ifdef __cplusplus
 } // extern C

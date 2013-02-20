@@ -110,7 +110,7 @@ typedef struct signal_state_struct {
 } signal_state;
 extern int THREAD_SUSPEND_SIGNAL;
 
-typedef struct thread_struct {
+struct thread_struct {
     uint64_t id;
     udi_thread_state_e ts;
     int alive;
@@ -121,7 +121,7 @@ typedef struct thread_struct {
     int control_read;
     signal_state deferred;
     struct thread_struct *next_thread;
-} thread;
+};
 
 int get_num_threads();
 int get_multithread_capable();
