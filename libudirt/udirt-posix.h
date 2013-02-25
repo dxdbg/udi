@@ -60,11 +60,10 @@ extern sigaction_type real_sigaction;
 extern fork_type real_fork;
 extern execve_type real_execve;
 
-int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size);
-int install_event_breakpoints(char *errmsg, unsigned int errmsg_size);
+int locate_wrapper_functions(udi_errmsg *errmsg);
+int install_event_breakpoints(udi_errmsg *errmsg);
 int is_event_breakpoint(breakpoint *bp);
-event_result handle_event_breakpoint(breakpoint *bp, const ucontext_t *context, char *errmsg,
-        unsigned int errmsg_size);
+event_result handle_event_breakpoint(breakpoint *bp, const ucontext_t *context, udi_errmsg *errmsg);
 
 // exit event handling
 typedef struct exit_result_struct {
@@ -72,7 +71,7 @@ typedef struct exit_result_struct {
     int failure;
 } exit_result;
 
-exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned int errmsg_size);
+exit_result get_exit_argument(const ucontext_t *context, udi_errmsg *errmsg);
 
 // library wrapping
 extern void *UDI_RTLD_NEXT;
@@ -146,20 +145,20 @@ int release_other_threads();
 extern void (*pthreads_create_event)(void);
 extern void (*pthreads_death_event)(void);
 
-int initialize_pthreads_support(char *errmsg, unsigned int errmsg_size);
+int initialize_pthreads_support(udi_errmsg *errmsg);
 
-int install_thread_event_breakpoints(char *errmsg, unsigned int errmsg_size);
+int install_thread_event_breakpoints(udi_errmsg *errmsg);
 int is_thread_event_breakpoint(breakpoint *bp);
 event_result handle_thread_event_breakpoint(breakpoint *bp, const ucontext_t *context,
-        char *errmsg, unsigned int errmsg_size);
+        udi_errmsg *errmsg);
 
 thread *create_initial_thread();
-int thread_create_callback(thread *thr, char *errmsg, unsigned int errmsg_size);
-int thread_create_handshake(thread *thr, char *errmsg, unsigned int errmsg_size);
-uint64_t initialize_thread(char *errmsg, unsigned int errmsg_size);
+int thread_create_callback(thread *thr, udi_errmsg *errmsg);
+int thread_create_handshake(thread *thr, udi_errmsg *errmsg);
+uint64_t initialize_thread(udi_errmsg *errmsg);
 
-int thread_death_callback(thread *thr, char *errmsg, unsigned int errmsg_size);
-uint64_t finalize_thread(char *errmsg, unsigned int errmsg_size);
+int thread_death_callback(thread *thr, udi_errmsg *errmsg);
+uint64_t finalize_thread(udi_errmsg *errmsg);
 
 #ifdef __cplusplus
 } // extern C

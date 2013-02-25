@@ -97,7 +97,7 @@ void BrkCallback::operator()(udi_event *event) {
     validate_thread_state(thr_states);
 
     udi_error_e result = suspend_thread(event->thr);
-    assert_no_error(result);
+    assert_no_error(event->proc, result);
 
     thr_states.insert(make_pair(event->thr, UDI_TS_SUSPENDED));
 
@@ -112,7 +112,7 @@ void BrkCallback::operator()(udi_event *event) {
 
     if ( !all_suspended ) {
         result = continue_process(event->proc);
-        assert_no_error(result);
+        assert_no_error(event->proc, result);
     }
 }
 
@@ -139,13 +139,13 @@ void DeathCallback::operator()(udi_event *event) {
     threads.erase(event->thr);
 
     udi_error_e result = continue_process(event->proc);
-    assert_no_error(result);
+    assert_no_error(event->proc, result);
 }
 
 bool test_thread::operator()(void) {
 
     udi_error_e result = init_libudi();
-    assert_no_error(result);
+    test_assert(result == UDI_ERROR_NONE);
 
     stringstream num_threads_str;
     num_threads_str << NUM_THREADS;
@@ -162,15 +162,15 @@ bool test_thread::operator()(void) {
     test_assert(initial_thr != NULL);
 
     result = create_breakpoint(proc, TEST_FUNCTION);
-    assert_no_error(result);
+    assert_no_error(proc, result);
 
     result = install_breakpoint(proc, TEST_FUNCTION);
-    assert_no_error(result);
+    assert_no_error(proc, result);
 
     validate_thread_state(proc, UDI_TS_RUNNING);
 
     result = continue_process(proc);
-    assert_no_error(result);
+    assert_no_error(proc, result);
 
     set<udi_thread *> threads;
     for (int i = 0; i < NUM_THREADS; ++i) {
@@ -183,7 +183,7 @@ bool test_thread::operator()(void) {
         validate_thread_state(proc, UDI_TS_RUNNING);
 
         result = continue_process(proc);
-        assert_no_error(result);
+        assert_no_error(proc, result);
     }
 
     wait_for_debuggee_pipe(proc);
@@ -202,7 +202,7 @@ bool test_thread::operator()(void) {
     }
 
     result = continue_process(proc);
-    assert_no_error(result);
+    assert_no_error(proc, result);
 
     // tell debuggee to let threads die
     release_debuggee_threads(proc);

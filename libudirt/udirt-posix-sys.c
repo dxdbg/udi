@@ -114,11 +114,10 @@ void wait_and_execute_command_with_response() {
  * wrappers
  *
  * @param errmsg the errmsg populated on error
- * @param errmsg_size the size of the errmsg
  *
  * @return 0 on success; non-zero on failure
  */
-int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
+int locate_wrapper_functions(udi_errmsg *errmsg) {
     int errnum = 0;
     char *errmsg_tmp;
 
@@ -131,7 +130,7 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
         errmsg_tmp = dlerror();
         if (errmsg_tmp != NULL) {
             udi_printf("symbol lookup error: %s\n", errmsg_tmp);
-            strncpy(errmsg, errmsg_tmp, errmsg_size-1);
+            strncpy(errmsg->msg, errmsg_tmp, errmsg->size-1);
             errnum = -1;
             break;
         }
@@ -140,7 +139,7 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
         errmsg_tmp = dlerror();
         if (errmsg_tmp != NULL) {
             udi_printf("symbol lookup error: %s\n", errmsg_tmp);
-            strncpy(errmsg, errmsg_tmp, errmsg_size-1);
+            strncpy(errmsg->msg, errmsg_tmp, errmsg->size-1);
             errnum = -1;
             break;
         }
@@ -149,7 +148,7 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
         errmsg_tmp = dlerror();
         if (errmsg_tmp != NULL) {
             udi_printf("symbol lookup error: %s\n", errmsg_tmp);
-            strncpy(errmsg, errmsg_tmp, errmsg_size-1);
+            strncpy(errmsg->msg, errmsg_tmp, errmsg->size-1);
             errnum = -1;
             break;
         }
@@ -158,7 +157,7 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
         errmsg_tmp = dlerror();
         if (errmsg_tmp != NULL) {
             udi_printf("symbol lookup error: %s\n", errmsg_tmp);
-            strncpy(errmsg, errmsg_tmp, errmsg_size-1);
+            strncpy(errmsg->msg, errmsg_tmp, errmsg->size-1);
             errnum = -1;
             break;
         }
@@ -172,11 +171,10 @@ int locate_wrapper_functions(char *errmsg, unsigned int errmsg_size) {
  * that cannot be captured by wrapping functions
  *
  * @param errmsg the errmsg populated on error
- * @param errmsg_size the size of the errmsg on error
  *
  * @return 0 on success; non-zero on failure
  */
-int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
+int install_event_breakpoints(udi_errmsg *errmsg) {
     int errnum = 0;
     
     do {
@@ -189,7 +187,7 @@ int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
             break;
         }
 
-        errnum = install_breakpoint(exit_bp, errmsg, errmsg_size);
+        errnum = install_breakpoint(exit_bp, errmsg);
 
         if ( errnum != 0 ) {
             udi_printf("%s\n", "failed to install exit breakpoint");
@@ -198,7 +196,7 @@ int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
         }
 
         if (get_multithread_capable()) {
-            errnum = install_thread_event_breakpoints(errmsg, errmsg_size);
+            errnum = install_thread_event_breakpoints(errmsg);
         }
 
     }while(0);
@@ -212,18 +210,17 @@ int install_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
  *
  * @param context the context for the breakpoint
  * @param errmsg the error message populated on error
- * @param errmsg_size the size of the error message
  *
  * @return the information extracted about the exit event
  */
 static
-event_result handle_exit_breakpoint(const ucontext_t *context, char *errmsg, unsigned int errmsg_size) {
+event_result handle_exit_breakpoint(const ucontext_t *context, udi_errmsg *errmsg) {
 
     event_result result;
     result.failure = 0;
     result.wait_for_request = 1;
 
-    exit_result exit_result = get_exit_argument(context, errmsg, errmsg_size);
+    exit_result exit_result = get_exit_argument(context, errmsg);
 
     if ( exit_result.failure ) {
         result.failure = exit_result.failure;
@@ -358,16 +355,13 @@ int is_event_breakpoint(breakpoint *bp) {
  * @param bp the breakpoint
  * @param context the context
  * @param errmsg the error message populated on error
- * @param errmsg_size the maximum size of the error message
  */
-event_result handle_event_breakpoint(breakpoint *bp, const ucontext_t *context, char *errmsg,
-        unsigned int errmsg_size) 
-{
+event_result handle_event_breakpoint(breakpoint *bp, const ucontext_t *context, udi_errmsg *errmsg) {
     if (bp == exit_bp) {
-        return handle_exit_breakpoint(context, errmsg, errmsg_size);
+        return handle_exit_breakpoint(context, errmsg);
     }
 
-    return handle_thread_event_breakpoint(bp, context, errmsg, errmsg_size);
+    return handle_thread_event_breakpoint(bp, context, errmsg);
 }
 
 

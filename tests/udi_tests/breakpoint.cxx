@@ -56,7 +56,7 @@ static test_breakpoint testInstance;
 
 bool test_breakpoint::operator()(void) {
     udi_error_e result = init_libudi();
-    assert_no_error(result);
+    test_assert(result == UDI_ERROR_NONE);
 
     char *argv[] = { NULL };
 
@@ -67,18 +67,18 @@ bool test_breakpoint::operator()(void) {
     test_assert(thr != NULL);
 
     result = create_breakpoint(proc, TEST_FUNCTION);
-    assert_no_error(result);
+    assert_no_error(proc, result);
 
     result = install_breakpoint(proc, TEST_FUNCTION);
-    assert_no_error(result);
+    assert_no_error(proc, result);
 
     result = continue_process(proc);
-    assert_no_error(result);
+    assert_no_error(proc, result);
 
     wait_for_breakpoint(thr, TEST_FUNCTION);
 
     result = continue_process(proc);
-    assert_no_error(result);
+    assert_no_error(proc, result);
 
     wait_for_exit(thr, EXIT_FAILURE);
 

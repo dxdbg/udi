@@ -115,14 +115,11 @@ abort_label:
  * @param src the source memory address
  * @param num_bytes the number of bytes
  * @param errmsg the error message populated by this method
- * @param errmsg_size the maximum size of the error message
  *
  * @return 0 on success; non-zero otherwise
  */
 static
-int udi_memcpy(void *dest, const void *src, size_t num_bytes,
-        char *errmsg, unsigned int errmsg_size)
-{
+int udi_memcpy(void *dest, const void *src, size_t num_bytes, udi_errmsg *errmsg) {
     int mem_result = 0;
 
     void *pre_access_result = pre_mem_access_hook();
@@ -150,17 +147,14 @@ int udi_memcpy(void *dest, const void *src, size_t num_bytes,
  * @param src the source memory address
  * @param num_bytes the number of bytes to read
  * @param errmsg the error message possibly populated by this function
- * @param errmsg_size the maximum size of the error message
  *
  * @return 0, success; non-zero otherwise
  */
-int read_memory(void *dest, const void *src, size_t num_bytes,
-        char *errmsg, unsigned int errmsg_size)
-{
+int read_memory(void *dest, const void *src, size_t num_bytes, udi_errmsg *errmsg) {
     mem_access_addr = (void *)src;
     mem_access_size = num_bytes;
 
-    return udi_memcpy(dest, src, num_bytes, errmsg, errmsg_size);
+    return udi_memcpy(dest, src, num_bytes, errmsg);
 }
 
 /**
@@ -171,15 +165,12 @@ int read_memory(void *dest, const void *src, size_t num_bytes,
  * @param src the source of the write
  * @param num_bytes the number of bytes to write
  * @param errmsg the error message set by this function
- * @param errmsg_size the maximum size of the error message
  */
-int write_memory(void *dest, const void *src, size_t num_bytes,
-        char *errmsg, unsigned int errmsg_size)
-{
+int write_memory(void *dest, const void *src, size_t num_bytes, udi_errmsg *errmsg) {
     mem_access_addr = dest;
     mem_access_size = num_bytes;
 
-    return udi_memcpy(dest, src, num_bytes, errmsg, errmsg_size);
+    return udi_memcpy(dest, src, num_bytes, errmsg);
 }
 
 // breakpoint implementation
@@ -236,14 +227,13 @@ breakpoint *create_breakpoint(udi_address breakpoint_addr) {
  *
  * @param bp the breakpoint to install
  * @param errmsg the errmsg populated by the memory access
- * @param errmsg_size the maximum size of the error message
  *
  * @return 0 on success; non-zero otherwise
  */
-int install_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
+int install_breakpoint(breakpoint *bp, udi_errmsg *errmsg) {
     if ( bp->in_memory ) return 0;
 
-    int result = write_breakpoint_instruction(bp, errmsg, errmsg_size);
+    int result = write_breakpoint_instruction(bp, errmsg);
 
     if ( result == 0 ) {
         bp->in_memory = 1;
@@ -257,14 +247,13 @@ int install_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
  *
  * @param bp the breakpoint to remove
  * @param errmsg the errmsg populated by the memory access
- * @param errmsg_size the maximum size of the error message
  *
  * @return 0 on success; non-zero otherwise
  */
-int remove_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
+int remove_breakpoint(breakpoint *bp, udi_errmsg *errmsg) {
     if ( !bp->in_memory ) return 0;
 
-    int result = write_saved_bytes(bp, errmsg, errmsg_size);
+    int result = write_saved_bytes(bp, errmsg);
 
     if ( result == 0 ) {
         bp->in_memory = 0;
@@ -278,17 +267,15 @@ int remove_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
  *
  * @param bp the breakpoint to remove
  * @param errmsg the errmsg populated by the memory access
- * @param errmsg_size the maximum size of the error message
  *
  * @return 0 on success; non-zero otherwise
  */
-int remove_breakpoint_for_continue(breakpoint *bp, char *errmsg,
-        unsigned int errmsg_size) {
+int remove_breakpoint_for_continue(breakpoint *bp, udi_errmsg *errmsg) {
 
     if ( !bp->in_memory ) return 0;
 
     // Don't set the in memory flag
-    return write_saved_bytes(bp, errmsg, errmsg_size);
+    return write_saved_bytes(bp, errmsg);
 }
 
 /**
@@ -296,12 +283,11 @@ int remove_breakpoint_for_continue(breakpoint *bp, char *errmsg,
  *
  * @param bp the breakpoint to delete
  * @param errmsg the errmsg populated by the memory access
- * @param errmsg_size the maximum size of the error message
  *
  * @return 0 on success; non-zero otherwise
  */
-int delete_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
-    int remove_result = remove_breakpoint(bp, errmsg, errmsg_size);
+int delete_breakpoint(breakpoint *bp, udi_errmsg *errmsg) {
+    int remove_result = remove_breakpoint(bp, errmsg);
 
     if ( remove_result ) return remove_result;
 
@@ -315,9 +301,9 @@ int delete_breakpoint(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
     }
 
     if ( tmp_breakpoint == NULL || prev_breakpoint == NULL ) {
-        snprintf(errmsg, errmsg_size, "failed to delete breakpoint at %"PRIx64,
+        snprintf(errmsg->msg, errmsg->size, "failed to delete breakpoint at %"PRIx64,
                 bp->address);
-        udi_printf("%s\n", errmsg);
+        udi_printf("%s\n", errmsg->msg);
         return -1;
     }
 

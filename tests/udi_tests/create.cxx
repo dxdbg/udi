@@ -55,7 +55,7 @@ static test_create testInstance;
 
 bool test_create::operator()(void) {
     udi_error_e result = init_libudi();
-    assert_no_error(result);
+    test_assert(result == UDI_ERROR_NONE);
 
     char *argv[] = { NULL };
 
@@ -67,7 +67,7 @@ bool test_create::operator()(void) {
     test_assert(thr != NULL);
     
     result = continue_process(proc);
-    assert_no_error(result);
+    assert_no_error(proc, result);
 
     wait_for_exit(thr, EXIT_FAILURE);
 

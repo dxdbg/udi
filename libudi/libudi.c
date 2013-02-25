@@ -44,26 +44,17 @@ int udi_debug_on = 0;
 int processes_created = 0;
 const char *udi_root_dir = NULL;
 
-/////////////////////
-// Error reporting //
-/////////////////////
-const unsigned int ERRMSG_SIZE = 4096;
-char errmsg[4096];
-
 /**
  * Get a message describing the passed error code
  *
- * Note: this may be dependent on the result of the most recent operation
- *
- * @param error_code the error code
+ * @param proc the process
  */
-const char *get_error_message(udi_error_e error_code) 
-{
-    switch(error_code) {
+const char *get_last_error_message(udi_process *proc) {
+    switch(proc->error_code) {
         case UDI_ERROR_LIBRARY:
             return "UDI library internal error";
         case UDI_ERROR_REQUEST:
-            return errmsg;
+            return proc->errmsg.msg;
         default:
             return "Error not set";
     }
@@ -145,6 +136,9 @@ udi_process *create_process(const char *executable, char * const argv[],
 
     udi_process *proc = (udi_process *)malloc(sizeof(udi_process));
     memset(proc, 0, sizeof(udi_process));
+    proc->error_code = UDI_ERROR_NONE;
+    proc->errmsg.size = ERRMSG_SIZE;
+    proc->errmsg.msg[ERRMSG_SIZE-1] = '\0';
     do{
         if ( proc == NULL ) {
             udi_printf("%s\n", "malloc failed");
@@ -152,7 +146,7 @@ udi_process *create_process(const char *executable, char * const argv[],
             break;
         }
 
-        proc->pid = fork_process(executable, argv, envp);
+        proc->pid = fork_process(proc, executable, argv, envp);
         if ( proc->pid == INVALID_UDI_PID ) {
             udi_printf("failed to create process for executable %s\n",
                     executable);
@@ -365,8 +359,8 @@ udi_error_e submit_request(udi_process *proc,
             case UDI_REQ_THREAD_SUSPEND:
             case UDI_REQ_THREAD_RESUME:
                 error_code = UDI_ERROR_REQUEST;
-                snprintf(errmsg, ERRMSG_SIZE-1, "request invalid for process");
-                udi_printf("%s\n", errmsg);
+                snprintf(proc->errmsg.msg, ERRMSG_SIZE-1, "request invalid for process");
+                udi_printf("%s\n", proc->errmsg.msg);
                 valid_request_type = 0;
                 break;
             default:
@@ -398,7 +392,7 @@ udi_error_e submit_request(udi_process *proc,
         }
 
         if ( (*resp)->response_type == UDI_RESP_ERROR ) {
-            log_error_msg(*resp, file, line);
+            log_error_msg(proc, *resp, file, line);
             error_code = UDI_ERROR_REQUEST;
             break;
         }
@@ -479,7 +473,7 @@ udi_error_e submit_request_thr(udi_thread *thr, udi_request *req, udi_response *
         }
 
         if ( (*resp)->response_type == UDI_RESP_ERROR ) {
-            log_error_msg(*resp, file, line);
+            log_error_msg(get_process(thr), *resp, file, line);
             error_code = UDI_ERROR_REQUEST;
             break;
         }
@@ -730,22 +724,22 @@ udi_error_e suspend_thread(udi_thread *thr) {
 /**
  * Sets the global error message and logs it
  *
+ * @param proc          the process
  * @param resp          the response containing the error message
  * @param error_file    the file at which the error message was encountered
  * @param error_line    the line at which the error message was encountered
  */
-void log_error_msg(udi_response *resp, const char *error_file, int error_line) {
+void log_error_msg(udi_process *proc, udi_response *resp, const char *error_file, int error_line) {
     char *errmsg_local;
-    udi_length errmsg_size;
 
     if (resp->response_type != UDI_RESP_ERROR ) return;
 
-    if ( unpack_response_error(resp, &errmsg_size, &errmsg_local) ) {
+    if ( unpack_response_error(resp, &(proc->errmsg.size), &errmsg_local) ) {
         udi_printf("%s\n", "failed to unpack response for failed request");
     }else{
         udi_printf("request failed @[%s:%d]: %s\n", error_file, error_line, 
                 errmsg_local);
-        strncpy(errmsg, errmsg_local, ERRMSG_SIZE);
+        strncpy(proc->errmsg.msg, errmsg_local, proc->errmsg.size);
     }
 
     if ( errmsg_local != NULL ) free(errmsg_local);

@@ -427,14 +427,14 @@ td_thr_event_enable_type td_thr_event_enable_func = NULL;
  * Convenience function for calling dlsym
  */
 static
-void *local_dlsym(void *handle, const char *symbol, char *errmsg, unsigned int errmsg_size) {
+void *local_dlsym(void *handle, const char *symbol, udi_errmsg *errmsg) {
     dlerror();
     void *result = dlsym(handle, symbol);
     char *dlerr_msg = dlerror();
     if (dlerr_msg != NULL) {
-        snprintf(errmsg, errmsg_size, "dlsym failed to locate %s: %s", 
+        snprintf(errmsg->msg, errmsg->size, "dlsym failed to locate %s: %s", 
                 symbol, dlerr_msg);
-        udi_printf("%s\n", errmsg);
+        udi_printf("%s\n", errmsg->msg);
         return NULL;
     }
 
@@ -445,16 +445,16 @@ void *local_dlsym(void *handle, const char *symbol, char *errmsg, unsigned int e
  * Convenience function for calling td_thr_event_enable
  */
 static
-int enable_thread_events(const td_thrhandle_t *handle, char *errmsg, unsigned int errmsg_size) {
+int enable_thread_events(const td_thrhandle_t *handle, udi_errmsg *errmsg) {
 
     td_err_e td_ret;
 
     int thr_events[] = { TD_CREATE, TD_DEATH };
     for (int i = 0; i < (sizeof(thr_events)/sizeof(thr_events[0])); ++i) {
         if ( (td_ret = td_thr_event_enable_func(handle, thr_events[i])) != TD_OK ) {
-            snprintf(errmsg, errmsg_size, "td_thr_event_enable failed for event %d: %d",
+            snprintf(errmsg->msg, errmsg->size, "td_thr_event_enable failed for event %d: %d",
                     thr_events[i], td_ret);
-            udi_printf("%s\n", errmsg);
+            udi_printf("%s\n", errmsg->msg);
             return -1;
         }
     }
@@ -467,30 +467,29 @@ int enable_thread_events(const td_thrhandle_t *handle, char *errmsg, unsigned in
  * Initializes the newly created thread
  *
  * @param errmsg the error message (populated on error)
- * @param errmsg_size the size of the error message
  *
  * @return the tid on success; 0 on failure
  */
-uint64_t initialize_thread(char *errmsg, unsigned int errmsg_size) {
+uint64_t initialize_thread(udi_errmsg *errmsg) {
 
     td_err_e td_ret;
 
     td_event_msg_t event_msg;
     if ( (td_ret = td_ta_event_getmsg_func(thragent, &event_msg)) != TD_OK ) {
-        snprintf(errmsg, errmsg_size, "td_ta_event_getmsg failed: %d", td_ret);
-        udi_printf("%s\n", errmsg);
+        snprintf(errmsg->msg, errmsg->size, "td_ta_event_getmsg failed: %d", td_ret);
+        udi_printf("%s\n", errmsg->msg);
         return 0;
     }
 
     const td_thrhandle_t *new_handle = event_msg.th_p;
-    if ( enable_thread_events(new_handle, errmsg, errmsg_size) != 0 ) {
+    if ( enable_thread_events(new_handle, errmsg) != 0 ) {
         return 0;
     }
 
     td_thrinfo_t new_info;
     if ( (td_ret = td_thr_get_info_func(new_handle, &new_info)) != TD_OK ) {
-        snprintf(errmsg, errmsg_size, "td_thr_get_info failed: %d", td_ret);
-        udi_printf("%s\n", errmsg);
+        snprintf(errmsg->msg, errmsg->size, "td_thr_get_info failed: %d", td_ret);
+        udi_printf("%s\n", errmsg->msg);
         return 0;
     }
 
@@ -501,12 +500,11 @@ uint64_t initialize_thread(char *errmsg, unsigned int errmsg_size) {
  * Determines the thread that is in the process of being finalized
  *
  * @param errmsg the error message
- * @param errmsg_size the size of the error message
  *
  * @return the tid for the finalized thread, 0 on error
  */   
 volatile int value = 0;
-uint64_t finalize_thread(char *errmsg, unsigned int errmsg_size) {
+uint64_t finalize_thread(udi_errmsg *errmsg) {
 
     /* for some reason, libthread_db is not returning consistent results for td_thr_event_getmsg
     td_err_e td_ret; 
@@ -553,11 +551,10 @@ uint64_t finalize_thread(char *errmsg, unsigned int errmsg_size) {
  * Initializes pthreads support
  *
  * @param errmsg the errmsg populated on error
- * @param unsigned the maximum size of the error message
  *
  * @return 0 on success; non-zero on failure
  */
-int initialize_pthreads_support(char *errmsg, unsigned int errmsg_size) {
+int initialize_pthreads_support(udi_errmsg *errmsg) {
     // Need to load and initialize thread_db
     if (get_multithread_capable()) {
         char *dlerr_msg;
@@ -566,58 +563,57 @@ int initialize_pthreads_support(char *errmsg, unsigned int errmsg_size) {
         void *tdb_handle = dlopen(THREAD_DB, RTLD_NOW | RTLD_LOCAL);
         if (tdb_handle == NULL) {
             dlerr_msg = dlerror();
-            snprintf(errmsg, errmsg_size, "dlopen failed: %s", dlerr_msg);
-            udi_printf("%s\n", errmsg);
+            snprintf(errmsg->msg, errmsg->size, "dlopen failed: %s", dlerr_msg);
+            udi_printf("%s\n", errmsg->msg);
             return -1;
         }
 
         // get the relevant functions in thread_db
-        td_init_type td_init_func = local_dlsym(tdb_handle, "td_init", errmsg, errmsg_size);
+        td_init_type td_init_func = local_dlsym(tdb_handle, "td_init", errmsg);
         if (td_init_func == NULL) return -1;
 
-        td_ta_new_type td_ta_new_func = local_dlsym(tdb_handle, "td_ta_new", errmsg,
-                errmsg_size);
+        td_ta_new_type td_ta_new_func = local_dlsym(tdb_handle, "td_ta_new", errmsg);
         if (td_ta_new_func == NULL) return -1;
 
         td_ta_event_addr_type td_ta_event_addr_func = local_dlsym(tdb_handle,
-                "td_ta_event_addr", errmsg, errmsg_size);
+                "td_ta_event_addr", errmsg);
         if (td_ta_event_addr_func == NULL) return -1;
 
         td_ta_set_event_type td_ta_set_event_func = local_dlsym(tdb_handle,
-                "td_ta_set_event", errmsg, errmsg_size);
+                "td_ta_set_event", errmsg);
         if (td_ta_set_event_func == NULL) return -1;
 
         td_ta_map_id2thr_func = local_dlsym(tdb_handle,
-                "td_ta_map_id2thr", errmsg, errmsg_size);
+                "td_ta_map_id2thr", errmsg);
         if (td_ta_map_id2thr_func == NULL) return -1;
 
         td_thr_event_enable_func = local_dlsym(tdb_handle,
-                "td_thr_event_enable", errmsg, errmsg_size);
+                "td_thr_event_enable", errmsg);
         if (td_thr_event_enable_func == NULL) return -1;
 
         td_thr_event_getmsg_func = local_dlsym(tdb_handle,
-                "td_thr_event_getmsg", errmsg, errmsg_size);
+                "td_thr_event_getmsg", errmsg);
         if (td_thr_event_getmsg_func == NULL) return -1;
 
         td_ta_event_getmsg_func = local_dlsym(tdb_handle,
-                "td_ta_event_getmsg", errmsg, errmsg_size);
+                "td_ta_event_getmsg", errmsg);
         if (td_ta_event_getmsg_func == NULL) return -1;
 
         td_thr_get_info_func = local_dlsym(tdb_handle,
-                "td_thr_get_info", errmsg, errmsg_size);
+                "td_thr_get_info", errmsg);
         if (td_thr_get_info_func == NULL) return -1;
 
         // initialize td_init
         if ( (td_ret = td_init_func()) != TD_OK ) { 
-            snprintf(errmsg, errmsg_size, "td_init failed: %d", td_ret);
-            udi_printf("%s\n", errmsg);
+            snprintf(errmsg->msg, errmsg->size, "td_init failed: %d", td_ret);
+            udi_printf("%s\n", errmsg->msg);
             return -1;
         }
 
         // get the thread agent handle
         if ( (td_ret = td_ta_new_func(&ps_handle, &thragent)) != TD_OK ) {
-            snprintf(errmsg, errmsg_size, "td_ta_new failed: %d", td_ret);
-            udi_printf("%s\n", errmsg);
+            snprintf(errmsg->msg, errmsg->size, "td_ta_new failed: %d", td_ret);
+            udi_printf("%s\n", errmsg->msg);
             return -1;
         }
 
@@ -627,8 +623,8 @@ int initialize_pthreads_support(char *errmsg, unsigned int errmsg_size) {
         td_event_addset(&events, TD_DEATH);
         td_event_addset(&events, TD_CREATE);
         if ( (td_ret = td_ta_set_event_func(thragent, &events)) != TD_OK ) {
-            snprintf(errmsg, errmsg_size, "td_ta_set_event failed: %d", td_ret);
-            udi_printf("%s\n", errmsg);
+            snprintf(errmsg->msg, errmsg->size, "td_ta_set_event failed: %d", td_ret);
+            udi_printf("%s\n", errmsg->msg);
             return -1;
         }
 
@@ -637,21 +633,21 @@ int initialize_pthreads_support(char *errmsg, unsigned int errmsg_size) {
         if ( (td_ret = td_ta_map_id2thr_func(thragent, get_user_thread_id(), &initial_thread))
                 != TD_OK )
         {
-            snprintf(errmsg, errmsg_size, "td_ta_map_id2thr failed: %d", td_ret);
-            udi_printf("%s\n", errmsg);
+            snprintf(errmsg->msg, errmsg->size, "td_ta_map_id2thr failed: %d", td_ret);
+            udi_printf("%s\n", errmsg->msg);
             return -1;
         }
 
         // enable all the interesting events
-        if ( enable_thread_events(&initial_thread, errmsg, errmsg_size) != 0 ) {
+        if ( enable_thread_events(&initial_thread, errmsg) != 0 ) {
             return -1;
         }
 
         // get the addresses for the breakpoints
         td_notify_t notify_create;
         if ( (td_ret = td_ta_event_addr_func(thragent, TD_CREATE, &notify_create)) != TD_OK ) {
-            snprintf(errmsg, errmsg_size, "td_ta_event_addr failed: %d", td_ret);
-            udi_printf("%s\n", errmsg);
+            snprintf(errmsg->msg, errmsg->size, "td_ta_event_addr failed: %d", td_ret);
+            udi_printf("%s\n", errmsg->msg);
             return -1;
         }
 
@@ -660,9 +656,9 @@ int initialize_pthreads_support(char *errmsg, unsigned int errmsg_size) {
                 break;
             case NOTIFY_AUTOBPT:
             case NOTIFY_SYSCALL:
-                snprintf(errmsg, errmsg_size, "notify type %d(0x%d) for create event not supported", 
+                snprintf(errmsg->msg, errmsg->size, "notify type %d(0x%d) for create event not supported", 
                         notify_create.type, notify_create.u.syscallno);
-                udi_printf("%s\n", errmsg);
+                udi_printf("%s\n", errmsg->msg);
                 return -1;
         }
 
@@ -670,8 +666,8 @@ int initialize_pthreads_support(char *errmsg, unsigned int errmsg_size) {
 
         td_notify_t notify_death;
         if ( (td_ret = td_ta_event_addr_func(thragent, TD_DEATH, &notify_death)) != TD_OK ) {
-            snprintf(errmsg, errmsg_size, "td_ta_event_addr failed: %d", td_ret);
-            udi_printf("%s\n", errmsg);
+            snprintf(errmsg->msg, errmsg->size, "td_ta_event_addr failed: %d", td_ret);
+            udi_printf("%s\n", errmsg->msg);
             return -1;
         }
 
@@ -680,9 +676,9 @@ int initialize_pthreads_support(char *errmsg, unsigned int errmsg_size) {
                 break;
             case NOTIFY_SYSCALL:
             case NOTIFY_AUTOBPT:
-                snprintf(errmsg, errmsg_size, "notify type %d(0x%d) for death event not supported", 
+                snprintf(errmsg->msg, errmsg->size, "notify type %d(0x%d) for death event not supported", 
                         notify_death.type, notify_death.u.syscallno);
-                udi_printf("%s\n", errmsg);
+                udi_printf("%s\n", errmsg->msg);
                 return -1;
         }
 
@@ -705,24 +701,29 @@ typedef enum {
     PS_NOFREGS            /* FPU register set not available for given LWP.  */
 } ps_err_e;
 
-static const unsigned int ERRMSG_SIZE = 4096;
-static char ps_errmsg[4096];
+static udi_errmsg ps_errmsg;
 
 ps_err_e ps_pdread(struct ps_prochandle *handle, psaddr_t src, void *dst, size_t size) {
-    int result = read_memory(dst, (const void *)src, size, ps_errmsg, ERRMSG_SIZE);
+    ps_errmsg.size = ERRMSG_SIZE;
+    ps_errmsg.msg[ERRMSG_SIZE-1] = '\0';
+
+    int result = read_memory(dst, (const void *)src, size, &ps_errmsg);
 
     if (result != 0) {
-        udi_printf("read_memory in ps_pdread failed: %s\n", ps_errmsg);
+        udi_printf("read_memory in ps_pdread failed: %s\n", ps_errmsg.msg);
     }
 
     return ( result == 0 ? PS_OK : PS_ERR );
 }
 
 ps_err_e ps_pdwrite(struct ps_prochandle *handle, psaddr_t dst, const void *src, size_t size) {
-    int result = write_memory((void *)dst, src, size, ps_errmsg, ERRMSG_SIZE);
+    ps_errmsg.size = ERRMSG_SIZE;
+    ps_errmsg.msg[ERRMSG_SIZE-1] = '\0';
+
+    int result = write_memory((void *)dst, src, size, &ps_errmsg);
 
     if (result != 0) {
-        udi_printf("write_memory in ps_pdwrite failed: %s\n", ps_errmsg);
+        udi_printf("write_memory in ps_pdwrite failed: %s\n", ps_errmsg.msg);
     }
 
     return ( result == 0 ? PS_OK : PS_ERR );

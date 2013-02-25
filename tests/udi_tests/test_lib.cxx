@@ -185,10 +185,10 @@ void wait_for_exit(udi_thread *thr, int expected_status) {
     free_event_list(event);
 
     udi_error_e result = continue_process(proc);
-    assert_no_error(result);
+    assert_no_error(proc, result);
 
     result = free_process(proc);
-    assert_no_error(result);
+    assert_no_error(proc, result);
 }
 
 /**
@@ -200,7 +200,7 @@ void wait_for_exit(udi_thread *thr, int expected_status) {
 void validate_thread_state(udi_process *proc, udi_thread_state_e state) {
 
     udi_error_e refresh_result = refresh_state(proc);
-    assert_no_error(refresh_result);
+    assert_no_error(proc, refresh_result);
 
     udi_thread *thr = get_initial_thread(proc);
     test_assert(thr != NULL);
@@ -228,7 +228,7 @@ void validate_thread_state(const map<udi_thread *, udi_thread_state_e> &states) 
             i != procs.end(); ++i)
     {
         udi_error_e refresh_result = refresh_state(*i);
-        assert_no_error(refresh_result);
+        assert_no_error(*i, refresh_result);
     }
 
     for (map<udi_thread *, udi_thread_state_e>::const_iterator i = states.begin();

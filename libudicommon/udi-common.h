@@ -82,6 +82,12 @@ typedef struct {
     void *packed_data;
 } udi_event_internal;
 
+#define ERRMSG_SIZE 4096
+typedef struct {
+    char msg[ERRMSG_SIZE];
+    unsigned int size;
+} udi_errmsg;
+
 /* helper functions */
 
 const char *request_type_str(udi_request_type req_type); 
@@ -114,7 +120,7 @@ uint64_t udi_uint64_t_ntoh(uint64_t value);
 void free_event_internal(udi_event_internal *event);
 void free_response(udi_response *resp);
 
-udi_event_internal create_event_error(uint64_t thread_id, const char *errmsg, unsigned int errmsg_size);
+udi_event_internal create_event_error(uint64_t thread_id, udi_errmsg *errmsg);
 udi_event_internal create_event_unknown(uint64_t thread_id);
 udi_event_internal create_event_breakpoint(uint64_t thread_id, udi_address bp_address);
 udi_event_internal create_event_exit(uint64_t thread_id, uint32_t exit_status);
@@ -125,7 +131,7 @@ int unpack_event_error(udi_event_internal *event, char **errmsg, unsigned int *e
 int unpack_event_exit(udi_event_internal *event, int *exit_code);
 int unpack_event_breakpoint(udi_event_internal *event, udi_address *addr);
 
-udi_response create_response_error(const char *errmsg, unsigned int errmsg_size);
+udi_response create_response_error(udi_errmsg *errmsg);
 udi_response create_response_read(const void *data, udi_length num_bytes);
 udi_response create_response_init(udi_version_e protocol_version,
         udi_arch_e arch, int multithread, uint64_t tid);
@@ -142,15 +148,12 @@ int unpack_response_init(udi_response *resp,  uint32_t *protocol_version,
         udi_arch_e *architecture, int *multithread_capable, uint64_t *tid);
 int unpack_response_state(udi_response *resp, int *num_threads, thread_state **states);
 
-int unpack_request_continue(udi_request *req, uint32_t *sig_val, char *errmsg, 
-        unsigned int errmsg_size);
-int unpack_request_read(udi_request *req, udi_address *addr, udi_length *num_bytes, char *errmsg,
-        unsigned int errmsg_size);
+int unpack_request_continue(udi_request *req, uint32_t *sig_val, udi_errmsg *errmsg);
+int unpack_request_read(udi_request *req, udi_address *addr, udi_length *num_bytes, udi_errmsg *errmsg);
 int unpack_request_write(udi_request *req, udi_address *addr, udi_length *num_bytes,
-        void **bytes_to_write, char *errmsg, unsigned int errmsg_size);
-int unpack_request_breakpoint_create(udi_request *req, udi_address *addr,
-        char *errmsg, unsigned int errmsg_size);
-int unpack_request_breakpoint(udi_request *req, udi_address *addr, char *errmsg, unsigned int errmsg_size);
+        void **bytes_to_write, udi_errmsg *errmsg);
+int unpack_request_breakpoint_create(udi_request *req, udi_address *addr, udi_errmsg *errmsg);
+int unpack_request_breakpoint(udi_request *req, udi_address *addr, udi_errmsg *errmsg);
 
 udi_request create_request_breakpoint_create(udi_address addr);
 udi_request create_request_breakpoint(udi_request_type request_type, udi_address addr);
