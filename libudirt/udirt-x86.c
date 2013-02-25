@@ -42,15 +42,14 @@ static const unsigned char BREAKPOINT_INSN = 0xcc;
  *
  * @param bp the breakpoint
  * @param errmsg the errmsg populated by the memory access
- * @param errmsg_size the maximum size of the error message
  *
  * @return non-zero on failure
  */
-int write_breakpoint_instruction(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
+int write_breakpoint_instruction(breakpoint *bp, udi_errmsg *errmsg) {
     if ( bp->in_memory ) return 0;
 
     int result = read_memory(bp->saved_bytes, (void *)(unsigned long)bp->address, 
-            sizeof(BREAKPOINT_INSN), errmsg, errmsg_size);
+            sizeof(BREAKPOINT_INSN), errmsg);
     if( result != 0 ) {
         udi_printf("failed to save original bytes at 0x%"PRIx64"\n",
                 bp->address);
@@ -58,7 +57,7 @@ int write_breakpoint_instruction(breakpoint *bp, char *errmsg, unsigned int errm
     }
 
     result = write_memory((void *)(unsigned long)bp->address, &BREAKPOINT_INSN, 
-            sizeof(BREAKPOINT_INSN), errmsg, errmsg_size);
+            sizeof(BREAKPOINT_INSN), errmsg);
     if ( result != 0 ) {
         udi_printf("failed to install breakpoint at 0x%"PRIx64"\n",
                 bp->address);
@@ -72,15 +71,14 @@ int write_breakpoint_instruction(breakpoint *bp, char *errmsg, unsigned int errm
  *
  * @param bp the breakpoint that stores the saved bytes
  * @param errmsg the error message populated by the memory access
- * @param errmsg_size the maximum size of the error message
  *
  * @return non-zero on failure
  */
-int write_saved_bytes(breakpoint *bp, char *errmsg, unsigned int errmsg_size) {
+int write_saved_bytes(breakpoint *bp, udi_errmsg *errmsg) {
     if ( !bp->in_memory ) return 0;
 
     int result = write_memory((void *)(unsigned long)bp->address, bp->saved_bytes, 
-            sizeof(BREAKPOINT_INSN), errmsg, errmsg_size);
+            sizeof(BREAKPOINT_INSN), errmsg);
 
     if ( result != 0 ) {
         udi_printf("failed to remove breakpoint at 0x%"PRIx64"\n", bp->address);
@@ -295,13 +293,11 @@ unsigned long compute_target(ud_mnemonic_code_t mnemonic, struct ud_operand *op,
  *
  * @param pc the program counter
  * @param errmsg the error message populated on failure
- * @param errmsg_size the max size of the error message
  * @param context the context from which registers can be retrieved
  *
  * @return the address of the control flow successor or 0 on error
  */
-unsigned long get_ctf_successor(unsigned long pc, char *errmsg, 
-        unsigned int errmsg_size, void *context) {
+unsigned long get_ctf_successor(unsigned long pc, udi_errmsg *errmsg, void *context) {
 
     ud_t ud_obj;
 
@@ -314,8 +310,8 @@ unsigned long get_ctf_successor(unsigned long pc, char *errmsg,
     ud_set_pc(&ud_obj, pc);
 
     if ( ud_disassemble(&ud_obj) == 0 ) {
-        snprintf(errmsg, errmsg_size, "disassembling instruction at 0x%lx failed", pc);
-        udi_printf("%s\n", errmsg);
+        snprintf(errmsg->msg, errmsg->size, "disassembling instruction at 0x%lx failed", pc);
+        udi_printf("%s\n", errmsg->msg);
         return 0;
     }
 
@@ -368,7 +364,7 @@ unsigned long get_ctf_successor(unsigned long pc, char *errmsg,
             }
 
             if ( read_memory(&successor, (const void *)stack_ptr, sizeof(unsigned long),
-                        errmsg, errmsg_size) ) return 0;
+                        errmsg) ) return 0;
 
             return successor;
 
@@ -381,9 +377,9 @@ unsigned long get_ctf_successor(unsigned long pc, char *errmsg,
     }
 
     if ( successor == 0 ) {
-        snprintf(errmsg, errmsg_size, "failed to determine ctf successor at 0x%lx\n",
+        snprintf(errmsg->msg, errmsg->size, "failed to determine ctf successor at 0x%lx\n",
                 pc);
-        udi_printf("%s\n", errmsg);
+        udi_printf("%s\n", errmsg->msg);
     }
 
     return successor;

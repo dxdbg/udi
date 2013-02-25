@@ -60,19 +60,18 @@ void free_response(udi_response *resp) {
  *
  * @param thread_id the thread id
  * @param errmsg the error message
- * @param errmsg_size the maximum size for the error message
  *
  * @return the created event
  */
-udi_event_internal create_event_error(uint64_t thread_id, const char *errmsg, unsigned int errmsg_size) {
-    udi_length payload_length = strnlen(errmsg, errmsg_size) + 1;
+udi_event_internal create_event_error(uint64_t thread_id, udi_errmsg *errmsg) {
+    udi_length payload_length = strnlen(errmsg->msg, errmsg->size) + 1;
 
     udi_event_internal result;
     result.event_type = UDI_EVENT_ERROR;
     result.thread_id = thread_id;
     result.length = sizeof(udi_length) + payload_length;
     result.packed_data = udi_pack_data(result.length,
-            UDI_DATATYPE_BYTESTREAM, payload_length, errmsg);
+            UDI_DATATYPE_BYTESTREAM, payload_length, errmsg->msg);
 
     return result;
 }
@@ -82,7 +81,6 @@ udi_event_internal create_event_error(uint64_t thread_id, const char *errmsg, un
  *
  * @param event the event to unpack
  * @param errmsg the error message to unpack into
- * @param errmsg_size the size of the error message
  *
  * @return 0 on success; non-zero otherwise
  */
@@ -223,20 +221,17 @@ udi_event_internal create_event_unknown(uint64_t thread_id) {
 /**
  * Creates an error response
  *
- * @param errmsg the error message to be included in the response
- * @param errmsg_size the length of the error message
- *
  * @return the created response
  */
-udi_response create_response_error(const char *errmsg, unsigned int errmsg_size) {
-    udi_length payload_length = strnlen(errmsg, errmsg_size) + 1;
+udi_response create_response_error(udi_errmsg *errmsg) {
+    udi_length payload_length = strnlen(errmsg->msg, errmsg->size) + 1;
 
     udi_response error_resp;
     error_resp.response_type = UDI_RESP_ERROR;
     error_resp.request_type = UDI_REQ_INVALID;
     error_resp.length = sizeof(udi_length) + payload_length;
     error_resp.packed_data = udi_pack_data(error_resp.length,
-            UDI_DATATYPE_BYTESTREAM, payload_length, errmsg);
+            UDI_DATATYPE_BYTESTREAM, payload_length, errmsg->msg);
 
     return error_resp;
 }
@@ -323,11 +318,10 @@ udi_response create_response_state(int num_threads, thread_state *states) {
  * @param req the continue request
  * @param sig_val the output signal value used to continue the process
  * @param errmsg the error message populated on error
- * @param errmsg_size the size of the error message
  *
  * @return zero on success; non-zero otherwise
  */
-int unpack_request_continue(udi_request *req, uint32_t *sig_val, char *errmsg, unsigned int errmsg_size) {
+int unpack_request_continue(udi_request *req, uint32_t *sig_val, udi_errmsg *errmsg) {
     int parsed = 1;
     do {
         if (req->request_type != UDI_REQ_CONTINUE) {
@@ -343,7 +337,7 @@ int unpack_request_continue(udi_request *req, uint32_t *sig_val, char *errmsg, u
     }while(0); 
 
     if (!parsed) {
-        snprintf(errmsg, errmsg_size, "%s", "failed to parse continue request");
+        snprintf(errmsg->msg, errmsg->size, "%s", "failed to parse continue request");
         return -1;
     }
 
@@ -357,18 +351,17 @@ int unpack_request_continue(udi_request *req, uint32_t *sig_val, char *errmsg, u
  * @param addr the output parameter for the address
  * @param num_bytes the output parameter for the number of bytes to read
  * @param errmsg the error message populated on error
- * @param errmsg_size the error message populated on size
  *
  * @return 0 on success; non-zero on failure
  */
 int unpack_request_read(udi_request *req, udi_address *addr, 
-        udi_length *num_bytes, char *errmsg, unsigned int errmsg_size) {
+        udi_length *num_bytes, udi_errmsg *errmsg) {
 
     if ( udi_unpack_data(req->packed_data, req->length,
                 UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_LENGTH,
                 &num_bytes) )
     {
-        snprintf(errmsg, errmsg_size, "%s", "failed to parse read request");
+        snprintf(errmsg->msg, errmsg->size, "%s", "failed to parse read request");
         return -1;
     }
 
@@ -383,18 +376,17 @@ int unpack_request_read(udi_request *req, udi_address *addr,
  * @param num_bytes the number of bytes to write
  * @param bytes_to_write the data to write
  * @param errmsg the error message populated on failure
- * @param errmsg_size the size of the error message buffer
  *
  * @return -1 on failure; 0 otherwise
  */
 int unpack_request_write(udi_request *req, udi_address *addr, udi_length *num_bytes,
-        void **bytes_to_write, char *errmsg, unsigned int errmsg_size) {
+        void **bytes_to_write, udi_errmsg *errmsg) {
 
     if ( udi_unpack_data(req->packed_data, req->length,
                 UDI_DATATYPE_ADDRESS, addr, UDI_DATATYPE_BYTESTREAM, num_bytes,
                 bytes_to_write) ) 
     {
-        snprintf(errmsg, errmsg_size, "%s", "failed to parse write request");
+        snprintf(errmsg->msg, errmsg->size, "%s", "failed to parse write request");
         return -1;
     }
 
@@ -407,17 +399,16 @@ int unpack_request_write(udi_request *req, udi_address *addr, udi_length *num_by
  * @param req the request
  * @param addr the address of the breakpoint
  * @param errmsg the error message populated on error
- * @param errmsg_size the size of the error message
  *
  * @return 0 on success; -1 otherwise
  */
 int unpack_request_breakpoint_create(udi_request *req, udi_address *addr,
-        char *errmsg, unsigned int errmsg_size) {
+        udi_errmsg *errmsg) {
 
     if (udi_unpack_data(req->packed_data, req->length,
                 UDI_DATATYPE_ADDRESS, addr) ) {
 
-        snprintf(errmsg, errmsg_size, "%s", "failed to parse breakpoint create request");
+        snprintf(errmsg->msg, errmsg->size, "%s", "failed to parse breakpoint create request");
         return -1;
     }
 
@@ -430,16 +421,15 @@ int unpack_request_breakpoint_create(udi_request *req, udi_address *addr,
  * @param req the request
  * @param addr the address of the request
  * @param errmsg the error message populated on failure
- * @param errmsg_size the size of the error message buffer
  *
  * @return 0 on success; non-zero otherwise
  */
-int unpack_request_breakpoint(udi_request *req, udi_address *addr, char *errmsg, unsigned int errmsg_size) {
+int unpack_request_breakpoint(udi_request *req, udi_address *addr, udi_errmsg *errmsg) {
 
     if (udi_unpack_data(req->packed_data, req->length,
                 UDI_DATATYPE_ADDRESS, addr)) 
     {
-        snprintf(errmsg, errmsg_size, "%s", "failed to parse breakpoint request");
+        snprintf(errmsg->msg, errmsg->size, "%s", "failed to parse breakpoint request");
         return -1;
     }
 

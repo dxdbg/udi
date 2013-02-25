@@ -461,11 +461,12 @@ void free_envp_copy(char **envp_copy) {
  * Forks a new process and executes the specified executable, arguments
  * and environment
  *
+ * @param proc          the process
  * @param executable    the executable to exec
  * @param argv          the arguments to the new process
  * @param envp          the environment for the new process
  */
-udi_pid fork_process(const char *executable, char * const argv[],
+udi_pid fork_process(udi_process *proc, const char *executable, char * const argv[],
         char * const envp[])
 {
     // First process initialization
@@ -531,7 +532,7 @@ udi_pid fork_process(const char *executable, char * const argv[],
             // This indicates the child failed to exec the process
             udi_printf("child failed to execute executable %s: %s\n",
                     executable, strerror(errnum));
-            strncpy(errmsg, strerror(errnum), ERRMSG_SIZE);
+            strncpy(proc->errmsg.msg, strerror(errnum), proc->errmsg.size);
             return -1;
         }
         
@@ -689,7 +690,7 @@ int initialize_process(udi_process *proc) {
             }
 
             if ( init_response->response_type == UDI_RESP_ERROR ) {
-                log_error_msg(init_response, __FILE__, __LINE__);
+                log_error_msg(proc, init_response, __FILE__, __LINE__);
                 errnum = -1;
                 break;
             }
@@ -757,6 +758,7 @@ udi_thread *handle_thread_create(udi_process *proc, uint64_t tid) {
     thr->tid = tid;
     thr->proc = proc;
     thr->next_thread = NULL;
+    thr->state = UDI_TS_RUNNING;
 
     // perform the handshake with the debuggee //
     
@@ -821,7 +823,7 @@ udi_thread *handle_thread_create(udi_process *proc, uint64_t tid) {
         }
 
         if ( init_response->response_type == UDI_RESP_ERROR ) {
-            log_error_msg(init_response, __FILE__, __LINE__);
+            log_error_msg(proc, init_response, __FILE__, __LINE__);
             result = -1;
             break;
         }

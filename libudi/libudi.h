@@ -53,7 +53,6 @@ typedef enum {
 } udi_error_e;
 
 // Global state functions //
-const char *get_error_message(udi_error_e error_code);
 udi_error_e init_libudi();
 udi_error_e set_udi_root_dir(const char *root_dir);
 
@@ -91,6 +90,9 @@ udi_error_e delete_breakpoint(udi_process *proc, udi_address addr);
 // Memory access interface //
 udi_error_e mem_access(udi_process *proc, int write, void *value, 
         udi_length size, udi_address addr);
+
+// Error handling //
+const char *get_last_error_message(udi_process *proc);
 
 // Event handling interface //
 

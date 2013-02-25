@@ -65,6 +65,8 @@ struct udi_process_struct {
     int multithread_capable;
     void *user_data;
     struct udi_thread_struct *threads;
+    udi_errmsg errmsg;
+    udi_error_e error_code;
 };
 
 // platform specific functionality //
@@ -76,7 +78,7 @@ int create_root_udi_filesystem();
 char * const *get_environment();
 
 // process handling
-udi_pid fork_process(const char *executable, char * const argv[],
+udi_pid fork_process(struct udi_process_struct *proc, const char *executable, char * const argv[],
         char * const envp[]);
 int initialize_process(udi_process *proc);
 
@@ -93,13 +95,12 @@ udi_event *read_event(udi_process *proc);
 udi_event *decode_event(udi_process *proc, udi_event_internal *event);
 
 // logging
-void log_error_msg(udi_response *resp, const char *error_file, int error_line);
+void log_error_msg(udi_process *proc, udi_response *resp, const char *error_file, int error_line);
 void check_debug_logging();
 
 // error logging
 extern int udi_debug_on;
-extern const unsigned int ERRMSG_SIZE;
-extern char errmsg[4096];
+
 
 #define udi_printf(format, ...) \
     do {\

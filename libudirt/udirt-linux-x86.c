@@ -120,11 +120,10 @@ udi_address get_trap_address(const ucontext_t *context) {
  *
  * @param context the current context
  * @param errmsg the error message populated by the memory access
- * @param errmsg_size the maximum size of the error message
  *
  * @return the exit result
  */
-exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned int errmsg_size) {
+exit_result get_exit_argument(const ucontext_t *context, udi_errmsg *errmsg) {
     exit_result ret;
     ret.failure = 0;
 
@@ -144,12 +143,11 @@ exit_result get_exit_argument(const ucontext_t *context, char *errmsg, unsigned 
         // skip return address
         sp += word_length;
 
-        int read_result = read_memory(&(ret.status), (const void *)sp, sizeof(int),
-                errmsg, errmsg_size);
+        int read_result = read_memory(&(ret.status), (const void *)sp, sizeof(int), errmsg);
         if ( read_result != 0 ) {
             udi_printf("failed to retrieve exit status off of the stack at 0x%lx\n",
                     sp);
-            snprintf(errmsg, errmsg_size, 
+            snprintf(errmsg->msg, errmsg->size,
                     "failed to retrieve exit status off of the stack at 0x%lx: %s",
                     sp, get_mem_errstr());
             ret.failure = read_result;

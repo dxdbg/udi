@@ -109,19 +109,16 @@ uint64_t get_user_thread_id() {
  *
  * @param breakpoint_addr the breakpoint address
  * @param errmsg the error message populated on error
- * @param errmsg_size the maximum size of the error message
  *
  * @return the created breakpoint
  */
 static
-breakpoint *create_and_install(unsigned long breakpoint_addr, char *errmsg, 
-        unsigned int errmsg_size) 
-{
+breakpoint *create_and_install(unsigned long breakpoint_addr, udi_errmsg *errmsg) {
     breakpoint *bp = create_breakpoint((udi_address)breakpoint_addr);
 
     if (bp == NULL) return NULL;
 
-    if ( install_breakpoint(bp, errmsg, errmsg_size) ) return NULL;
+    if ( install_breakpoint(bp, errmsg) ) return NULL;
 
     return bp;
 }
@@ -130,35 +127,30 @@ breakpoint *create_and_install(unsigned long breakpoint_addr, char *errmsg,
  * Installs the thread event breakpoints
  *
  * @param errmsg the error message populated on failure
- * @param errmsg_size the size of the error message
  *
  * @return 0 on success; non-zero otherwise
  */
-int install_thread_event_breakpoints(char *errmsg, unsigned int errmsg_size) {
+int install_thread_event_breakpoints(udi_errmsg *errmsg) {
 
     if ( !get_multithread_capable() ) {
-        snprintf(errmsg, errmsg_size, "%s", "Process is not multithread capable");
-        udi_printf("%s\n", errmsg);
+        snprintf(errmsg->msg, errmsg->size, "%s", "Process is not multithread capable");
+        udi_printf("%s\n", errmsg->msg);
         return -1;
     }
 
     if (!pthreads_create_event || !pthreads_death_event) {
-        snprintf(errmsg, errmsg_size, "%s", "Failed to locate thread event functions");
-        udi_printf("%s\n", errmsg);
+        snprintf(errmsg->msg, errmsg->size, "%s", "Failed to locate thread event functions");
+        udi_printf("%s\n", errmsg->msg);
         return -1;
     }
 
-    thread_create_bp = create_and_install((unsigned long)pthreads_create_event, errmsg,
-            errmsg_size);
-
+    thread_create_bp = create_and_install((unsigned long)pthreads_create_event, errmsg);
     if ( thread_create_bp == NULL ) {
         udi_printf("%s\n", "failed to install thread create breakpoint");
         return -1;
     }
 
-    thread_death_bp = create_and_install((unsigned long)pthreads_death_event, errmsg,
-            errmsg_size);
-
+    thread_death_bp = create_and_install((unsigned long)pthreads_death_event, errmsg);
     if ( thread_death_bp == NULL ) {
         udi_printf("%s\n", "failed to install thread death breakpoint");
         return -1;
@@ -337,16 +329,14 @@ thread *create_initial_thread() {
  * @param errmsg_size the maximum size of the error message
  */
 static
-event_result handle_thread_create(const ucontext_t *context,
-        char *errmsg, unsigned int errmsg_size)
-{
+event_result handle_thread_create(const ucontext_t *context, udi_errmsg *errmsg) {
     event_result result;
     result.wait_for_request = 1;
     result.failure = 0;
 
     uint64_t tid;
     do {
-        tid = initialize_thread(errmsg, errmsg_size);
+        tid = initialize_thread(errmsg);
         if ( tid == 0 ) {
             result.failure = 1;
             break;
@@ -360,7 +350,7 @@ event_result handle_thread_create(const ucontext_t *context,
             break;
         }
 
-        if ( thread_create_callback(thr, errmsg, errmsg_size) != 0 ) {
+        if ( thread_create_callback(thr, errmsg) != 0 ) {
             result.failure = 1;
             break;
         }
@@ -368,7 +358,7 @@ event_result handle_thread_create(const ucontext_t *context,
         udi_event_internal event = create_event_thread_create(tid);
         result.failure = write_event(&event);
 
-        if ( thread_create_handshake(thr, errmsg, errmsg_size) != 0 ) {
+        if ( thread_create_handshake(thr, errmsg) != 0 ) {
             result.failure = 1;
             break;
         }
@@ -386,19 +376,16 @@ event_result handle_thread_create(const ucontext_t *context,
  *
  * @param context the context
  * @param errmsg the error message populated on error
- * @param errmsg_size the maximum size of the error message
  */
 static
-event_result handle_thread_death(const ucontext_t *context, char *errmsg,
-        unsigned int errmsg_size)
-{
+event_result handle_thread_death(const ucontext_t *context, udi_errmsg *errmsg) {
     event_result result;
     result.wait_for_request = 1;
     result.failure = 0;
 
     uint64_t tid;
     do {
-        tid = finalize_thread(errmsg, errmsg_size);
+        tid = finalize_thread(errmsg);
 
         if (tid == 0) {
             result.failure = 1;
@@ -413,7 +400,7 @@ event_result handle_thread_death(const ucontext_t *context, char *errmsg,
             break;
         }
 
-        if ( thread_death_callback(thr, errmsg, errmsg_size) != 0 ) {
+        if ( thread_death_callback(thr, errmsg) != 0 ) {
             result.failure = 1;
             break;
         }
@@ -435,26 +422,25 @@ event_result handle_thread_death(const ucontext_t *context, char *errmsg,
  * @param bp the breakpoint
  * @param context the context
  * @param errmsg the error message populated on error
- * @param errmsg_size the maximum size of the error message
  */
 event_result handle_thread_event_breakpoint(breakpoint *bp, const ucontext_t *context,
-        char *errmsg, unsigned int errmsg_size)
+        udi_errmsg *errmsg)
 {
     if (bp == thread_create_bp) {
-        return handle_thread_create(context, errmsg, errmsg_size);
+        return handle_thread_create(context, errmsg);
     }
 
     if (bp == thread_death_bp) {
-        return handle_thread_death(context, errmsg, errmsg_size);
+        return handle_thread_death(context, errmsg);
     }
 
     event_result err_result;
     err_result.failure = 1;
     err_result.wait_for_request = 0;
 
-    snprintf(errmsg, errmsg_size, "failed to handle the thread event at 0x%"PRIx64,
+    snprintf(errmsg->msg, errmsg->size, "failed to handle the thread event at 0x%"PRIx64,
             bp->address);
-    udi_printf("%s\n", errmsg); 
+    udi_printf("%s\n", errmsg->msg); 
 
     return err_result;
 }

@@ -63,6 +63,6 @@ void cleanup_debuggee_pipe(udi_process *proc);
 
 std::ostream& operator<<(std::ostream &os, udi_process *proc);
 
-#define assert_no_error(e) test_assert_msg(get_error_message(e), e == UDI_ERROR_NONE)
+#define assert_no_error(proc, e) test_assert_msg(get_last_error_message(proc), e == UDI_ERROR_NONE)
 
 #endif

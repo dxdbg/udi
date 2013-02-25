@@ -81,17 +81,13 @@ int is_performing_mem_access();
 void *pre_mem_access_hook();
 int post_mem_access_hook(void *hook_arg);
 
-int read_memory(void *dest, const void *src, size_t num_bytes,
-        char *errmsg, unsigned int errmsg_size);
-
-int write_memory(void *dest, const void *src, size_t num_bytes,
-        char *errmsg, unsigned int errmsg_size);
+int read_memory(void *dest, const void *src, size_t num_bytes, udi_errmsg *errmsg);
+int write_memory(void *dest, const void *src, size_t num_bytes, udi_errmsg *errmsg);
 
 const char *get_mem_errstr();
 
 // disassembly interface
-unsigned long get_ctf_successor(unsigned long pc, 
-        char *errmsg, unsigned int errmsg_size, void *context);
+unsigned long get_ctf_successor(unsigned long pc, udi_errmsg *errmsg, void *context);
 
 // breakpoint handling
 typedef struct breakpoint_struct {
@@ -103,27 +99,15 @@ typedef struct breakpoint_struct {
 
 breakpoint *create_breakpoint(udi_address breakpoint_addr);
 
-int install_breakpoint(breakpoint *bp, char *errmsg, 
-        unsigned int errmsg_size);
-
-int remove_breakpoint(breakpoint *bp, char *errmsg,
-        unsigned int errmsg_size);
-
-int remove_breakpoint_for_continue(breakpoint *bp, char *errmsg,
-        unsigned int errmsg_size);
-
-int delete_breakpoint(breakpoint *bp, char *errmsg,
-        unsigned int errmsg_size);
-
+int install_breakpoint(breakpoint *bp, udi_errmsg *errmsg);
+int remove_breakpoint(breakpoint *bp, udi_errmsg *errmsg);
+int remove_breakpoint_for_continue(breakpoint *bp, udi_errmsg *errmsg);
+int delete_breakpoint(breakpoint *bp, udi_errmsg *errmsg);
 breakpoint *find_breakpoint(udi_address breakpoint_addr);
 
 // architecture specific breakpoint handling
-int write_breakpoint_instruction(breakpoint *bp, char *errmsg,
-        unsigned int errmsg_size);
-
-int write_saved_bytes(breakpoint *bp, char *errmsg,
-        unsigned int errmsg_size);
-
+int write_breakpoint_instruction(breakpoint *bp, udi_errmsg *errmsg);
+int write_saved_bytes(breakpoint *bp, udi_errmsg *errmsg);
 udi_arch_e get_architecture();
 
 // error logging
