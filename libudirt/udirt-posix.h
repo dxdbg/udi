@@ -65,6 +65,11 @@ int install_event_breakpoints(udi_errmsg *errmsg);
 int is_event_breakpoint(breakpoint *bp);
 event_result handle_event_breakpoint(breakpoint *bp, const ucontext_t *context, udi_errmsg *errmsg);
 
+int wait_and_execute_command(udi_errmsg *errmsg);
+
+// re-initialize a process after fork
+void reinit_udi_rt();
+
 // exit event handling
 typedef struct exit_result_struct {
     int status;

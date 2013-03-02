@@ -1,8 +1,10 @@
 A list of enhancements/bugfixes for the future
 ----------------------------------------------
-* all REQ_FAILURES in runtime library need to populate errmsg
-
 * catch fork, exec syscalls
+
+* catch library events
+
+* implement detach/attach
 
 * implement register interface
 

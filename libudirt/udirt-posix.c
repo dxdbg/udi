@@ -970,7 +970,7 @@ int post_mem_access_hook(void *hook_arg) {
  *
  * @return request handler return code
  */
-static int wait_and_execute_command(udi_errmsg *errmsg) {
+int wait_and_execute_command(udi_errmsg *errmsg) {
     udi_request *req = NULL;
     int result = 0;
 
@@ -1249,11 +1249,10 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     if (!is_performing_mem_access() && continue_bp == NULL) {
         int block_result = block_other_threads();
         if ( block_result == -1 ) {
-            udi_printf("%s", "failed to block other threads\n");
+            udi_printf("%s\n", "failed to block other threads");
             udi_abort(__FILE__, __LINE__);
             return;
         }
-
 
         if ( block_result > 0 ) {
             if ( thr != NULL && signal != THREAD_SUSPEND_SIGNAL) {
@@ -1285,7 +1284,6 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     // create event
     // Note: each decoder function will call write_event to avoid unnecessary
     // heap allocations
-
     int request_error = 0;
 
     event_result result;
@@ -2080,6 +2078,14 @@ int handshake_with_debugger(int *output_enabled, udi_errmsg *errmsg) {
     }while(0);
 
     return errnum;
+}
+
+
+/**
+ * Re-initializes the process, currently used to initialize child produced by a fork
+ */
+void reinit_udi_rt() {
+    // TODO
 }
 
 /** The entry point for initialization declaration */
