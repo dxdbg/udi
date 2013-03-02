@@ -36,6 +36,7 @@ void (*signal(int signum, void (*handler)(int)) )(int) __asm__ ("" "signal");
 
 #include "udirt-posix.h"
 
+#include <inttypes.h>
 #include <errno.h>
 
 // Signal handling
@@ -84,22 +85,25 @@ signal_type real_signal;
 // event breakpoints
 static breakpoint *exit_bp = NULL;
 
-/* to be used by system call library function wrappers
+/**
+ * Waits and executes a command -- used by syscall wrappers
+ */
 static
 void wait_and_execute_command_with_response() {
-    char errmsg[ERRMSG_SIZE];
-    errmsg[ERRMSG_SIZE-1] = '\0';
+    udi_errmsg errmsg;
+    errmsg.size = ERRMSG_SIZE;
+    errmsg.msg[ERRMSG_SIZE-1] = '\0';
 
-    int req_result = wait_and_execute_command(errmsg, ERRMSG_SIZE);
+    int req_result = wait_and_execute_command(&errmsg);
 
     if ( req_result != REQ_SUCCESS ) {
         if ( req_result > REQ_SUCCESS ) {
-            strncpy(errmsg, strerror(req_result), ERRMSG_SIZE-1);
+            strncpy(errmsg.msg, strerror(req_result), errmsg.size-1);
         }
 
-        udi_printf("failed to process command: %s\n", errmsg);
+        udi_printf("failed to process command: %s\n", errmsg.msg);
 
-        udi_response resp = create_response_error(errmsg, ERRMSG_SIZE);
+        udi_response resp = create_response_error(&errmsg);
         if ( resp.packed_data != NULL ) {
             // explicitly ignore errors
             write_response(&resp);
@@ -107,7 +111,6 @@ void wait_and_execute_command_with_response() {
         }
     }
 }
-*/
 
 /**
  * Use dynamic loader to locate functions that are wrapped by library
@@ -231,8 +234,6 @@ event_result handle_exit_breakpoint(const ucontext_t *context, udi_errmsg *errms
 
     // create the event
     udi_event_internal exit_event = create_event_exit(get_user_thread_id(), exit_result.status);
-
-    // Explicitly ignore errors as there is no way to report them
     do {
         if ( exit_event.packed_data == NULL ) {
             result.failure = 1;
@@ -252,11 +253,55 @@ event_result handle_exit_breakpoint(const ucontext_t *context, udi_errmsg *errms
 }
 
 /**
- * The wrapper function for the fork system call. This is TODO
+ * The wrapper function for the fork system call.
+ *
+ * See fork manpage for description.
  */
-pid_t fork()
-{
-    return real_fork();
+pid_t fork() {
+
+    pid_t child = real_fork();
+    if ( child == 0 ) {
+        reinit_udi_rt();
+    }else{
+        uint64_t thread_id = get_user_thread_id();
+
+        udi_printf(">>> fork entry for 0x%"PRIx64"/%u\n",
+                get_user_thread_id(),
+                get_kernel_thread_id());
+
+        // Need to continue waiting until this thread owns the control of the process
+        int block_result = 1;
+        while (block_result > 0) {
+            block_result = block_other_threads();
+            if ( block_result == -1 ) {
+                udi_printf("%s\n", "failed to block other threads");
+                errno = EAGAIN;
+                return -1;
+            }
+        }
+
+        // create the event
+        udi_event_internal event = create_event_fork(thread_id, child);
+        do {
+            int errnum = write_event(&event);
+            if ( errnum != 0 ) {
+                udi_printf("failed to write fork event: %s\n", strerror(errnum));
+                errno = EAGAIN;
+                return -1;
+            }
+        }while(0);
+
+        wait_and_execute_command_with_response();
+
+        int release_result = release_other_threads();
+        if ( release_result != 0 ) {
+            udi_printf("%s\n", "failed to release other threads");
+            errno = EAGAIN;
+            return -1;
+        }
+    }
+
+    return child;
 }
 
 /**

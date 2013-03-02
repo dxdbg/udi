@@ -258,6 +258,8 @@ typedef enum
     UDI_EVENT_THREAD_CREATE,
     UDI_EVENT_THREAD_DEATH,
     UDI_EVENT_PROCESS_EXIT,
+    UDI_EVENT_PROCESS_FORK,
+    UDI_EVENT_PROCESS_EXEC,
     UDI_EVENT_MAX,
     UDI_EVENT_UNKNOWN
 } udi_event_type_e;
@@ -271,7 +273,7 @@ typedef enum
  */
 
 /* the thread id is of type UDI_DATATYPE_INT64 */
-#define UDI_SINGLE_THREAD_ID 0xDEADBEEF
+#define UDI_SINGLE_THREAD_ID 0xC0FFEEABC
 
 /*
  * Error event data
@@ -304,6 +306,12 @@ typedef enum
  * Process exit data
  *
  * UDI_DATATYPE_INT32   - the exit code from the process exit
+ */
+
+/*
+ * Process fork data
+ *
+ * UDI_DATATYPE_INT32   - the process id for the new process
  */
 
 #ifdef __cplusplus

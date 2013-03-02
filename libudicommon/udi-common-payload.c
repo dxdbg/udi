@@ -130,6 +130,24 @@ int unpack_event_breakpoint(udi_event_internal *event, udi_address *addr) {
     return 0;
 }
 
+
+/**
+ * Unpacks the fork event into the specified parameters
+ *
+ * @param event the fork event
+ * @param pid the process id
+ *
+ * @return 0 on success; non-zero otherwise
+ */
+int unpack_event_fork(udi_event_internal *event, uint32_t *pid) {
+
+    if ( udi_unpack_data(event->packed_data, event->length, UDI_DATATYPE_INT32, pid) ) {
+        return -1;
+    }
+    
+    return 0;
+}
+
 /**
  * Creates a breakpoint event
  *
@@ -214,6 +232,22 @@ udi_event_internal create_event_unknown(uint64_t thread_id) {
     result.thread_id = thread_id;
     result.length = 0;
     result.packed_data = NULL;
+
+    return result;
+}
+
+/**
+ * Creates a fork event
+ *
+ * @return the created event
+ */
+udi_event_internal create_event_fork(uint64_t thread_id, uint32_t pid) {
+    udi_event_internal result;
+    result.event_type = UDI_EVENT_PROCESS_FORK;
+    result.thread_id = thread_id;
+    result.length = sizeof(uint32_t);
+    result.packed_data = udi_pack_data(result.length,
+            UDI_DATATYPE_INT32, pid);
 
     return result;
 }
