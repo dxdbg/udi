@@ -8,6 +8,8 @@ A list of enhancements/bugfixes for the future
 
 * implement register interface
 
+* make libudi thread safe
+
 * add Doxygen documentation generation
 
 * allow user to specify the runtime library to be loaded when creating processes in libudi

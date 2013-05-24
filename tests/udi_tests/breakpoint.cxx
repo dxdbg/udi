@@ -55,18 +55,18 @@ static udi_address TEST_FUNCTION = SIMPLE_FUNCTION1;
 static test_breakpoint testInstance;
 
 bool test_breakpoint::operator()(void) {
-    udi_error_e result = init_libudi();
-    test_assert(result == UDI_ERROR_NONE);
-
     char *argv[] = { NULL };
 
-    udi_process *proc = create_process(TEST_BINARY, argv, NULL);
+    udi_proc_config config;
+    config.root_dir = NULL;
+
+    udi_process *proc = create_process(TEST_BINARY, argv, NULL, &config);
     test_assert(proc != NULL);
 
     udi_thread *thr = get_initial_thread(proc);
     test_assert(thr != NULL);
 
-    result = create_breakpoint(proc, TEST_FUNCTION);
+    udi_error_e result = create_breakpoint(proc, TEST_FUNCTION);
     assert_no_error(proc, result);
 
     result = install_breakpoint(proc, TEST_FUNCTION);

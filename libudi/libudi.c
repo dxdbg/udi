@@ -41,8 +41,6 @@
 // globals        //
 ////////////////////
 int udi_debug_on = 0;
-int processes_created = 0;
-const char *udi_root_dir = NULL;
 
 /**
  * Get a message describing the passed error code
@@ -85,18 +83,37 @@ udi_thread *find_thread(udi_process *proc, udi_tid tid) {
 }
 
 /**
- * Initializes the library
+ * Sets the directory to be used for the root of the UDI filesystem for the specified process
+ * 
+ * @param proc the process
+ * @param root_dir the directory to set as the root
  *
- * @return UDI_ERROR_NONE on success
+ * @return non-zero on failure
+ * @return zero on success
  */
-udi_error_e init_libudi() {
-    if ( udi_root_dir == NULL ) {
-        udi_root_dir = DEFAULT_UDI_ROOT_DIR;
+static
+int set_root_dir(udi_process *proc, const char *root_dir) {
+    size_t length = strlen(root_dir);
+
+    char *tmp_root_dir = (char *)malloc(length+1);
+    if (tmp_root_dir == NULL) {
+        return -1;
     }
 
-    check_debug_logging();
+    strncpy((char *)tmp_root_dir, root_dir, length);
+    tmp_root_dir[length] = '\0';
 
-    return UDI_ERROR_NONE;
+    proc->root_dir = tmp_root_dir;
+
+    return 0;
+}
+
+/**
+ * Initializes the library
+ */
+LIB_INIT_FUNC(init_libudi);
+void init_libudi() {
+    check_debug_logging();
 }
 
 /**
@@ -106,13 +123,14 @@ udi_error_e init_libudi() {
  * @param argv         the arguments
  * @param envp         the environment, if NULL, the newly created process will
  *                     inherit the environment for this process
+ * @param config       the configuration for creating the process
  *
  * @return a handle to the created process
  *
  * @see execve on a UNIX system
  */
 udi_process *create_process(const char *executable, char * const argv[],
-        char * const envp[])
+        char * const envp[], const udi_proc_config *config)
 {
     int error = 0;
 
@@ -122,28 +140,28 @@ udi_process *create_process(const char *executable, char * const argv[],
         return NULL;
     }
 
-    if ( processes_created == 0 ) {
-        if ( create_root_udi_filesystem() != 0 ) {
-            udi_printf("%s\n", "failed to create root UDI filesystem");
-            return NULL;
-        }
-    }
-
-    if (envp == NULL) {
-        // Created process will inherit the current environment
-        envp = get_environment();
-    }
-
     udi_process *proc = (udi_process *)malloc(sizeof(udi_process));
-    memset(proc, 0, sizeof(udi_process));
-    proc->error_code = UDI_ERROR_NONE;
-    proc->errmsg.size = ERRMSG_SIZE;
-    proc->errmsg.msg[ERRMSG_SIZE-1] = '\0';
     do{
         if ( proc == NULL ) {
             udi_printf("%s\n", "malloc failed");
             error = 1;
             break;
+        }
+
+        memset(proc, 0, sizeof(udi_process));
+        proc->error_code = UDI_ERROR_NONE;
+        proc->errmsg.size = ERRMSG_SIZE;
+        proc->errmsg.msg[ERRMSG_SIZE-1] = '\0';
+
+        if ( config->root_dir != NULL ) {
+            if ( set_root_dir(proc, config->root_dir) != 0 ) {
+                udi_printf("failed to set root directory for executable %s\n",
+                        executable);
+                error = 1;
+                break;
+            }
+        }else{
+            proc->root_dir = DEFAULT_UDI_ROOT_DIR;
         }
 
         proc->pid = fork_process(proc, executable, argv, envp);
@@ -166,8 +184,6 @@ udi_process *create_process(const char *executable, char * const argv[],
             free(proc);
             proc = NULL;
         }
-    }else{
-        processes_created++;
     }
 
     return proc;
@@ -182,33 +198,12 @@ udi_process *create_process(const char *executable, char * const argv[],
  */
 udi_error_e free_process(udi_process *proc) {
     // TODO detach from the process, etc.
-    free(proc);
-
-    return UDI_ERROR_NONE;
-}
-
-/**
- * Sets the directory to be used for the root of the UDI filesystem
- * 
- * Will be created if it doesn't exist
- * 
- * Cannot be set if processes already created
- *
- * @param root_dir the directory to set as the root
- *
- * @return UDI_ERROR_NONE on success
- */
-udi_error_e set_udi_root_dir(const char *root_dir) {
-    if ( processes_created > 0 ) return -1;
-
-    size_t length = strlen(root_dir);
-
-    udi_root_dir = (char *)malloc(length);
-    if (udi_root_dir == NULL) {
-        return UDI_ERROR_LIBRARY;
+    
+    if ( proc->root_dir != DEFAULT_UDI_ROOT_DIR ) {
+        free((void *)proc->root_dir);
     }
 
-    strncpy((char *)udi_root_dir, root_dir, length);
+    free(proc);
 
     return UDI_ERROR_NONE;
 }

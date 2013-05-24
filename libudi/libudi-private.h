@@ -40,6 +40,8 @@ extern "C" {
 typedef int udi_handle;
 typedef pid_t udi_pid;
 typedef uint64_t udi_tid;
+
+#define LIB_INIT_FUNC(f) void f() __attribute__((constructor));
 #else
 #error Unknown platform
 #endif
@@ -65,17 +67,10 @@ struct udi_process_struct {
     int multithread_capable;
     void *user_data;
     struct udi_thread_struct *threads;
+    const char *root_dir;
     udi_errmsg errmsg;
     udi_error_e error_code;
 };
-
-// platform specific functionality //
-extern const char *udi_root_dir;
-extern int processes_created;
-
-// udi filesystem
-int create_root_udi_filesystem();
-char * const *get_environment();
 
 // process handling
 udi_pid fork_process(struct udi_process_struct *proc, const char *executable, char * const argv[],
@@ -100,7 +95,6 @@ void check_debug_logging();
 
 // error logging
 extern int udi_debug_on;
-
 
 #define udi_printf(format, ...) \
     do {\
