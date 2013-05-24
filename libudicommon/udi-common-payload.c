@@ -325,7 +325,8 @@ udi_response create_response_init(udi_version_e protocol_version,
  */
 udi_response create_response_state(int num_threads, thread_state *states) {
 
-    size_t single_thread_length = sizeof(uint64_t) + sizeof(uint16_t);
+    size_t single_thread_length = member_sizeof(thread_state, tid) +
+        member_sizeof(thread_state, state);
 
     udi_response state_response;
     state_response.response_type = UDI_RESP_VALID;
@@ -337,9 +338,9 @@ udi_response create_response_state(int num_threads, thread_state *states) {
         int i;
         for (i = 0; i < num_threads; ++i) {
             memcpy(((unsigned char *)state_response.packed_data) + single_thread_length*i,
-                    &states[i].tid, sizeof(states[i].tid));
+                    &states[i].tid, member_sizeof(thread_state, tid));
             memcpy(((unsigned char *)state_response.packed_data) + single_thread_length*i 
-                    + sizeof(&states[i].tid), &states[i].state, sizeof(states[i].state));
+                    + member_sizeof(thread_state, tid), &states[i].state, member_sizeof(thread_state, state));
         }
     }
 
@@ -696,7 +697,6 @@ int unpack_response_state(udi_response *resp, int *num_threads, thread_state **s
         thread_state *cur_state = &local_states[i];
         memcpy(&(cur_state->tid), ((unsigned char *)resp->packed_data) + single_thread_length*i,
                 member_sizeof(thread_state, tid));
-
         memcpy(&(cur_state->state),((unsigned char *)resp->packed_data) + single_thread_length*i
                 + member_sizeof(thread_state, tid), member_sizeof(thread_state, state));
     }

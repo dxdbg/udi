@@ -45,6 +45,7 @@
 #include <inttypes.h>
 
 const int INVALID_UDI_PID = -1;
+int processes_created = 0;
 
 static const char *DEFAULT_UDI_RT_LIB_NAME = "libudirt.so";
 
@@ -295,12 +296,16 @@ int mkdir_with_check(const char *dir) {
 
 /**
  * Creates the root UDI filesystem for the current
- * effective user
+ * effective user.
+ *
+ * This needs to be idempotent.
+ *
+ * @param root_dir the root directory
  * 
  * @return zero on success; non-zero otherwise
  */
-int create_root_udi_filesystem() {
-    int result = mkdir_with_check(udi_root_dir);
+int create_root_udi_filesystem(const char *root_dir) {
+    int result = mkdir_with_check(root_dir);
     if ( result ) return result;
 
     uid_t user_id = geteuid();
@@ -311,7 +316,7 @@ int create_root_udi_filesystem() {
         return -1;
     }
 
-    size_t user_dir_length = strlen(udi_root_dir) + DS_LEN + USER_STR_LEN + 1;
+    size_t user_dir_length = strlen(root_dir) + DS_LEN + USER_STR_LEN + 1;
     char *user_udi_dir = (char *)malloc(sizeof(char)*user_dir_length);
     if ( user_udi_dir == NULL ) {
         udi_printf("failed to create user udi dir: %s\n",
@@ -319,7 +324,7 @@ int create_root_udi_filesystem() {
         return -1;
     }
 
-    snprintf(user_udi_dir, user_dir_length, "%s/%s", udi_root_dir, 
+    snprintf(user_udi_dir, user_dir_length, "%s/%s", root_dir, 
             passwd_info->pw_name);
     result = mkdir_with_check(user_udi_dir);
     free(user_udi_dir);
@@ -470,7 +475,7 @@ udi_pid fork_process(udi_process *proc, const char *executable, char * const arg
         char * const envp[])
 {
     // First process initialization
-    if (processes_created == 0) {
+    if (processes_created == 0) { // TODO: this needs to be thread-safe
         // Ignore zombies
         struct sigaction sigchild_action;
         memset(&sigchild_action, 0, sizeof(struct sigaction));
@@ -481,6 +486,16 @@ udi_pid fork_process(udi_process *proc, const char *executable, char * const arg
                     strerror(errno));
             return -1;
         }
+    }
+
+    if ( create_root_udi_filesystem(proc->root_dir) != 0 ) {
+        udi_printf("%s\n", "failed to create root UDI filesystem");
+        return -1;
+    }
+
+    if ( envp == NULL ) {
+        // Created process will inherit the current environment
+        envp = get_environment();
     }
 
     // Force load the runtime library
@@ -541,7 +556,7 @@ udi_pid fork_process(udi_process *proc, const char *executable, char * const arg
             kill(child, SIGKILL); // explicitly ignore return value
             return -1;
         }
-           
+          
         // This means the exec succeeded because the read returned end-of-file
         return child;
     }
@@ -581,24 +596,24 @@ int initialize_process(udi_process *proc) {
     uid_t uid = geteuid();
     struct passwd *passwd_info = getpwuid(uid);
 
-    size_t basedir_length = strlen(udi_root_dir) + PID_STR_LEN + USER_STR_LEN
+    size_t basedir_length = strlen(proc->root_dir) + PID_STR_LEN + USER_STR_LEN
         + DS_LEN*2 + 1;
 
     // define paths to UDI debuggee files
     size_t events_file_length = basedir_length + DS_LEN + strlen(EVENTS_FILE_NAME);
     char *events_file_path = (char *)malloc(events_file_length);
     snprintf(events_file_path, events_file_length, "%s/%s/%u/%s",
-            udi_root_dir, passwd_info->pw_name, proc->pid, EVENTS_FILE_NAME);
+            proc->root_dir, passwd_info->pw_name, proc->pid, EVENTS_FILE_NAME);
 
     size_t request_file_length = basedir_length + DS_LEN + strlen(REQUEST_FILE_NAME);
     char *request_file_path = (char *)malloc(request_file_length);
     snprintf(request_file_path, request_file_length, "%s/%s/%u/%s",
-            udi_root_dir, passwd_info->pw_name, proc->pid, REQUEST_FILE_NAME);
+            proc->root_dir, passwd_info->pw_name, proc->pid, REQUEST_FILE_NAME);
 
     size_t response_file_length = basedir_length + DS_LEN + strlen(RESPONSE_FILE_NAME);
     char *response_file_path = (char *)malloc(response_file_length);
     snprintf(response_file_path, response_file_length, "%s/%s/%u/%s",
-            udi_root_dir, passwd_info->pw_name, proc->pid, RESPONSE_FILE_NAME);
+            proc->root_dir, passwd_info->pw_name, proc->pid, RESPONSE_FILE_NAME);
 
     int errnum = 0;
     do {
@@ -737,6 +752,11 @@ int initialize_process(udi_process *proc) {
     if ( request_file_path != NULL ) free(request_file_path);
     if ( response_file_path != NULL ) free(response_file_path);
 
+    if ( errnum == 0 ) {
+        // TODO: this needs to be thread-safe
+        processes_created++;
+    }
+
     return errnum;
 }
 
@@ -765,18 +785,18 @@ udi_thread *handle_thread_create(udi_process *proc, uint64_t tid) {
     // define paths to UDI debuggee files
     uid_t uid = geteuid();
     struct passwd *passwd_info = getpwuid(uid);
-    size_t basedir_length = strlen(udi_root_dir) + PID_STR_LEN + USER_STR_LEN
+    size_t basedir_length = strlen(proc->root_dir) + PID_STR_LEN + USER_STR_LEN
         + TID_STR_LEN + DS_LEN*3 + 1;
 
     size_t request_file_length = basedir_length + DS_LEN + strlen(REQUEST_FILE_NAME);
     char *request_file_path = (char *)malloc(request_file_length);
     snprintf(request_file_path, request_file_length, "%s/%s/%u/%"PRIx64"/%s",
-            udi_root_dir, passwd_info->pw_name, proc->pid, thr->tid, REQUEST_FILE_NAME);
+            proc->root_dir, passwd_info->pw_name, proc->pid, thr->tid, REQUEST_FILE_NAME);
 
     size_t response_file_length = basedir_length + DS_LEN + strlen(RESPONSE_FILE_NAME);
     char *response_file_path = (char *)malloc(response_file_length);
     snprintf(response_file_path, response_file_length, "%s/%s/%u/%"PRIx64"/%s",
-            udi_root_dir, passwd_info->pw_name, proc->pid, thr->tid, RESPONSE_FILE_NAME);
+            proc->root_dir, passwd_info->pw_name, proc->pid, thr->tid, RESPONSE_FILE_NAME);
 
     int result = 0;
     do {

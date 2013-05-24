@@ -144,9 +144,6 @@ void DeathCallback::operator()(udi_event *event) {
 
 bool test_thread::operator()(void) {
 
-    udi_error_e result = init_libudi();
-    test_assert(result == UDI_ERROR_NONE);
-
     stringstream num_threads_str;
     num_threads_str << NUM_THREADS;
 
@@ -154,14 +151,17 @@ bool test_thread::operator()(void) {
 
     char *argv[] = { (char *)TEST_BINARY, (char *)num_threads.c_str(), NULL };
 
-    udi_process *proc = create_process(TEST_BINARY, argv, NULL);
+    udi_proc_config config;
+    config.root_dir = NULL;
+
+    udi_process *proc = create_process(TEST_BINARY, argv, NULL, &config);
     test_assert(proc != NULL);
     test_assert(get_multithread_capable(proc));
 
     udi_thread *initial_thr = get_initial_thread(proc);
     test_assert(initial_thr != NULL);
 
-    result = create_breakpoint(proc, TEST_FUNCTION);
+    udi_error_e result = create_breakpoint(proc, TEST_FUNCTION);
     assert_no_error(proc, result);
 
     result = install_breakpoint(proc, TEST_FUNCTION);

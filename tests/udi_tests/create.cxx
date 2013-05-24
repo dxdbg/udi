@@ -54,19 +54,19 @@ static const char *TEST_BINARY = SIMPLE_BINARY_PATH;
 static test_create testInstance;
 
 bool test_create::operator()(void) {
-    udi_error_e result = init_libudi();
-    test_assert(result == UDI_ERROR_NONE);
-
     char *argv[] = { NULL };
 
-    udi_process *proc = create_process(TEST_BINARY, argv, NULL);
+    udi_proc_config config;
+    config.root_dir = NULL;
+
+    udi_process *proc = create_process(TEST_BINARY, argv, NULL, &config);
     test_assert(proc != NULL);
     test_assert(get_multithread_capable(proc) == 0);
 
     udi_thread *thr = get_initial_thread(proc);
     test_assert(thr != NULL);
     
-    result = continue_process(proc);
+    udi_error_e result = continue_process(proc);
     assert_no_error(proc, result);
 
     wait_for_exit(thr, EXIT_FAILURE);

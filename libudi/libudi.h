@@ -52,13 +52,13 @@ typedef enum {
     UDI_ERROR_NONE
 } udi_error_e;
 
-// Global state functions //
-udi_error_e init_libudi();
-udi_error_e set_udi_root_dir(const char *root_dir);
-
 // Process management //
+typedef struct udi_proc_config_struct {
+    const char *root_dir;
+} udi_proc_config;
+
 udi_process *create_process(const char *executable, char * const argv[],
-        char * const envp[]);
+        char * const envp[], const udi_proc_config *config);
 udi_error_e free_process(udi_process *proc);
 udi_error_e continue_process(udi_process *proc);
 udi_error_e refresh_state(udi_process *proc);
