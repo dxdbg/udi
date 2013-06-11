@@ -41,7 +41,6 @@ const int REQ_FAILURE = -2; ///< Failure to process request due to invalid argum
 char *UDI_ROOT_DIR;
 int udi_debug_on = 0;
 int udi_enabled = 0; // not enabled until initialization complete
-int udi_in_sig_handler = 0;
 
 // read / write handling
 static void *mem_access_addr = NULL;
