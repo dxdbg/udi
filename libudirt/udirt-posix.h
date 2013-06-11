@@ -123,7 +123,9 @@ struct thread_struct {
     int response_handle;
     int control_write;
     int control_read;
-    signal_state deferred;
+    int control_thread;
+    int suspend_pending;
+    signal_state event_state;
     struct thread_struct *next_thread;
 };
 
@@ -137,11 +139,11 @@ uint32_t get_kernel_thread_id();
 thread *get_current_thread();
 
 // thread synchronization
-typedef struct rendezvous_struct {
+typedef struct udi_barrier_struct {
     unsigned int sync_var;
     int read_handle;
     int write_handle;
-} rendezvous;
+} udi_barrier;
 int initialize_thread_sync();
 int block_other_threads();
 int release_other_threads();

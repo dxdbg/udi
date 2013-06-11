@@ -217,6 +217,7 @@ thread *create_thread(uint64_t tid) {
         close(control_pipe[1]);
         return NULL;
     }
+    memset(new_thr, 0, sizeof(thread));
 
     new_thr->id = tid;
     new_thr->alive = 0;
@@ -227,6 +228,8 @@ thread *create_thread(uint64_t tid) {
     new_thr->control_read = control_pipe[0];
     new_thr->control_write = control_pipe[1];
     new_thr->ts = UDI_TS_RUNNING;
+    new_thr->suspend_pending = 0;
+    new_thr->control_thread = 0;
     num_threads++;
 
     if (last_thread == NULL) {

@@ -43,7 +43,6 @@ extern "C" {
 extern char *UDI_ROOT_DIR;
 extern int udi_enabled;
 extern int udi_debug_on;
-extern int udi_in_sig_handler;
 
 // General platform-specific functions
 void udi_abort(const char *file, unsigned int line);
@@ -52,6 +51,7 @@ void udi_abort(const char *file, unsigned int line);
 void udi_set_max_mem_size(unsigned long max_size);
 void udi_free(void *ptr);
 void *udi_malloc(size_t length);
+void dump_heap();
 
 unsigned char *map_mem(size_t length);
 int unmap_mem(void *addr, size_t length);

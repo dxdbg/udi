@@ -1,8 +1,12 @@
 A list of enhancements/bugfixes for the future
 ----------------------------------------------
+* investigate efficiency of udirt heap implementation
+
 * catch fork, exec syscalls
 
 * catch library events
+
+* add single-stepping capability
 
 * implement detach/attach
 
