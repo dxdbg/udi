@@ -296,6 +296,8 @@ typedef enum
 
 /**
  * Thread create event data
+ *
+ * UDI_DATATYPE_INT64 - the thread id for the newly created thread
  */
 
 /**

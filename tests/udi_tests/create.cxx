@@ -57,10 +57,19 @@ bool test_create::operator()(void) {
     char *argv[] = { NULL };
 
     udi_proc_config config;
+#if UNIX
+    config.root_dir = "/tmp/create-test-udi"; // test a non-default root directory
+#else
     config.root_dir = NULL;
+#endif
 
-    udi_process *proc = create_process(TEST_BINARY, argv, NULL, &config);
+    udi_error_e error_code;
+    char *errmsg = NULL;
+    udi_process *proc = create_process(TEST_BINARY, argv, NULL, &config, &error_code, &errmsg);
+
     test_assert(proc != NULL);
+    free(errmsg);
+
     test_assert(get_multithread_capable(proc) == 0);
 
     udi_thread *thr = get_initial_thread(proc);

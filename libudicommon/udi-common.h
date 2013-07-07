@@ -124,12 +124,13 @@ udi_event_internal create_event_error(uint64_t thread_id, udi_errmsg *errmsg);
 udi_event_internal create_event_unknown(uint64_t thread_id);
 udi_event_internal create_event_breakpoint(uint64_t thread_id, udi_address bp_address);
 udi_event_internal create_event_exit(uint64_t thread_id, uint32_t exit_status);
-udi_event_internal create_event_thread_create(uint64_t thread_id);
+udi_event_internal create_event_thread_create(uint64_t creator_id, uint64_t new_id);
 udi_event_internal create_event_thread_death(uint64_t thread_id);
 udi_event_internal create_event_fork(uint64_t thread_id, uint32_t pid);
 
 int unpack_event_error(udi_event_internal *event, char **errmsg, unsigned int *errmsg_size);
 int unpack_event_exit(udi_event_internal *event, int *exit_code);
+int unpack_event_thread_create(udi_event_internal *event, uint64_t *new_thr_id);
 int unpack_event_breakpoint(udi_event_internal *event, udi_address *addr);
 int unpack_event_fork(udi_event_internal *event, uint32_t *pid);
 

@@ -54,7 +54,7 @@ static thread *threads = NULL;
 static breakpoint *thread_create_bp = NULL;
 static breakpoint *thread_death_bp = NULL;
 
-int THREAD_SUSPEND_SIGNAL = SIGUSR1;
+int THREAD_SUSPEND_SIGNAL = SIGSYS;
 
 /**
  * Determine if the debuggee is multithread capable (i.e., linked
@@ -353,12 +353,18 @@ event_result handle_thread_create(const ucontext_t *context, udi_errmsg *errmsg)
             break;
         }
 
+        thread *creator_thr = get_current_thread();
+        if ( creator_thr == NULL ) {
+            result.failure = 1;
+            break;
+        }
+
         if ( thread_create_callback(thr, errmsg) != 0 ) {
             result.failure = 1;
             break;
         }
 
-        udi_event_internal event = create_event_thread_create(tid);
+        udi_event_internal event = create_event_thread_create(creator_thr->id, tid);
         result.failure = write_event(&event);
 
         if ( thread_create_handshake(thr, errmsg) != 0 ) {

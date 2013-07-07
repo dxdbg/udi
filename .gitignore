@@ -8,3 +8,5 @@ cscope.out
 .sconf_temp
 config.log
 .clang_complete
+*.iml
+target/

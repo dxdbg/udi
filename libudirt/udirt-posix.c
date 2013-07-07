@@ -1444,7 +1444,8 @@ static int create_udi_filesystem() {
         snprintf(basedir_name, basedir_length, "%s/%s/%d", UDI_ROOT_DIR,
                  passwd_info->pw_name, getpid());
         if (mkdir(basedir_name, S_IRWXG | S_IRWXU) == -1) {
-            udi_printf("error creating basedir: %s\n", strerror(errno));
+            udi_printf("error creating basedir '%s': %s\n", basedir_name,
+                    strerror(errno));
             errnum = errno;
             break;
         }

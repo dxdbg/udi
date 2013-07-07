@@ -58,7 +58,8 @@ typedef struct udi_proc_config_struct {
 } udi_proc_config;
 
 udi_process *create_process(const char *executable, char * const argv[],
-        char * const envp[], const udi_proc_config *config);
+        char * const envp[], const udi_proc_config *config,
+        udi_error_e *error_code, char **errmsg);
 udi_error_e free_process(udi_process *proc);
 udi_error_e continue_process(udi_process *proc);
 udi_error_e refresh_state(udi_process *proc);
@@ -72,6 +73,8 @@ int get_multithread_capable(udi_process *proc);
 udi_thread *get_initial_thread(udi_process *proc);
 
 // Thread properties //
+void set_thread_user_data(udi_thread *thr, void *user_data);
+void *get_thread_user_data(udi_thread *thr);
 uint64_t get_tid(udi_thread *thr);
 udi_process *get_process(udi_thread *thr);
 udi_thread_state_e get_state(udi_thread *thr);
@@ -130,6 +133,14 @@ typedef struct udi_event_process_exit_struct {
 typedef struct udi_event_breakpoint_struct {
     udi_address breakpoint_addr;
 } udi_event_breakpoint;
+
+/**
+ * When udi_event.event_type == UDI_EVENT_THREAD_CREATE
+ * typeof(udi_event.event_data) == udi_event_thread_create
+ */
+typedef struct udi_event_thread_create_struct {
+    udi_thread *new_thr;
+} udi_event_thread_create;
 
 udi_event *wait_for_events(udi_process *procs[], int num_procs);
 const char *get_event_type_str(udi_event_type event_type);

@@ -327,6 +327,14 @@ int create_root_udi_filesystem(const char *root_dir) {
     snprintf(user_udi_dir, user_dir_length, "%s/%s", root_dir, 
             passwd_info->pw_name);
     result = mkdir_with_check(user_udi_dir);
+
+    if ( result != 0 ) {
+        udi_printf("failed to create root udi filesystem at %s\n",
+                root_dir);
+    }else{
+        udi_printf("udi root filesystem located at %s\n", root_dir);
+    }
+
     free(user_udi_dir);
 
     return result;
@@ -351,35 +359,48 @@ void check_debug_logging() {
 
 /**
  * Adds the UDI RT library into the LD_PRELOAD environ. var. It is
- * created at the end of the array if it does not already exist
+ * created at the end of the array if it does not already exist. Adds the UDI_ROOT_DIR_ENV
+ * environment variable to the end of the array after LD_PRELOAD. This environment variable
+ * is replaced if it already exists.
  *
  * @param the current environment
+ * @param the root directory to use
  *
  * @return the new copy of the environment
  *
  * Note: the returned pointer should be free'd by the user. Additionally,
- * the user should free the last element of the array the new LD_PRELOAD
- * environment variable.
+ * the user should free the last two elements of the array (LD_PRELOAD and UDI_ROOT_DIR_ENV)
  */
 static
-char **insert_rt_library(char * const envp[]) {
+char **modify_environment(char * const envp[], const char *root_dir) {
     // Look for the LD_PRELOAD value in the specified environment
     // If it exists, append the runtime library
     // If it does not, add it
     
     const int LD_DEBUG = 0;
+
+    char *root_dir_entry = (char *)malloc(strlen(UDI_ROOT_DIR_ENV)+1+1);
+    strncpy(root_dir_entry, UDI_ROOT_DIR_ENV, strlen(UDI_ROOT_DIR_ENV)+1);
+    strncat(root_dir_entry, "=", 1);
  
-    int i, ld_preload_index = -1;
+    int i, ld_preload_index = -1, root_dir_index = -1;
     for (i = 0; envp[i] != NULL; ++i) {
         if (strncmp(envp[i],"LD_PRELOAD=", strlen("LD_PRELOAD=")) == 0) {
             ld_preload_index = i;
         }
+        if (strncmp(envp[i], root_dir_entry, strlen(root_dir_entry)) == 0) {
+            root_dir_index = i;
+        }
     }
+    free(root_dir_entry);
 
     // Allocate a local copy of the array
     int original_elements = i+1;
     int num_elements = i+1;
     if (ld_preload_index == -1) {
+        num_elements++;
+    }
+    if (root_dir_index == -1) {
         num_elements++;
     }
 
@@ -397,7 +418,7 @@ char **insert_rt_library(char * const envp[]) {
 
     int j;
     for (i = 0, j = 0; i < (original_elements-1); ++i, ++j) {
-        if ( i == ld_preload_index ) {
+        if ( i == ld_preload_index || i == root_dir_index ) {
             // Skip over this location, it will be moved to the end
             i++;
         }else{
@@ -408,23 +429,23 @@ char **insert_rt_library(char * const envp[]) {
     if (LD_DEBUG) {
         size_t str_size = strlen("LD_DEBUG=all") + 1;
 
-        envp_copy[num_elements-3] = (char *)malloc(sizeof(char)*str_size);
-        memset(envp_copy[num_elements-3], 0, str_size);
+        envp_copy[num_elements-4] = (char *)malloc(sizeof(char)*str_size);
+        memset(envp_copy[num_elements-4], 0, str_size);
 
-        strncpy(envp_copy[num_elements-3], "LD_DEBUG=all", str_size-1);
+        strncpy(envp_copy[num_elements-4], "LD_DEBUG=all", str_size-1);
     }
 
-    // Second to last element is the LD_PRELOAD variable
+    // Third to last element is the LD_PRELOAD variable
     if ( ld_preload_index == -1 ) {
         size_t str_size = strlen("LD_PRELOAD=") +
                     strlen(DEFAULT_UDI_RT_LIB_NAME) + 
                     1; // the \0 terminating character
 
-        envp_copy[num_elements-2] = (char *)malloc(sizeof(char)*(str_size));
-        memset(envp_copy[num_elements-2], 0, str_size);
+        envp_copy[num_elements-3] = (char *)malloc(sizeof(char)*(str_size));
+        memset(envp_copy[num_elements-3], 0, str_size);
 
-        strncpy(envp_copy[num_elements-2], "LD_PRELOAD=", strlen("LD_PRELOAD="));
-        strncat(envp_copy[num_elements-2], DEFAULT_UDI_RT_LIB_NAME, strlen(DEFAULT_UDI_RT_LIB_NAME));
+        strncpy(envp_copy[num_elements-3], "LD_PRELOAD=", strlen("LD_PRELOAD="));
+        strncat(envp_copy[num_elements-3], DEFAULT_UDI_RT_LIB_NAME, strlen(DEFAULT_UDI_RT_LIB_NAME));
     }else{
         size_t str_size = strlen(envp[ld_preload_index]) +
                     1 + // for : character
@@ -437,6 +458,19 @@ char **insert_rt_library(char * const envp[]) {
         strncat(envp_copy[num_elements-2], DEFAULT_UDI_RT_LIB_NAME, strlen(DEFAULT_UDI_RT_LIB_NAME));
     }
 
+    // Second to last element is the UDI_ROOT_DIR_ENV variable
+    size_t str_size = strlen(UDI_ROOT_DIR_ENV) +
+        1 + // = 
+        strlen(root_dir) +
+        1; // the \0 terminating character
+
+    envp_copy[num_elements-2] = (char *)malloc(sizeof(char)*(str_size));
+    memset(envp_copy[num_elements-2], 0, str_size);
+
+    strncpy(envp_copy[num_elements-2], UDI_ROOT_DIR_ENV, strlen(UDI_ROOT_DIR_ENV));
+    strncat(envp_copy[num_elements-2], "=", 1);
+    strncat(envp_copy[num_elements-2], root_dir, strlen(root_dir));
+
     // Array needs to be terminated by NULL element
     envp_copy[num_elements-1] = NULL;
 
@@ -444,19 +478,17 @@ char **insert_rt_library(char * const envp[]) {
 }
 
 /**
- * Frees the array created by the insert_rt_library function
+ * Frees the array created by the modify_environment function
  *
  * @param envp_copy     the array to free
  */
 static
 void free_envp_copy(char **envp_copy) {
-    // Free the allocated string for LD_PRELOAD
-    char *last_element = NULL;
+    // Free the allocated string for LD_PRELOAD and UDI_ROOT_DIR_ENV
     int i;
-    for (i = 0; envp_copy[i] != NULL; ++i) {
-        last_element = envp_copy[i];
-    }
-    free(last_element);
+    for (i = 0; envp_copy[i] != NULL; ++i);
+    free(envp_copy[i-2]); // UDI_ROOT_DIR_ENV
+    free(envp_copy[i-1]); // LD_PRELOAD
 
     // Free the array
     free(envp_copy);
@@ -498,8 +530,8 @@ udi_pid fork_process(udi_process *proc, const char *executable, char * const arg
         envp = get_environment();
     }
 
-    // Force load the runtime library
-    char **envp_copy = insert_rt_library(envp);
+    // Force load the runtime library and specify location of root udi filesystem
+    char **envp_copy = modify_environment(envp, proc->root_dir);
     if ( envp_copy == NULL ) {
         udi_printf("failed to insert runtime library\n");
         return -1;
