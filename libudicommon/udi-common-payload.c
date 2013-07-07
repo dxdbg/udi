@@ -149,6 +149,20 @@ int unpack_event_fork(udi_event_internal *event, uint32_t *pid) {
 }
 
 /**
+ * Unpacks the thread create event into the specified parameters
+ *
+ * @param event the thread create event
+ * @param new_thr_id the thread id for the new thread
+ */
+int unpack_event_thread_create(udi_event_internal *event, uint64_t *new_thr_id) {
+    if ( udi_unpack_data(event->packed_data, event->length, UDI_DATATYPE_INT64, new_thr_id)) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
  * Creates a breakpoint event
  *
  * @param thread_id the thread id
@@ -194,12 +208,13 @@ udi_event_internal create_event_exit(uint64_t thread_id, uint32_t exit_status) {
  *
  * @return the created event
  */
-udi_event_internal create_event_thread_create(uint64_t thread_id) {
+udi_event_internal create_event_thread_create(uint64_t creator_id, uint64_t new_id) {
     udi_event_internal thread_create;
     thread_create.event_type = UDI_EVENT_THREAD_CREATE;
-    thread_create.thread_id = thread_id;
-    thread_create.length = 0;
-    thread_create.packed_data = NULL;
+    thread_create.thread_id = creator_id;
+    thread_create.length = sizeof(uint64_t);
+    thread_create.packed_data = udi_pack_data(thread_create.length,
+            UDI_DATATYPE_INT64, new_id);
 
     return thread_create;
 }

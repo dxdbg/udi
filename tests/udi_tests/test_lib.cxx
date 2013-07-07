@@ -119,7 +119,9 @@ udi_thread *wait_for_thread_create(udi_process *proc) {
     test_assert(event->event_type == UDI_EVENT_THREAD_CREATE);
     test_assert(event->next_event == NULL);
 
-    udi_thread *thr = event->thr;
+    udi_event_thread_create *thread_create = (udi_event_thread_create *)event->event_data;
+
+    udi_thread *thr = thread_create->new_thr;
     free_event_list(event);
 
     return thr;

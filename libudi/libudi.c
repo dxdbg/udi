@@ -117,6 +117,33 @@ void init_libudi() {
 }
 
 /**
+ * Allocates the error for the create process function
+ *
+ * @param code          the actual error code
+ * @param errmsg        the actual error message
+ * @param dest_code     the destination code
+ * @param dest_errmsg   the error message
+ * @param errmsg_size   the error message size
+ */
+static
+void allocate_error(udi_error_e code, 
+        const char *errmsg,
+        udi_error_e *dest_code, 
+        char **dest_errmsg)
+{
+    udi_printf("%s\n", errmsg);
+
+    *dest_code = code;
+    size_t errmsg_size = strlen(errmsg) + 1;
+
+    char *local_errmsg = (char *)malloc(errmsg_size);
+    strncpy(local_errmsg, errmsg, errmsg_size-1);
+    local_errmsg[errmsg_size-1] = '\0';
+
+    *dest_errmsg = local_errmsg;
+}
+
+/*
  * Create UDI-controlled process
  * 
  * @param executable   the full path to the executable
@@ -124,27 +151,30 @@ void init_libudi() {
  * @param envp         the environment, if NULL, the newly created process will
  *                     inherit the environment for this process
  * @param config       the configuration for creating the process
+ * @param error_code   on error, populated with the error code
+ * @param errmsg       on error, populated with the error message (allocated by malloc)
  *
  * @return a handle to the created process
  *
  * @see execve on a UNIX system
  */
 udi_process *create_process(const char *executable, char * const argv[],
-        char * const envp[], const udi_proc_config *config)
+        char * const envp[], const udi_proc_config *config,
+        udi_error_e *error_code, char **errmsg)
 {
-    int error = 0;
-
     // Validate arguments
     if (argv == NULL || executable == NULL) {
-        udi_printf("%s\n", "invalid arguments");
+        allocate_error(UDI_ERROR_REQUEST, "invalid arguments", error_code, errmsg);
         return NULL;
     }
 
+    udi_error_e local_error = UDI_ERROR_NONE;
+    char *local_errmsg = NULL;
     udi_process *proc = (udi_process *)malloc(sizeof(udi_process));
     do{
         if ( proc == NULL ) {
-            udi_printf("%s\n", "malloc failed");
-            error = 1;
+            local_errmsg = "malloc failed";
+            local_error = UDI_ERROR_LIBRARY;
             break;
         }
 
@@ -155,9 +185,8 @@ udi_process *create_process(const char *executable, char * const argv[],
 
         if ( config->root_dir != NULL ) {
             if ( set_root_dir(proc, config->root_dir) != 0 ) {
-                udi_printf("failed to set root directory for executable %s\n",
-                        executable);
-                error = 1;
+                local_errmsg = "failed to set root directory";
+                local_error = UDI_ERROR_LIBRARY;
                 break;
             }
         }else{
@@ -166,24 +195,26 @@ udi_process *create_process(const char *executable, char * const argv[],
 
         proc->pid = fork_process(proc, executable, argv, envp);
         if ( proc->pid == INVALID_UDI_PID ) {
-            udi_printf("failed to create process for executable %s\n",
-                    executable);
-            error = 1;
+            local_errmsg = "failed to create process";
+            local_error = UDI_ERROR_REQUEST;
             break;
         }
 
         if ( initialize_process(proc) != 0 ) {
-            udi_printf("%s\n", "failed to initialize process for debugging");
-            error = 1;
+            local_errmsg = "failed to initialize process";
+            local_error = UDI_ERROR_LIBRARY;
             break;
         }
     }while(0);
 
-    if ( error ) {
+    *error_code = local_error;
+    if ( local_errmsg != NULL ) {
         if ( proc ) {
             free(proc);
             proc = NULL;
         }
+
+        allocate_error(local_error, local_errmsg, error_code, errmsg);
     }
 
     return proc;
@@ -227,6 +258,27 @@ void set_user_data(udi_process *proc, void *user_data) {
  */
 void *get_user_data(udi_process *proc) {
     return proc->user_data;
+}
+
+/**
+ * Sets the user data stored with the internal thread structure
+ *
+ * @param thread       the thread handle
+ * @param user_data    the user data
+ */
+void set_thread_user_data(udi_thread *thr, void *user_data) {
+    thr->user_data = user_data;
+}
+
+/**
+ * Gets the user data stored with the internal thread structure
+ *
+ * @param thread       the thread handle
+ *
+ * @return the user data
+ */
+void *get_thread_user_data(udi_thread *thr) {
+    return thr->user_data;
 }
 
 /**
@@ -811,38 +863,55 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
     ret_event->event_data = NULL;
 
     // get the thread on which the event occurred
+    udi_thread *tmp = find_thread(proc, event->thread_id);
+    if ( tmp == NULL ) {
+        udi_printf("failed to find thread handle for thread 0x%"PRIx64"\n",
+                event->thread_id);
+        free_event(ret_event);
+        return NULL;
+    }
+    ret_event->thr = tmp;
+
+    // create event specific payload
     switch(ret_event->event_type) {
         case UDI_EVENT_THREAD_CREATE:
         {
-            udi_thread *tmp = handle_thread_create(proc, event->thread_id);
-            if (tmp == NULL) {
-                udi_printf("failed to create handle for thread 0x%"PRIx64"\n",
-                        event->thread_id);
+            udi_event_thread_create *create_event = (udi_event_thread_create *)
+                malloc(sizeof(udi_event_thread_create));
+            if ( create_event == NULL ) {
+                udi_printf("failed to malloc create event: %s\n",
+                        strerror(errno));
                 free_event(ret_event);
                 return NULL;
             }
 
-            ret_event->thr = tmp;
-            udi_printf("thread 0x%"PRIx64" created\n", event->thread_id);
-            break;
-        }
-        default:
-        {
-            udi_thread *tmp = find_thread(proc, event->thread_id);
-            if ( tmp == NULL ) {
-                udi_printf("failed to find thread handle for thread 0x%"PRIx64"\n",
-                        event->thread_id);
+            uint64_t new_thr_id;
+            if ( unpack_event_thread_create(event, &new_thr_id) ) {
+                udi_printf("%s\n", "failed to decode thread create event");
+
+                free(create_event);
+                free(ret_event);
+                return NULL;
+            }
+
+            udi_thread *new_thr = handle_thread_create(proc, new_thr_id);
+            if ( new_thr == NULL ) {
+                udi_printf("failed to create handle for thread0x%"PRIx64"\n",
+                        new_thr_id);
+                free(create_event);
                 free_event(ret_event);
                 return NULL;
             }
-            ret_event->thr = tmp;
+            udi_printf("thread 0x%"PRIx64" created by 0x%"PRIx64"\n", new_thr_id,
+                    event->thread_id);
+
+            create_event->new_thr = new_thr;
+            ret_event->event_data = create_event;
             break;
         }
-    }
-
-    // event specific processing before passing the event to the user
-    switch(ret_event->event_type) {
         case UDI_EVENT_THREAD_DEATH:
+        {
+            // No special unpacking, but need to handle the thread death 
             if ( handle_thread_death(proc, ret_event->thr) != 0 ) {
                 udi_printf("failed to complete platform-specific processing of thread death for "
                         " thread 0x%"PRIx64, ret_event->thr->tid);
@@ -851,16 +920,7 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
             }
             udi_printf("thread 0x%"PRIx64" dead\n", event->thread_id);
             break;
-        default:
-            break;
-    }
-
-
-    // create event specific payload
-    switch(ret_event->event_type) {
-        case UDI_EVENT_THREAD_CREATE:
-        case UDI_EVENT_THREAD_DEATH:
-            break;
+        }
         case UDI_EVENT_ERROR:
         {
             udi_event_error *err_event = (udi_event_error *)

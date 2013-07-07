@@ -153,9 +153,13 @@ bool test_thread::operator()(void) {
 
     udi_proc_config config;
     config.root_dir = NULL;
+    
+    udi_error_e error_code;
+    char *errmsg = NULL;
+    udi_process *proc = create_process(TEST_BINARY, argv, NULL, &config, &error_code, &errmsg);
 
-    udi_process *proc = create_process(TEST_BINARY, argv, NULL, &config);
     test_assert(proc != NULL);
+    free(errmsg);
     test_assert(get_multithread_capable(proc));
 
     udi_thread *initial_thr = get_initial_thread(proc);

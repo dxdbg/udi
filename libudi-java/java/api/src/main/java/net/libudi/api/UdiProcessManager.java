@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2011-2013, Dan McNulty
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
@@ -12,7 +12,7 @@
  *     * Neither the name of the UDI project nor the
  *       names of its contributors may be used to endorse or promote products
  *       derived from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,65 +26,50 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
-#include <sstream>
+package net.libudi.api;
 
-#include "libudi.h"
-#include "libuditest.h"
-#include "test_bins.h"
-#include "test_lib.h"
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
-using std::cout;
-using std::endl;
-using std::stringstream;
+import net.libudi.api.event.UdiEvent;
+import net.libudi.api.exceptions.UdiException;
 
-class test_breakpoint : public UDITestCase {
-    public:
-        test_breakpoint()
-            : UDITestCase(std::string("test_breakpoint")) {}
-        virtual ~test_breakpoint() {}
+/**
+ * An interface that provides a mechanism to create or attach to debuggee processes and wait for events in a collection
+ * of processes.
+ *
+ * @author mcnulty
+ */
+public interface UdiProcessManager {
 
-        bool operator()(void);
-};
+    /**
+     * Creates a debuggee process that can be controlled, modified and queried using UDI
+     *
+     * @param executable the full path to the executable for the process
+     * @param args the command line arguments to the process (ala UNIX execve)
+     * @param env the environment for the process (ala UNIX execve)
+     * @param config the configuration for the process
+     *
+     * @return the created UdiProcess (never null)
+     *
+     * @throws UdiException when the process cannot be created
+     */
+    UdiProcess createProcess(Path executable,
+            String[] args,
+            Map<String, String> env,
+            UdiProcessConfig config)
+            throws UdiException;
 
-static const char *TEST_BINARY = SIMPLE_BINARY_PATH;
-static udi_address TEST_FUNCTION = SIMPLE_FUNCTION1;
+    /**
+     * Wait for events to occur in the specified processes
+     *
+     * @param processes the processes in which to wait for events
+     *
+     * @return the events that occurred in the processes
+     *
+     * @throws UdiException on error
+     */
+    List<UdiEvent> waitForEvents(List<UdiProcess> processes) throws UdiException;
 
-static test_breakpoint testInstance;
-
-bool test_breakpoint::operator()(void) {
-    char *argv[] = { NULL };
-
-    udi_proc_config config;
-    config.root_dir = NULL;
-
-    udi_error_e error_code;
-    char *errmsg = NULL;
-    udi_process *proc = create_process(TEST_BINARY, argv, NULL, &config, &error_code, &errmsg);
-    free(errmsg);
-
-    test_assert(proc != NULL);
-
-    udi_thread *thr = get_initial_thread(proc);
-    test_assert(thr != NULL);
-
-    udi_error_e result = create_breakpoint(proc, TEST_FUNCTION);
-    assert_no_error(proc, result);
-
-    result = install_breakpoint(proc, TEST_FUNCTION);
-    assert_no_error(proc, result);
-
-    result = continue_process(proc);
-    assert_no_error(proc, result);
-
-    wait_for_breakpoint(thr, TEST_FUNCTION);
-
-    result = continue_process(proc);
-    assert_no_error(proc, result);
-
-    wait_for_exit(thr, EXIT_FAILURE);
-
-    return true;
 }
