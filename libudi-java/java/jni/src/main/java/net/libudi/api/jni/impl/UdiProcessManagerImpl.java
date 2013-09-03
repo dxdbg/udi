@@ -124,7 +124,7 @@ public class UdiProcessManagerImpl implements UdiProcessManager {
         Pointer handle = nativeLibrary.create_process(executable.toAbsolutePath().toString(), args, envp,
                 new UdiNativeProcConfig(config), errorCode, errMsg);
 
-        if ( handle.equals(Pointer.NULL) ) {
+        if ( handle == null ) {
             // Construct the exception
             String errMsgStr = errMsg.getValue().getString(0);
             nativeCLibrary.free(errMsg.getPointer());
@@ -136,7 +136,7 @@ public class UdiProcessManagerImpl implements UdiProcessManager {
         procsByPointer.put(handle, process);
 
         Pointer initialThread = nativeLibrary.get_initial_thread(handle);
-        if ( initialThread.equals(Pointer.NULL) ) {
+        if ( initialThread == null ) {
             throw new NativeLibraryException("Failed to determine initial thread for process");
         }
         threadsByPointer.put(initialThread, new UdiThreadImpl(initialThread, nativeLibrary));
