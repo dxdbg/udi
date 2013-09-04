@@ -121,7 +121,14 @@ public class UdiProcessManagerImpl implements UdiProcessManager {
         IntByReference errorCode = new IntByReference();
         PointerByReference errMsg = new PointerByReference();
 
-        Pointer handle = nativeLibrary.create_process(executable.toAbsolutePath().toString(), args, envp,
+        String[] actualArgs;
+        if (args == null) {
+            actualArgs = new String[0];
+        }else{
+            actualArgs = args;
+        }
+
+        Pointer handle = nativeLibrary.create_process(executable.toAbsolutePath().toString(), actualArgs, envp,
                 new UdiNativeProcConfig(config), errorCode, errMsg);
 
         if ( handle == null ) {
