@@ -31,6 +31,7 @@ package net.libudi.api.jni.impl;
 import net.libudi.api.UdiThread;
 import net.libudi.api.event.EventType;
 import net.libudi.api.event.UdiEventThreadCreate;
+import net.libudi.api.event.UdiEventVisitor;
 
 /**
  * @author mcnulty
@@ -56,5 +57,10 @@ public class UdiEventThreadCreateImpl extends UdiEventImpl implements UdiEventTh
     @Override
     public UdiThread getNewThread() {
         return newThread;
+    }
+
+    @Override
+    public void accept(UdiEventVisitor visitor) {
+        visitor.visit(this);
     }
 }

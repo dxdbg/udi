@@ -28,33 +28,30 @@
 
 package net.libudi.api.event;
 
-import net.libudi.api.UdiProcess;
-import net.libudi.api.UdiThread;
-
 /**
- * An interface representing an event that has occurred in a UdiProcess
+ * Visitor for dispatching events for handling
  *
  * @author mcnulty
  */
-public interface UdiEvent {
+public interface UdiEventVisitor {
 
     /**
-     * @return the type for the event (see corresponding sub-interface)
+     * @param breakpointEvent the breakpoint event
      */
-    EventType getEventType();
+    void visit(UdiEventBreakpoint breakpointEvent);
 
     /**
-     * @return the process in which the event occurred
+     * @param errorEvent the error event
      */
-    UdiProcess getProcess();
+    void visit(UdiEventError errorEvent);
 
     /**
-     * @return the thread in which the thread occurred
+     * @param processExitEvent the process event
      */
-    UdiThread getThread();
+    void visit(UdiEventProcessExit processExitEvent);
 
     /**
-     * @param visitor the visitor used to process this event
+     * @param threadCreateEvent the thread create event
      */
-    void accept(UdiEventVisitor visitor);
+    void visit(UdiEventThreadCreate threadCreateEvent);
 }

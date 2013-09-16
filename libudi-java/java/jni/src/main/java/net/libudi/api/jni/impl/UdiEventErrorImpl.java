@@ -30,6 +30,7 @@ package net.libudi.api.jni.impl;
 
 import net.libudi.api.event.EventType;
 import net.libudi.api.event.UdiEventError;
+import net.libudi.api.event.UdiEventVisitor;
 
 /**
  * Implementation of UdiEventError
@@ -60,5 +61,10 @@ public class UdiEventErrorImpl extends UdiEventImpl implements UdiEventError {
     @Override
     public String getErrorString() {
         return errorString;
+    }
+
+    @Override
+    public void accept(UdiEventVisitor visitor) {
+        visitor.visit(this);
     }
 }

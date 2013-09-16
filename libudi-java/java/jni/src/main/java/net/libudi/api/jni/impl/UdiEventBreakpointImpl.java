@@ -32,6 +32,7 @@ import com.google.common.primitives.UnsignedLong;
 
 import net.libudi.api.event.EventType;
 import net.libudi.api.event.UdiEventBreakpoint;
+import net.libudi.api.event.UdiEventVisitor;
 
 /**
  * Implementation of UdiEventBreakpoint
@@ -59,5 +60,10 @@ public class UdiEventBreakpointImpl extends UdiEventImpl implements UdiEventBrea
     @Override
     public UnsignedLong getAddress() {
         return address;
+    }
+
+    @Override
+    public void accept(UdiEventVisitor visitor) {
+        visitor.visit(this);
     }
 }
