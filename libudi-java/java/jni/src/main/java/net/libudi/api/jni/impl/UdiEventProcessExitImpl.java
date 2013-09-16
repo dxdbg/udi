@@ -30,6 +30,7 @@ package net.libudi.api.jni.impl;
 
 import net.libudi.api.event.EventType;
 import net.libudi.api.event.UdiEventProcessExit;
+import net.libudi.api.event.UdiEventVisitor;
 
 /**
  * Implementation of UdiEventProcessExit
@@ -57,5 +58,10 @@ public class UdiEventProcessExitImpl extends UdiEventImpl implements UdiEventPro
     @Override
     public int getExitCode() {
         return exitCode;
+    }
+
+    @Override
+    public void accept(UdiEventVisitor visitor) {
+        visitor.visit(this);
     }
 }

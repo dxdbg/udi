@@ -47,6 +47,7 @@ import net.libudi.api.event.EventType;
 import net.libudi.api.event.UdiEvent;
 import net.libudi.api.exceptions.InternalLibraryException;
 import net.libudi.api.exceptions.UdiException;
+import net.libudi.api.exceptions.UnexpectedEventException;
 import net.libudi.api.jni.wrapper.CLibrary;
 import net.libudi.api.jni.wrapper.UdiError;
 import net.libudi.api.jni.wrapper.UdiLibrary;
@@ -201,8 +202,7 @@ public class UdiProcessManagerImpl implements UdiProcessManager {
                 break;
             }
             default:
-                eventImpl = new UdiEventImpl(eventType);
-                break;
+                throw new UdiException(String.format("Unknown event encountered with type '%s'", eventType));
         }
 
         UdiProcessImpl procImpl = procsByPointer.get(event.proc);

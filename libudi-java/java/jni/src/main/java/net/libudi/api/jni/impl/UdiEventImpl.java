@@ -32,13 +32,14 @@ import net.libudi.api.UdiProcess;
 import net.libudi.api.UdiThread;
 import net.libudi.api.event.EventType;
 import net.libudi.api.event.UdiEvent;
+import net.libudi.api.event.UdiEventVisitor;
 
 /**
  * Implementation of UdiEvent
  *
  * @author mcnulty
  */
-public class UdiEventImpl implements UdiEvent {
+public abstract class UdiEventImpl implements UdiEvent {
 
     private final EventType eventType;
 
