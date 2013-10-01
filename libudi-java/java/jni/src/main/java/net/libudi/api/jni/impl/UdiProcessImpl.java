@@ -83,7 +83,7 @@ public class UdiProcessImpl implements UdiProcess {
 
     @Override
     public int getPid() {
-        return 0;
+        return udiLibrary.get_proc_pid(handle);
     }
 
     @Override

@@ -75,7 +75,7 @@ public class UdiProcessManagerImpl implements UdiProcessManager {
     private static boolean instantiated = false;
 
     // These are necessary because a Java object cannot be maintained by the libudi (even though it provides for
-    // a way to store a opaque pointer with each processs and thread)
+    // a way to store a opaque pointer with each process and thread)
 
     private final Map<Pointer, UdiProcessImpl> procsByPointer = new HashMap<>();
 
