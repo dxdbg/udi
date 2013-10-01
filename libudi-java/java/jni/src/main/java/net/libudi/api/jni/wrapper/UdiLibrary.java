@@ -67,6 +67,15 @@ public interface UdiLibrary extends Library {
     int continue_process(Pointer process);
 
     /**
+     * Gets the PID for the process
+     *
+     * @param process the process
+     *
+     * @return the PID
+     */
+    int get_proc_pid(Pointer process);
+
+    /**
      * @param process the process
      * @return the initial thread for the process
      */
