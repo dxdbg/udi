@@ -40,4 +40,19 @@ public enum ThreadState {
 
     /** The thread is in the suspended state */
     SUSPENDED;
+
+    public static ThreadState fromIndex(int index) {
+        switch (index) {
+            case 0:
+                return RUNNING;
+            case 1:
+                return SUSPENDED;
+            default:
+                throw new IllegalArgumentException("Unknown state with id " + index);
+        }
+    }
+
+    public int getIndex() {
+        return ordinal();
+    }
 }

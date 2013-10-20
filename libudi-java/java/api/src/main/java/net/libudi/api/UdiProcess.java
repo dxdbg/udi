@@ -30,8 +30,6 @@ package net.libudi.api;
 
 import java.util.List;
 
-import com.google.common.primitives.UnsignedLong;
-
 import net.libudi.api.event.EventType;
 import net.libudi.api.event.UdiEvent;
 import net.libudi.api.exceptions.UdiException;
@@ -98,7 +96,7 @@ public interface UdiProcess extends AutoCloseable {
      *
      * @throws UdiException on error
      */
-    void readMemory(byte[] data, UnsignedLong sourceAddr) throws UdiException;
+    void readMemory(byte[] data, long sourceAddr) throws UdiException;
 
     /**
      * Writes data into memory of the debuggee process.
@@ -108,7 +106,7 @@ public interface UdiProcess extends AutoCloseable {
      *
      * @throws UdiException on error
      */
-    void writeMemory(byte[] data, UnsignedLong destAddr) throws UdiException;
+    void writeMemory(byte[] data, long destAddr) throws UdiException;
 
     /**
      * Creates a breakpoint at the specified address, but does not install (aka enable) the breakpoint. That is, the
@@ -118,7 +116,7 @@ public interface UdiProcess extends AutoCloseable {
      *
      * @throws UdiException on error
      */
-    void createBreakpoint(UnsignedLong brkptAddr) throws UdiException;
+    void createBreakpoint(long brkptAddr) throws UdiException;
 
     /**
      * Installs the breakpoint into the debuggee process
@@ -127,7 +125,7 @@ public interface UdiProcess extends AutoCloseable {
      *
      * @throws UdiException on error
      */
-    void installBreakpoint(UnsignedLong brkptAddr) throws UdiException;
+    void installBreakpoint(long brkptAddr) throws UdiException;
 
     /**
      * Removes the breakpoint from the debuggee process (the opposite operation from install)
@@ -136,7 +134,7 @@ public interface UdiProcess extends AutoCloseable {
      *
      * @throws UdiException on error
      */
-    void removeBreakpoint(UnsignedLong brkptAddr) throws UdiException;
+    void removeBreakpoint(long brkptAddr) throws UdiException;
 
     /**
      * Deletes the breakpoint from the debuggee process (the opposite operation from create)
@@ -145,7 +143,7 @@ public interface UdiProcess extends AutoCloseable {
      *
      * @throws UdiException on error
      */
-    void deleteBreakpoint(UnsignedLong brkptAddr) throws UdiException;
+    void deleteBreakpoint(long brkptAddr) throws UdiException;
 
     /**
      * Waits for events to occur in this process

@@ -92,6 +92,8 @@ typedef struct {
 
 const char *request_type_str(udi_request_type req_type); 
 const char *event_type_str(udi_event_type event_type);
+const char *arch_str(udi_arch_e arch);
+const char *register_str(udi_register_e reg);
 
 /* self-contained data structure serialization */
 typedef void *(*malloc_type)(size_t);
@@ -138,6 +140,7 @@ udi_response create_response_error(udi_errmsg *errmsg);
 udi_response create_response_read(const void *data, udi_length num_bytes);
 udi_response create_response_init(udi_version_e protocol_version,
         udi_arch_e arch, int multithread, uint64_t tid);
+udi_response create_response_read_register(udi_address value);
 
 typedef struct thread_state_struct {
     uint64_t tid;
@@ -150,6 +153,7 @@ int unpack_response_error(udi_response *resp, udi_length *size, char **errmsg);
 int unpack_response_init(udi_response *resp,  uint32_t *protocol_version,
         udi_arch_e *architecture, int *multithread_capable, uint64_t *tid);
 int unpack_response_state(udi_response *resp, int *num_threads, thread_state **states);
+int unpack_response_read_register(udi_response *resp, udi_address *value);
 
 int unpack_request_continue(udi_request *req, uint32_t *sig_val, udi_errmsg *errmsg);
 int unpack_request_read(udi_request *req, udi_address *addr, udi_length *num_bytes, udi_errmsg *errmsg);
@@ -157,6 +161,8 @@ int unpack_request_write(udi_request *req, udi_address *addr, udi_length *num_by
         void **bytes_to_write, udi_errmsg *errmsg);
 int unpack_request_breakpoint_create(udi_request *req, udi_address *addr, udi_errmsg *errmsg);
 int unpack_request_breakpoint(udi_request *req, udi_address *addr, udi_errmsg *errmsg);
+int unpack_request_read_register(udi_request *req, uint32_t *reg, udi_errmsg *errmsg);
+int unpack_request_write_register(udi_request *req, uint32_t *reg, udi_address *value, udi_errmsg *errmsg);
 
 udi_request create_request_breakpoint_create(udi_address addr);
 udi_request create_request_breakpoint(udi_request_type request_type, udi_address addr);
@@ -165,6 +171,8 @@ udi_request create_request_write(udi_address addr, udi_length num_bytes, void *v
 udi_request create_request_continue(uint32_t sig_val);
 udi_request create_request_state();
 udi_request create_request_thr_state(udi_thread_state_e state);
+udi_request create_request_read_reg(udi_register_e reg);
+udi_request create_request_write_reg(udi_register_e reg, udi_address value);
 
 #ifdef __cplusplus
 } // extern C

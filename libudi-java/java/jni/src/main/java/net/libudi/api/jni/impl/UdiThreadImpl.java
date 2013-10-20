@@ -28,13 +28,16 @@
 
 package net.libudi.api.jni.impl;
 
-import com.google.common.primitives.UnsignedLong;
 import com.sun.jna.Pointer;
+import com.sun.jna.ptr.LongByReference;
 
+import net.libudi.api.Register;
 import net.libudi.api.ThreadState;
 import net.libudi.api.UdiProcess;
+import net.libudi.api.UdiProcessManager;
 import net.libudi.api.UdiThread;
 import net.libudi.api.exceptions.UdiException;
+import net.libudi.api.jni.wrapper.UdiError;
 import net.libudi.api.jni.wrapper.UdiLibrary;
 
 /**
@@ -48,25 +51,29 @@ public class UdiThreadImpl implements UdiThread {
 
     private final UdiLibrary udiLibrary;
 
+    private final UdiProcessManagerImpl procManager;
+
     /**
      * Constructor.
      *
      * @param handle the handle
+     * @param procManager the UdiProcessManager
      * @param udiLibrary the library
      */
-    public UdiThreadImpl(Pointer handle, UdiLibrary udiLibrary) {
+    public UdiThreadImpl(Pointer handle, UdiProcessManagerImpl procManager, UdiLibrary udiLibrary) {
         this.handle = handle;
+        this.procManager = procManager;
         this.udiLibrary = udiLibrary;
     }
 
     @Override
-    public UnsignedLong getTid() {
-        return null;
+    public long getTid() {
+        return udiLibrary.get_tid(handle);
     }
 
     @Override
     public UdiProcess getParentProcess() {
-        return null;
+        return procManager.getProcess(udiLibrary.get_process(handle));
     }
 
     @Override
@@ -76,7 +83,45 @@ public class UdiThreadImpl implements UdiThread {
 
     @Override
     public UdiThread getNextThread() {
-        return null;
+        return procManager.getThread(udiLibrary.get_next_thread(handle));
+    }
+
+    @Override
+    public long getPC() throws UdiException {
+
+        LongByReference value = new LongByReference();
+
+        int errorCode = udiLibrary.get_pc(handle, value);
+        UdiException ex = UdiError.toException(errorCode, udiLibrary.get_last_error_message(udiLibrary.get_process(handle)));
+        if (ex != null) throw ex;
+
+        return value.getValue();
+    }
+
+    @Override
+    public long readRegister(Register reg) throws UdiException {
+
+        LongByReference value = new LongByReference();
+
+        registerAccess(reg, 0, value);
+
+        return value.getValue();
+    }
+
+    @Override
+    public void writeRegister(Register reg, long value) throws UdiException {
+
+        LongByReference newValue = new LongByReference(value);
+
+        registerAccess(reg, 1, newValue);
+    }
+
+    private void registerAccess(Register reg, int write, LongByReference value) throws UdiException {
+
+        int errorCode = udiLibrary.register_access(handle, write, reg.getIndex(), value);
+        UdiException ex = UdiError.toException(errorCode, udiLibrary.get_last_error_message(udiLibrary.get_process(handle)));
+        if (ex != null) throw ex;
+
     }
 
     @Override

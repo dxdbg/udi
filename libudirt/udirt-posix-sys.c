@@ -94,7 +94,8 @@ void wait_and_execute_command_with_response() {
     errmsg.size = ERRMSG_SIZE;
     errmsg.msg[ERRMSG_SIZE-1] = '\0';
 
-    int req_result = wait_and_execute_command(&errmsg);
+    thread *request_thr;
+    int req_result = wait_and_execute_command(&errmsg, &request_thr);
 
     if ( req_result != REQ_SUCCESS ) {
         if ( req_result > REQ_SUCCESS ) {
@@ -106,7 +107,11 @@ void wait_and_execute_command_with_response() {
         udi_response resp = create_response_error(&errmsg);
         if ( resp.packed_data != NULL ) {
             // explicitly ignore errors
-            write_response(&resp);
+            if (request_thr != NULL) {
+                write_response_to_thr_request(request_thr, &resp);
+            }else{
+                write_response(&resp);
+            }
             udi_free(resp.packed_data);
         }
     }

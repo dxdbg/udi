@@ -28,8 +28,6 @@
 
 package net.libudi.api;
 
-import com.google.common.primitives.UnsignedLong;
-
 import net.libudi.api.exceptions.UdiException;
 
 /**
@@ -48,7 +46,7 @@ public interface UdiThread {
      *
      * @return the id for the thread
      */
-    UnsignedLong getTid();
+    long getTid();
 
     /**
      * This method does not require that the parent process be stopped
@@ -66,11 +64,42 @@ public interface UdiThread {
 
     /**
      * This method links this thread to another thread in the same process. This interface does not enforce any ordering
-     * constraints on the results returned from this method.
+     * constraints on the results returned from this method, just as long as all threads are reachable from the initial
+     * thread for a process.
      *
      * @return the "next" thread, null if there is no "next" thread
      */
     UdiThread getNextThread();
+
+    /**
+     * Retrieves the program counter/instruction pointer for the current thread.
+     *
+     * @return the PC for the current thread
+     *
+     * @throws UdiException on error
+     */
+    long getPC() throws UdiException;
+
+    /**
+     * Retrieves the value of the specified register
+     *
+     * @param reg the register
+     *
+     * @return the register value
+     *
+     * @throws UdiException on error
+     */
+    long readRegister(Register reg) throws UdiException;
+
+    /**
+     * Writes the value of the specified register
+     *
+     * @param reg the register
+     * @param value the value to write into the register
+     *
+     * @throws UdiException on error
+     */
+    void writeRegister(Register reg, long value) throws UdiException;
 
     /**
      * Changes the state of the thread to running

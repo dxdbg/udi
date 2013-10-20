@@ -287,9 +287,272 @@ unsigned long get_register_ud_type(ud_type_t reg, const void *context) {
         udi_abort(__FILE__, __LINE__);
     }
 
-   if (__WORDSIZE == 64) {
-        return u_context->uc_mcontext.gregs[offset];
-    }
-        
     return u_context->uc_mcontext.gregs[offset];
 }
+
+/**
+ * Validates that the specified register is valid for the specified architecture
+ *
+ * @param arch the architecture
+ * @param reg the register
+ * @param errmsg error message (populated on error)
+ *
+ * @param 0 on success; non-zero otherwise
+ */
+int validate_register(udi_arch_e arch, udi_register_e reg, udi_errmsg *errmsg) {
+
+    int result = 0;
+    switch (arch) {
+        case UDI_ARCH_X86:
+            if (reg <= UDI_X86_MIN || reg >= UDI_X86_MAX) {
+                result = -1;
+            }
+            break;
+        case UDI_ARCH_X86_64:
+            if (reg <= UDI_X86_64_MIN || reg >= UDI_X86_64_MAX) {
+                result = -1;
+            }
+            break;
+    }
+
+    if (result != 0) {
+        snprintf(errmsg->msg, errmsg->size, "invalid register %s for architecture %s",
+                register_str(reg), arch_str(arch));
+    }
+
+    return result;
+}
+
+#define REG_CASE(name) case UDI_##name: return name##_OFFSET
+
+/**
+ * Gets the index into the context for the register
+ *
+ * @param reg the register
+ *
+ * @return the register index
+ * @return -2 if the register is unknown
+ * @return -1 if the register corresponds to a FP register
+ */
+static
+int get_udi_reg_context_offset(udi_register_e reg) {
+    switch (reg) {
+        REG_CASE(X86_GS);
+        REG_CASE(X86_FS);
+        REG_CASE(X86_ES);
+        REG_CASE(X86_DS);
+        REG_CASE(X86_EDI);
+        REG_CASE(X86_ESI);
+        REG_CASE(X86_EBP);
+        REG_CASE(X86_ESP);
+        REG_CASE(X86_EBX);
+        REG_CASE(X86_EDX);
+        REG_CASE(X86_ECX);
+        REG_CASE(X86_EAX);
+        REG_CASE(X86_CS);
+        REG_CASE(X86_SS);
+        REG_CASE(X86_EIP);
+        REG_CASE(X86_FLAGS);
+        REG_CASE(X86_64_R8);
+        REG_CASE(X86_64_R9);
+        REG_CASE(X86_64_R10);
+        REG_CASE(X86_64_R11);
+        REG_CASE(X86_64_R12);
+        REG_CASE(X86_64_R13);
+        REG_CASE(X86_64_R14);
+        REG_CASE(X86_64_R15);
+        REG_CASE(X86_64_RDI);
+        REG_CASE(X86_64_RSI);
+        REG_CASE(X86_64_RBP);
+        REG_CASE(X86_64_RBX);
+        REG_CASE(X86_64_RDX);
+        REG_CASE(X86_64_RAX);
+        REG_CASE(X86_64_RCX);
+        REG_CASE(X86_64_RSP);
+        REG_CASE(X86_64_RIP);
+        REG_CASE(X86_64_CSGSFS);
+        REG_CASE(X86_64_FLAGS);
+        case UDI_X86_ST0:
+        case UDI_X86_ST1:
+        case UDI_X86_ST2:
+        case UDI_X86_ST3:
+        case UDI_X86_ST4:
+        case UDI_X86_ST5:
+        case UDI_X86_ST6:
+        case UDI_X86_ST7:
+        case UDI_X86_64_ST0:
+        case UDI_X86_64_ST1:
+        case UDI_X86_64_ST2:
+        case UDI_X86_64_ST3:
+        case UDI_X86_64_ST4:
+        case UDI_X86_64_ST5:
+        case UDI_X86_64_ST6:
+        case UDI_X86_64_ST7:
+        case UDI_X86_64_XMM0:
+        case UDI_X86_64_XMM1:
+        case UDI_X86_64_XMM2:
+        case UDI_X86_64_XMM3:
+        case UDI_X86_64_XMM4:
+        case UDI_X86_64_XMM5:
+        case UDI_X86_64_XMM6:
+        case UDI_X86_64_XMM7:
+        case UDI_X86_64_XMM8:
+        case UDI_X86_64_XMM9:
+        case UDI_X86_64_XMM10:
+        case UDI_X86_64_XMM11:
+        case UDI_X86_64_XMM12:
+        case UDI_X86_64_XMM13:
+        case UDI_X86_64_XMM14:
+        case UDI_X86_64_XMM15:
+            return -1;
+        default:
+            return -2;
+    }
+}
+
+static
+int get_fp_register(udi_register_e reg, udi_address *value,
+        const ucontext_t *context)
+{
+
+    /** TODO need to rethink how floating point values are retrieved
+    switch (reg) {
+#ifndef __x86_64__
+        case UDI_X86_ST0: *value = context->uc_mcontext.fpregs->_st[0];
+        case UDI_X86_ST1: *value = context->uc_mcontext.fpregs->_st[1];
+        case UDI_X86_ST2: *value = context->uc_mcontext.fpregs->_st[2];
+        case UDI_X86_ST3: *value = context->uc_mcontext.fpregs->_st[3];
+        case UDI_X86_ST4: *value = context->uc_mcontext.fpregs->_st[4];
+        case UDI_X86_ST5: *value = context->uc_mcontext.fpregs->_st[5];
+        case UDI_X86_ST6: *value = context->uc_mcontext.fpregs->_st[6];
+        case UDI_X86_ST7: *value = context->uc_mcontext.fpregs->_st[7];
+#else // __x86_64__
+        case UDI_X86_64_ST0: *value = context->uc_mcontext.fpregs->_st[0];
+        case UDI_X86_64_ST1: *value = context->uc_mcontext.fpregs->_st[1];
+        case UDI_X86_64_ST2: *value = context->uc_mcontext.fpregs->_st[2];
+        case UDI_X86_64_ST3: *value = context->uc_mcontext.fpregs->_st[3];
+        case UDI_X86_64_ST4: *value = context->uc_mcontext.fpregs->_st[4];
+        case UDI_X86_64_ST5: *value = context->uc_mcontext.fpregs->_st[5];
+        case UDI_X86_64_ST6: *value = context->uc_mcontext.fpregs->_st[6];
+        case UDI_X86_64_ST7: *value = context->uc_mcontext.fpregs->_st[7];
+        case UDI_X86_64_XMM0: *value = context->
+        case UDI_X86_64_XMM1:
+        case UDI_X86_64_XMM2:
+        case UDI_X86_64_XMM3:
+        case UDI_X86_64_XMM4:
+        case UDI_X86_64_XMM5:
+        case UDI_X86_64_XMM6:
+        case UDI_X86_64_XMM7:
+        case UDI_X86_64_XMM8:
+        case UDI_X86_64_XMM9:
+        case UDI_X86_64_XMM10:
+        case UDI_X86_64_XMM11:
+        case UDI_X86_64_XMM12:
+        case UDI_X86_64_XMM13:
+        case UDI_X86_64_XMM14:
+        case UDI_X86_64_XMM15:
+#endif
+        default:
+            return -1;
+    }
+    */
+
+    return -1;
+}
+
+/**
+ * Check if the specified register is a general-purpose register
+ *
+ * @param arch the architecture
+ * @param reg the register
+ *
+ * @return 0 if the register is not a general purpose register; non-zero otherwise
+ */
+int is_gp_register(udi_arch_e arch, udi_register_e reg) {
+    return get_udi_reg_context_offset(reg) >= 0;
+}
+
+/**
+ * Check if the specified register is a floating-point register
+ *
+ * @param arch the architecture
+ * @param reg the register
+ *
+ * return 0 if the register is not a floating-point register; non-zero otherwise
+ */
+int is_fp_register(udi_arch_e arch, udi_register_e reg) {
+    return get_udi_reg_context_offset(reg) == -1;
+}
+
+/**
+ * Gets the specified register, with validation
+ *
+ * @param arch the architecture (used for validation)
+ * @param reg the register to retrieve
+ * @param errmsg the error message (populated on error)
+ * @param value the output parameter for the register value
+ * @param context the context (from which the register is retrieved)
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int get_register(udi_arch_e arch, udi_register_e reg, udi_errmsg *errmsg, udi_address *value, 
+        const void *context) 
+{
+    const ucontext_t *u_context = (const ucontext_t *)context;
+
+    if (validate_register(arch, reg, errmsg)) {
+        return -1;
+    }
+
+    int offset = get_udi_reg_context_offset(reg);
+    if (offset >= 0 ) {
+        *value = (udi_address)(unsigned long)u_context->uc_mcontext.gregs[offset];
+    }else if (offset == -1) {
+        if ( get_fp_register(reg, value, u_context) != 0 ) {
+            offset = -2;
+        }
+    }
+
+    if (offset < -1) {
+        snprintf(errmsg->msg, errmsg->size, "invalid register %d", reg);
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Sets the specified register, with validation
+ *
+ * @param arch the architecture (used for validation)
+ * @param reg the register to retrieve
+ * @param errmsg the error message (populated on error)
+ * @param value the output parameter for the register value
+ * @param context the context (from which the register is retrieved)
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int set_register(udi_arch_e arch, udi_register_e reg, udi_errmsg *errmsg, udi_address value,
+        void *context)
+{
+    ucontext_t *u_context = (ucontext_t *)context;
+
+    if (validate_register(arch, reg, errmsg)) {
+        return -1;
+    }
+
+    int offset = get_udi_reg_context_offset(reg);
+    if (offset >= 0 ) {
+        u_context->uc_mcontext.gregs[offset] = (unsigned long)value;
+    }else if (offset == -1) {
+        // TODO set fp register
+    }
+
+    if (offset < -1) {
+        snprintf(errmsg->msg, errmsg->size, "invalid register %d", reg);
+        return -1;
+    }
+
+    return 0;
+}
+

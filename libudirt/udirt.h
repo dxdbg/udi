@@ -63,6 +63,7 @@ typedef struct thread_struct thread;
 udi_version_e get_protocol_version();
 int write_response(udi_response *response);
 int write_response_to_request(udi_response *response);
+int write_response_to_thr_request(thread *thr, udi_response *response);
 int write_event(udi_event_internal *event);
 udi_request *read_request(thread **thr);
 void free_request(udi_request *request);
@@ -88,6 +89,14 @@ const char *get_mem_errstr();
 
 // disassembly interface
 unsigned long get_ctf_successor(unsigned long pc, udi_errmsg *errmsg, void *context);
+
+// register interface
+int get_register(udi_arch_e arch, udi_register_e reg, udi_errmsg *errmsg, udi_address *value, 
+        const void *context);
+int set_register(udi_arch_e arch, udi_register_e reg, udi_errmsg *errmsg, udi_address value,
+        void *context);
+int is_gp_register(udi_arch_e arch, udi_register_e reg);
+int is_fp_register(udi_arch_e arch, udi_register_e reg);
 
 // breakpoint handling
 typedef struct breakpoint_struct {

@@ -65,7 +65,7 @@ int install_event_breakpoints(udi_errmsg *errmsg);
 int is_event_breakpoint(breakpoint *bp);
 event_result handle_event_breakpoint(breakpoint *bp, const ucontext_t *context, udi_errmsg *errmsg);
 
-int wait_and_execute_command(udi_errmsg *errmsg);
+int wait_and_execute_command(udi_errmsg *errmsg, thread **thr);
 
 // re-initialize a process after fork
 void reinit_udi_rt();
@@ -111,6 +111,7 @@ typedef struct signal_state_struct {
     int signal;
     siginfo_t siginfo;
     ucontext_t context;
+    int context_valid;
 } signal_state;
 extern int THREAD_SUSPEND_SIGNAL;
 

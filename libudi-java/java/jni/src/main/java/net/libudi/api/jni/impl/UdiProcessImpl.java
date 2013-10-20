@@ -32,7 +32,6 @@ package net.libudi.api.jni.impl;
 import java.util.Arrays;
 import java.util.List;
 
-import com.google.common.primitives.UnsignedLong;
 import com.sun.jna.Pointer;
 
 import net.libudi.api.Architecture;
@@ -114,27 +113,27 @@ public class UdiProcessImpl implements UdiProcess {
     }
 
     @Override
-    public void readMemory(byte[] data, UnsignedLong sourceAddr) throws UdiException {
+    public void readMemory(byte[] data, long sourceAddr) throws UdiException {
     }
 
     @Override
-    public void writeMemory(byte[] data, UnsignedLong destAddr) throws UdiException {
+    public void writeMemory(byte[] data, long destAddr) throws UdiException {
     }
 
     @Override
-    public void createBreakpoint(UnsignedLong brkptAddr) throws UdiException {
+    public void createBreakpoint(long brkptAddr) throws UdiException {
     }
 
     @Override
-    public void installBreakpoint(UnsignedLong brkptAddr) throws UdiException {
+    public void installBreakpoint(long brkptAddr) throws UdiException {
     }
 
     @Override
-    public void removeBreakpoint(UnsignedLong brkptAddr) throws UdiException {
+    public void removeBreakpoint(long brkptAddr) throws UdiException {
     }
 
     @Override
-    public void deleteBreakpoint(UnsignedLong brkptAddr) throws UdiException {
+    public void deleteBreakpoint(long brkptAddr) throws UdiException {
     }
 
     @Override

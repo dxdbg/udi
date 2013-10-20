@@ -28,8 +28,6 @@
 
 package net.libudi.api.event;
 
-import com.google.common.primitives.UnsignedLong;
-
 /**
  * An interface for a UdiEvent with event type BREAKPOINT
  *
@@ -40,5 +38,5 @@ public interface UdiEventBreakpoint extends UdiEvent {
     /**
      * @return the address at which the breakpoint occurred at
      */
-    UnsignedLong getAddress();
+    long getAddress();
 }
