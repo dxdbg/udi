@@ -378,6 +378,21 @@ udi_thread *get_next_thread(udi_thread *thr) {
 }
 
 /**
+ * @return non-zero if the specified request_type has request contenta
+ */
+static
+int has_request_content(udi_request_type_e request_type) {
+    switch (request_type) {
+        case UDI_REQ_STATE:
+            return 0;
+        default:
+            break;
+    }
+
+    return 1;
+}
+
+/**
  * Submits the specified request to the specified process
  *
  * @param proc          the process handle
@@ -415,7 +430,7 @@ udi_error_e submit_request(udi_process *proc,
         }
         if ( !valid_request_type ) break;
 
-        if ( req->request_type != UDI_REQ_STATE ) {
+        if ( has_request_content(req->request_type) ) {
             if ( req->packed_data == NULL ) {
                 udi_printf("failed to pack data for %s\n", desc);
                 error_code = UDI_ERROR_LIBRARY;
@@ -453,6 +468,7 @@ udi_error_e submit_request(udi_process *proc,
         *resp = NULL;
     }
 
+    proc->error_code = error_code;
     return error_code;
 }
 
@@ -534,6 +550,7 @@ udi_error_e submit_request_thr(udi_thread *thr, udi_request *req, udi_response *
         *resp = NULL;
     }
 
+    thr->proc->error_code = error_code;
     return error_code;
 
 }
@@ -691,6 +708,67 @@ udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length siz
     if ( resp != NULL ) free_response(resp);
 
     return error_code;
+}
+
+/**
+ * Access a register in the specified thread
+ *
+ * @param thr the thread
+ * @param write 1 if the value should written into the register, 0 read
+ * @param reg the register to access
+ * @param value the destination of the register value on read; the value to write otherwise
+ *
+ * @return the result of the operation
+ */
+udi_error_e register_access(udi_thread *thr, int write, udi_register_e reg, udi_address *value) {
+    udi_error_e error_code = UDI_ERROR_NONE;
+    udi_request request = write ?
+        create_request_write_reg(reg, *value) :
+        create_request_read_reg(reg);
+
+    udi_response *resp = NULL;
+    do {
+        error_code = submit_request_thr(thr, &request, &resp, "register access request",
+                __FILE__, __LINE__);
+
+        if (error_code != UDI_ERROR_NONE) return error_code;
+
+        if ( resp->request_type == UDI_REQ_READ_REGISTER ) {
+            if (unpack_response_read_register(resp, value)) {
+                udi_printf("%s\n", "failed to unpack response for read register request");
+                error_code = UDI_ERROR_LIBRARY;
+                break;
+            }
+        }
+    }while(0);
+
+    return error_code;
+}
+
+/**
+ * Gets the PC for the specified thread
+ *
+ * @param thr the thread
+ * @param pc the output parameter for the pc
+ *
+ * @return the result of the operation
+ */
+udi_error_e get_pc(udi_thread *thr, udi_address *pc) {
+    udi_arch_e arch = get_proc_architecture(thr->proc);
+    udi_register_e reg;
+    switch (arch) {
+        case UDI_ARCH_X86:
+            reg = UDI_X86_EIP;
+            break;
+        case UDI_ARCH_X86_64:
+            reg = UDI_X86_64_RIP;
+            break;
+        default:
+            udi_printf("Unsupported architecture %d\n", arch);
+            return UDI_ERROR_LIBRARY;
+    }
+
+    return register_access(thr, 0, reg, pc);
 }
 
 /**

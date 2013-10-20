@@ -71,8 +71,95 @@ const char *event_type_str(udi_event_type event_type) {
         CASE_TO_STR(UDI_EVENT_THREAD_CREATE);
         CASE_TO_STR(UDI_EVENT_THREAD_DEATH);
         CASE_TO_STR(UDI_EVENT_PROCESS_EXIT);
+        CASE_TO_STR(UDI_EVENT_PROCESS_FORK);
+        CASE_TO_STR(UDI_EVENT_PROCESS_EXEC);
         CASE_TO_STR(UDI_EVENT_MAX);
         CASE_TO_STR(UDI_EVENT_UNKNOWN);
+        default: return "UNSPECIFIED";
+    }
+}
+
+const char *arch_str(udi_arch_e arch) {
+    switch (arch) {
+        CASE_TO_STR(UDI_ARCH_X86);
+        CASE_TO_STR(UDI_ARCH_X86_64);
+        default: return "UNSPECIFIED";
+    }
+}
+
+const char *register_str(udi_register_e reg) {
+    switch (reg) {
+        CASE_TO_STR(UDI_X86_MIN);
+        CASE_TO_STR(UDI_X86_GS);
+        CASE_TO_STR(UDI_X86_FS);
+        CASE_TO_STR(UDI_X86_ES);
+        CASE_TO_STR(UDI_X86_DS);
+        CASE_TO_STR(UDI_X86_EDI);
+        CASE_TO_STR(UDI_X86_ESI);
+        CASE_TO_STR(UDI_X86_EBP);
+        CASE_TO_STR(UDI_X86_ESP);
+        CASE_TO_STR(UDI_X86_EBX);
+        CASE_TO_STR(UDI_X86_EDX);
+        CASE_TO_STR(UDI_X86_ECX);
+        CASE_TO_STR(UDI_X86_EAX);
+        CASE_TO_STR(UDI_X86_CS);
+        CASE_TO_STR(UDI_X86_SS);
+        CASE_TO_STR(UDI_X86_EIP);
+        CASE_TO_STR(UDI_X86_FLAGS);
+        CASE_TO_STR(UDI_X86_ST0);
+        CASE_TO_STR(UDI_X86_ST1);
+        CASE_TO_STR(UDI_X86_ST2);
+        CASE_TO_STR(UDI_X86_ST3);
+        CASE_TO_STR(UDI_X86_ST4);
+        CASE_TO_STR(UDI_X86_ST5);
+        CASE_TO_STR(UDI_X86_ST6);
+        CASE_TO_STR(UDI_X86_ST7);
+        CASE_TO_STR(UDI_X86_MAX);
+        CASE_TO_STR(UDI_X86_64_MIN);
+        CASE_TO_STR(UDI_X86_64_R8);
+        CASE_TO_STR(UDI_X86_64_R9);
+        CASE_TO_STR(UDI_X86_64_R10);
+        CASE_TO_STR(UDI_X86_64_R11);
+        CASE_TO_STR(UDI_X86_64_R12);
+        CASE_TO_STR(UDI_X86_64_R13);
+        CASE_TO_STR(UDI_X86_64_R14);
+        CASE_TO_STR(UDI_X86_64_R15);
+        CASE_TO_STR(UDI_X86_64_RDI);
+        CASE_TO_STR(UDI_X86_64_RSI);
+        CASE_TO_STR(UDI_X86_64_RBP);
+        CASE_TO_STR(UDI_X86_64_RBX);
+        CASE_TO_STR(UDI_X86_64_RDX);
+        CASE_TO_STR(UDI_X86_64_RAX);
+        CASE_TO_STR(UDI_X86_64_RCX);
+        CASE_TO_STR(UDI_X86_64_RSP);
+        CASE_TO_STR(UDI_X86_64_RIP);
+        CASE_TO_STR(UDI_X86_64_CSGSFS);
+        CASE_TO_STR(UDI_X86_64_FLAGS);
+        CASE_TO_STR(UDI_X86_64_ST0);
+        CASE_TO_STR(UDI_X86_64_ST1);
+        CASE_TO_STR(UDI_X86_64_ST2);
+        CASE_TO_STR(UDI_X86_64_ST3);
+        CASE_TO_STR(UDI_X86_64_ST4);
+        CASE_TO_STR(UDI_X86_64_ST5);
+        CASE_TO_STR(UDI_X86_64_ST6);
+        CASE_TO_STR(UDI_X86_64_ST7);
+        CASE_TO_STR(UDI_X86_64_XMM0);
+        CASE_TO_STR(UDI_X86_64_XMM1);
+        CASE_TO_STR(UDI_X86_64_XMM2);
+        CASE_TO_STR(UDI_X86_64_XMM3);
+        CASE_TO_STR(UDI_X86_64_XMM4);
+        CASE_TO_STR(UDI_X86_64_XMM5);
+        CASE_TO_STR(UDI_X86_64_XMM6);
+        CASE_TO_STR(UDI_X86_64_XMM7);
+        CASE_TO_STR(UDI_X86_64_XMM8);
+        CASE_TO_STR(UDI_X86_64_XMM9);
+        CASE_TO_STR(UDI_X86_64_XMM10);
+        CASE_TO_STR(UDI_X86_64_XMM11);
+        CASE_TO_STR(UDI_X86_64_XMM12);
+        CASE_TO_STR(UDI_X86_64_XMM13);
+        CASE_TO_STR(UDI_X86_64_XMM14);
+        CASE_TO_STR(UDI_X86_64_XMM15);
+        CASE_TO_STR(UDI_X86_64_MAX);
         default: return "UNSPECIFIED";
     }
 }

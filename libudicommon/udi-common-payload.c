@@ -331,6 +331,24 @@ udi_response create_response_init(udi_version_e protocol_version,
 }
 
 /**
+ * Creates a read register response
+ *
+ * @param value the value of the register
+ *
+ * @return the created response
+ */
+udi_response create_response_read_register(udi_address value) {
+    udi_response read_response;
+    read_response.response_type = UDI_RESP_VALID;
+    read_response.request_type = UDI_REQ_READ_REGISTER;
+    read_response.length = sizeof(udi_address);
+    read_response.packed_data = udi_pack_data(read_response.length,
+            UDI_DATATYPE_ADDRESS, value);
+
+    return read_response;
+}
+
+/**
  * Creates a state response
  *
  * @param num_threads the number of threads
@@ -487,6 +505,48 @@ int unpack_request_breakpoint(udi_request *req, udi_address *addr, udi_errmsg *e
 }
 
 /**
+ * Unpack data for read register request
+ *
+ * @param req the request
+ * @param reg the requested register
+ * @param errmsg the error message populated on failure
+ *
+ * @return 0 on success; non-zero otherwise
+ */
+int unpack_request_read_register(udi_request *req, uint32_t *reg, udi_errmsg *errmsg) {
+    if (udi_unpack_data(req->packed_data, req->length,
+                UDI_DATATYPE_INT32, reg))
+    {
+        snprintf(errmsg->msg, errmsg->size, "%s", "failed to parse read register request");
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Unpack data for write register request
+ *
+ * @param req the request
+ * @param reg the register
+ * @param value the value to write into the register
+ * 
+ * @return 0 on success; non-zero otherwise
+ */
+int unpack_request_write_register(udi_request *req, uint32_t *reg, udi_address *value, 
+        udi_errmsg *errmsg)
+{
+    if (udi_unpack_data(req->packed_data, req->length, UDI_DATATYPE_INT32, reg,
+                UDI_DATATYPE_ADDRESS, value)) 
+    {
+        snprintf(errmsg->msg, errmsg->size, "%s", "failed to parse write register request");
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
  * Creates a request to create a breakpoint
  *
  * @param addr the address for the breakpoint
@@ -617,6 +677,41 @@ udi_request create_request_thr_state(udi_thread_state_e state) {
     return req;
 }
 
+/**
+ * Create a request to read a register's value
+ *
+ * @param reg the register to read
+ *
+ * @return the created request
+ */
+udi_request create_request_read_reg(udi_register_e reg) {
+    udi_request req;
+    req.request_type = UDI_REQ_READ_REGISTER;
+    req.length = sizeof(uint32_t);
+    req.packed_data = udi_pack_data(req.length,
+            UDI_DATATYPE_INT32, reg);
+
+    return req;
+}
+
+/**
+ * Create a request to write a register's value
+ *
+ * @param reg the register to write
+ * @param value the value to write
+ *
+ * @return the created request
+ */
+udi_request create_request_write_reg(udi_register_e reg, udi_address value) {
+    udi_request req;
+    req.request_type = UDI_REQ_WRITE_REGISTER;
+    req.length = sizeof(uint32_t) + sizeof(udi_address);
+    req.packed_data = udi_pack_data(req.length,
+            UDI_DATATYPE_INT32, reg,
+            UDI_DATATYPE_ADDRESS, value);
+
+    return req;
+}
 
 /**
  * Unpacks the read response
@@ -631,6 +726,23 @@ int unpack_response_read(udi_response *resp, udi_length *num_bytes, void **value
 
     if (udi_unpack_data(resp->packed_data, resp->length,
                 UDI_DATATYPE_BYTESTREAM, num_bytes, value) ) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Unpack the respose to read register
+ *
+ * @param resp the response
+ * @param value the value
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int unpack_response_read_register(udi_response *resp, udi_address *value) {
+    if (udi_unpack_data(resp->packed_data, resp->length,
+                UDI_DATATYPE_ADDRESS, value) ) {
         return -1;
     }
 

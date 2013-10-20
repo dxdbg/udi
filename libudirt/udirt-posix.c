@@ -120,6 +120,8 @@ request_handler req_handlers[] = {
     continue_handler,
     read_handler,
     write_handler,
+    invalid_handler,
+    invalid_handler,
     state_handler,
     init_handler,
     breakpoint_create_handler,
@@ -133,6 +135,8 @@ request_handler req_handlers[] = {
 // thread specific request handling
 typedef int (*thr_request_handler)(thread *, udi_request *, udi_errmsg *);
 
+int read_register_handler(thread *thr, udi_request *req, udi_errmsg *);
+int write_register_handler(thread *thr, udi_request *req, udi_errmsg *);
 int thr_state_handler(thread *thr, udi_request *req, udi_errmsg *);
 int thr_invalid_handler(thread *thr, udi_request *req, udi_errmsg *);
 
@@ -141,6 +145,8 @@ thr_request_handler thr_req_handlers[] = {
     thr_invalid_handler,
     thr_invalid_handler,
     thr_invalid_handler,
+    read_register_handler,
+    write_register_handler,
     thr_invalid_handler,
     thr_invalid_handler,
     thr_invalid_handler,
@@ -897,6 +903,78 @@ int thr_state_handler(thread *thr, udi_request *req, udi_errmsg *errmsg) {
 }
 
 /**
+ * Read thread register handler
+ *
+ * Standard request handler interface
+ */
+int read_register_handler(thread *thr, udi_request *req, udi_errmsg *errmsg) {
+
+    udi_register_e reg;
+    if (unpack_request_read_register(req, &reg, errmsg)) {
+        udi_printf("failed to unpack data for read register request: %s\n",
+                errmsg->msg);
+        return REQ_FAILURE;
+    }
+
+    if (!thr->event_state.context_valid) {
+        snprintf(errmsg->msg, errmsg->size, "%s", "register context is unavailable");
+        udi_printf("%s\n", errmsg->msg);
+        return REQ_FAILURE;
+    }
+
+    udi_address value;
+    int result = get_register(get_architecture(), reg, errmsg, &value, &thr->event_state.context);
+    if ( result != 0 ) {
+        return REQ_FAILURE;
+    }
+
+    udi_response resp = create_response_read_register(value);
+    do {
+        if (resp.packed_data == NULL) {
+            snprintf(errmsg->msg, errmsg->size, "%s", "failed to pack data for read register response");
+            udi_printf("%s\n", errmsg->msg);
+            result = REQ_ERROR;
+            break;
+        }
+
+        result = write_response_to_thr_request(thr, &resp);
+    }while (0);
+
+    udi_free(resp.packed_data); 
+
+    return result;
+}
+
+/**
+ * Write thread register handler
+ *
+ * Standard request handler interface
+ */
+int write_register_handler(thread *thr, udi_request *req, udi_errmsg *errmsg) {
+
+    udi_register_e reg;
+    udi_address value;
+    if (unpack_request_write_register(req, &reg, &value, errmsg)) {
+        udi_printf("failed to unpack data for write register request: %s\n",
+                errmsg->msg);
+        return REQ_FAILURE;
+    }
+
+    if (!thr->event_state.context_valid) {
+        snprintf(errmsg->msg, errmsg->size, "%s", "register context is unavailable");
+        udi_printf("%s\n", errmsg->msg);
+        return REQ_FAILURE;
+    }
+
+    int result = set_register(get_architecture(), reg, errmsg, value, &thr->event_state.context);
+    if (result != 0) {
+        return REQ_FAILURE;
+    }
+
+    return send_valid_response_thr(thr, req->request_type);
+}
+
+/**
  * Thread invalid request handler
  *
  * Standard request handler interface
@@ -977,16 +1055,16 @@ int post_mem_access_hook(void *hook_arg) {
  * Wait for and request and process the request on reception.
  *
  * @param errmsg error message populate on error
+ * @param thr populated by the thread that received the command
  *
  * @return request handler return code
  */
-int wait_and_execute_command(udi_errmsg *errmsg) {
+int wait_and_execute_command(udi_errmsg *errmsg, thread **thr) {
     udi_request *req = NULL;
     int result = 0;
 
     while(1) {
-        thread *thr = NULL;
-        udi_request *req = read_request(&thr);
+        udi_request *req = read_request(thr);
         if ( req == NULL ) {
             snprintf(errmsg->msg, errmsg->size, "%s", "failed to read command");
             udi_printf("%s\n", "failed to read request");
@@ -994,7 +1072,7 @@ int wait_and_execute_command(udi_errmsg *errmsg) {
             break;
         }
 
-        if ( thr == NULL ) {
+        if ( *thr == NULL ) {
             result = req_handlers[req->request_type](req, errmsg);
             if ( result != REQ_SUCCESS ) {
                 udi_printf("failed to handle command %s\n", 
@@ -1002,7 +1080,7 @@ int wait_and_execute_command(udi_errmsg *errmsg) {
                 break;
             }
         }else{
-            result = thr_req_handlers[req->request_type](thr, req, errmsg);
+            result = thr_req_handlers[req->request_type](*thr, req, errmsg);
             if ( result != REQ_SUCCESS ) {
                 udi_printf("failed to handle command %s\n",
                         request_type_str(req->request_type));
@@ -1084,13 +1162,16 @@ static event_result decode_segv(const siginfo_t *siginfo, ucontext_t *context, u
 /**
  * Handles the breakpoint event that occurred at the specified breakpoint
  *
+ * @param thr the thread that hit the breakpoint
  * @param bp the breakpoint that triggered the event
  * @param context the context passed to the signal handler
  * @param errmsg the error message populated on error
  *
  * @return the result of decoding the event
  */
-static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, udi_errmsg *errmsg) {
+static 
+event_result decode_breakpoint(thread *thr, breakpoint *bp, ucontext_t *context, udi_errmsg *errmsg) {
+
     event_result result;
     result.failure = 0;
     result.wait_for_request = 1;
@@ -1105,6 +1186,11 @@ static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, udi_e
     }
 
     rewind_pc(context);
+
+    if (thr != NULL) {
+        // make sure a read of the pc at a breakpoint returns the expected value
+        rewind_pc(&thr->event_state.context); 
+    }
 
     if ( continue_bp == bp ) {
         udi_printf("continue breakpoint at 0x%"PRIx64"\n", bp->address);
@@ -1185,11 +1271,12 @@ static event_result decode_breakpoint(breakpoint *bp, ucontext_t *context, udi_e
 /**
  * Decodes the trap
  *
+ * @param thr the current thread
  * @param siginfo the siginfo passed to the signal handler
  * @param context the context passed to the signal handler
  * @param errmsg the error message populated on error
  */
-static event_result decode_trap(const siginfo_t *siginfo, ucontext_t *context, udi_errmsg *errmsg) {
+static event_result decode_trap(thread *thr, const siginfo_t *siginfo, ucontext_t *context, udi_errmsg *errmsg) {
     event_result result;
     result.failure = 0;
     result.wait_for_request = 1;
@@ -1201,7 +1288,7 @@ static event_result decode_trap(const siginfo_t *siginfo, ucontext_t *context, u
 
     if ( bp != NULL ) {
         udi_printf("breakpoint hit at 0x%"PRIx64"\n", trap_address);
-        result = decode_breakpoint(bp, context, errmsg);
+        result = decode_breakpoint(thr, bp, context, errmsg);
     }else{
         // TODO create signal event
         result.failure = -1;
@@ -1270,6 +1357,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
         thr->event_state.signal = signal;
         thr->event_state.siginfo = *siginfo;
         thr->event_state.context = *context;
+        thr->event_state.context_valid = 1;
 
         int block_result = block_other_threads();
         if ( block_result == -1 ) {
@@ -1291,7 +1379,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
             get_kernel_thread_id(),
             signal);
     if ( thr != NULL ) {
-        memset(&(thr->event_state), 0, sizeof(signal_state));
+        thr->event_state.signal = 0;
     }
 
     // create event
@@ -1303,13 +1391,14 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     result.failure = 0;
     result.wait_for_request = 1;
 
+    thread *request_thr = NULL;
     do {
         switch(signal) {
             case SIGSEGV:
                 result = decode_segv(siginfo, context, &errmsg);
                 break;
             case SIGTRAP:
-                result = decode_trap(siginfo, context, &errmsg);
+                result = decode_trap(thr, siginfo, context, &errmsg);
                 break;
             default: {
                 udi_event_internal event = create_event_unknown(get_user_thread_id());
@@ -1341,7 +1430,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     
         // wait for command
         if ( result.wait_for_request ) {
-            int req_result = wait_and_execute_command(&errmsg);
+            int req_result = wait_and_execute_command(&errmsg, &request_thr);
             if ( req_result != REQ_SUCCESS ) {
                 result.failure = 1;
 
@@ -1367,8 +1456,13 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
 
             if ( resp.packed_data != NULL ) {
                 // explicitly ignore errors
-                write_response(&resp);
+                if (request_thr != NULL) {
+                    write_response_to_thr_request(request_thr, &resp);
+                }else{
+                    write_response(&resp);
+                }
                 udi_free(resp.packed_data);
+                udi_printf("Wrote error message '%s'\n", errmsg.msg);
             }
         }else{
             udi_printf("Aborting due to request failure: %s\n", errmsg.msg);
@@ -1385,6 +1479,10 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
             get_user_thread_id(),
             get_kernel_thread_id(),
             signal);
+
+    if (thr != NULL) {
+        memset(&(thr->event_state), 0, sizeof(signal_state));
+    }
 }
 
 /**
@@ -2180,6 +2278,7 @@ void init_udi_rt() {
 
     global_variable_initialization();
    
+    thread *request_thr = NULL;
     sigset_t original_set;
     do {
         sigset_t block_set;
@@ -2231,7 +2330,7 @@ void init_udi_rt() {
             break;
         }
 
-        if ( (errnum = wait_and_execute_command(&errmsg)) != REQ_SUCCESS ) {
+        if ( (errnum = wait_and_execute_command(&errmsg, &request_thr)) != REQ_SUCCESS ) {
             udi_printf("%s\n", "failed to wait for initial command");
             break;
         }
@@ -2249,7 +2348,12 @@ void init_udi_rt() {
             udi_response resp = create_response_error(&errmsg);
 
             if ( resp.packed_data != NULL ) {
-                write_response(&resp);
+                if (request_thr != NULL) {
+                    write_response_to_thr_request(request_thr, &resp);
+                }else{
+                    write_response(&resp);
+                }
+
                 udi_free(resp.packed_data);
             }
         }

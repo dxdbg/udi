@@ -33,7 +33,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.primitives.UnsignedLong;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
@@ -47,7 +46,6 @@ import net.libudi.api.event.EventType;
 import net.libudi.api.event.UdiEvent;
 import net.libudi.api.exceptions.InternalLibraryException;
 import net.libudi.api.exceptions.UdiException;
-import net.libudi.api.exceptions.UnexpectedEventException;
 import net.libudi.api.jni.wrapper.CLibrary;
 import net.libudi.api.jni.wrapper.UdiError;
 import net.libudi.api.jni.wrapper.UdiLibrary;
@@ -102,6 +100,14 @@ public class UdiProcessManagerImpl implements UdiProcessManager {
         nativeCLibrary = (CLibrary) Native.loadLibrary(CLibrary.LIBRARY_NAME, CLibrary.class);
     }
 
+    public UdiProcessImpl getProcess(Pointer process) {
+        return procsByPointer.get(process);
+    }
+
+    public UdiThreadImpl getThread(Pointer thread) {
+        return threadsByPointer.get(thread);
+    }
+
     @Override
     public UdiProcess createProcess(Path executable, String[] args, Map<String, String> env, UdiProcessConfig config)
             throws UdiException
@@ -147,7 +153,7 @@ public class UdiProcessManagerImpl implements UdiProcessManager {
         if ( initialThread == null ) {
             throw new NativeLibraryException("Failed to determine initial thread for process");
         }
-        threadsByPointer.put(initialThread, new UdiThreadImpl(initialThread, nativeLibrary));
+        threadsByPointer.put(initialThread, new UdiThreadImpl(initialThread, this, nativeLibrary));
 
         return process;
     }
@@ -170,7 +176,7 @@ public class UdiProcessManagerImpl implements UdiProcessManager {
                 UdiNativeEventBreakpoint nativeEvBreakpoint = new UdiNativeEventBreakpoint(event.event_data);
 
                 UdiEventBreakpointImpl brkptImpl = new UdiEventBreakpointImpl();
-                brkptImpl.setAddress(UnsignedLong.fromLongBits(nativeEvBreakpoint.breakpoint_addr));
+                brkptImpl.setAddress(nativeEvBreakpoint.breakpoint_addr);
                 eventImpl = brkptImpl;
                 break;
             }
@@ -193,7 +199,7 @@ public class UdiProcessManagerImpl implements UdiProcessManager {
             case THREAD_CREATE: {
                 UdiNativeEventThreadCreate nativeEvThreadCreate = new UdiNativeEventThreadCreate(event.event_data);
 
-                UdiThreadImpl newThread = new UdiThreadImpl(nativeEvThreadCreate.new_thr, nativeLibrary);
+                UdiThreadImpl newThread = new UdiThreadImpl(nativeEvThreadCreate.new_thr, this, nativeLibrary);
                 threadsByPointer.put(nativeEvThreadCreate.new_thr, newThread);
 
                 UdiEventThreadCreateImpl threadCreateImpl = new UdiEventThreadCreateImpl();

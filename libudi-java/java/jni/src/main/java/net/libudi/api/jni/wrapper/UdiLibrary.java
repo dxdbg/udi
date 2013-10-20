@@ -30,6 +30,7 @@ package net.libudi.api.jni.wrapper;
 import com.sun.jna.Library;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
+import com.sun.jna.ptr.LongByReference;
 import com.sun.jna.ptr.PointerByReference;
 
 /**
@@ -41,6 +42,8 @@ public interface UdiLibrary extends Library {
 
     /** The library name */
     public static final String LIBRARY_NAME = "udi";
+
+    // Processes //
 
     /**
      * Creates a process to be debugged
@@ -62,7 +65,7 @@ public interface UdiLibrary extends Library {
      *
      * @param process the process
      *
-     * @return the result
+     * @return the error code for the operation
      */
     int continue_process(Pointer process);
 
@@ -89,6 +92,59 @@ public interface UdiLibrary extends Library {
      * @return the error message
      */
     String get_last_error_message(Pointer process);
+
+    // Threads //
+
+    /**
+     * Gets the id for the thread
+     *
+     * @param thread the thread
+     *
+     * @return the id
+     */
+    long get_tid(Pointer thread);
+
+    /**
+     * Gets the parent process for a thread
+     *
+     * @param thread the thread
+     *
+     * @return the parent process
+     */
+    Pointer get_process(Pointer thread);
+
+    /**
+     * Gets the next thread in the parent process
+     *
+     * @param thread the thread
+     *
+     * @return the next thread
+     */
+    Pointer get_next_thread(Pointer thread);
+
+    /**
+     * Access a register in the specified thread
+     *
+     * @param thread the thread
+     * @param write non-zero if the register should be written into
+     * @param register the register to access
+     * @param value the destination or source of the register value
+     *
+     * @return the error code of the operation
+     */
+    int register_access(Pointer thread, int write, int register, LongByReference value);
+
+    /**
+     * Gets the program counter for the specified thread
+     *
+     * @param thread the thread
+     * @param value the destination for the value
+     *
+     * @return the error code of the operation
+     */
+    int get_pc(Pointer thread, LongByReference value);
+
+    // Events //
 
     /**
      * Waits for events to occur in the specified processes

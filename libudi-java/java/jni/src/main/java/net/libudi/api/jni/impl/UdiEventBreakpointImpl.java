@@ -28,8 +28,6 @@
 
 package net.libudi.api.jni.impl;
 
-import com.google.common.primitives.UnsignedLong;
-
 import net.libudi.api.event.EventType;
 import net.libudi.api.event.UdiEventBreakpoint;
 import net.libudi.api.event.UdiEventVisitor;
@@ -41,7 +39,7 @@ import net.libudi.api.event.UdiEventVisitor;
  */
 public class UdiEventBreakpointImpl extends UdiEventImpl implements UdiEventBreakpoint {
 
-    private UnsignedLong address;
+    private long address;
 
     /**
      * Constructor.
@@ -53,12 +51,12 @@ public class UdiEventBreakpointImpl extends UdiEventImpl implements UdiEventBrea
     /**
      * @param address the address to set
      */
-    public void setAddress(UnsignedLong address) {
+    public void setAddress(long address) {
         this.address = address;
     }
 
     @Override
-    public UnsignedLong getAddress() {
+    public long getAddress() {
         return address;
     }
 

@@ -40,4 +40,19 @@ public enum Architecture {
 
     /** x86_64 architecture */
     X86_64;
+
+    public static Architecture fromIndex(int index) {
+        switch (index) {
+            case 0:
+                return X86;
+            case 1:
+                return X86_64;
+            default:
+                throw new IllegalArgumentException("Unknown architecture with index " + index);
+        }
+    }
+
+    public int getIndex() {
+        return ordinal();
+    }
 }

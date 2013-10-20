@@ -11,6 +11,7 @@ A list of enhancements/bugfixes for the future
 * implement detach/attach
 
 * implement register interface
+  - partially complete, still needs support for retrieving FP registers.
 
 * make libudi thread safe
 

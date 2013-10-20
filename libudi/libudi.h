@@ -94,6 +94,10 @@ udi_error_e delete_breakpoint(udi_process *proc, udi_address addr);
 udi_error_e mem_access(udi_process *proc, int write, void *value, 
         udi_length size, udi_address addr);
 
+// Register access interface //
+udi_error_e register_access(udi_thread *thr, int write, udi_register_e reg, udi_address *value);
+udi_error_e get_pc(udi_thread *thr, udi_address *pc);
+
 // Error handling //
 const char *get_last_error_message(udi_process *proc);
 

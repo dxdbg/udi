@@ -36,39 +36,28 @@ package net.libudi.api.event;
 public enum EventType {
 
     /** An error event */
-    ERROR(0),
+    ERROR,
 
     /** A thread received a signal (likely POSIX-specific) */
-    SIGNAL(1),
+    SIGNAL,
 
     /** A thread has hit a breakpoint */
-    BREAKPOINT(2),
+    BREAKPOINT,
 
     /** A thread has been created */
-    THREAD_CREATE(3),
+    THREAD_CREATE,
 
     /** A thread has exited/died */
-    THREAD_DEATH(4),
+    THREAD_DEATH,
 
     /** A process has exited */
-    PROCESS_EXIT(5),
+    PROCESS_EXIT,
 
     /** A process has forked */
-    PROCESS_FORK(6),
+    PROCESS_FORK,
 
     /** A process has execed */
-    PROCESS_EXEC(7);
-
-    private final int index;
-
-    /**
-     * Constructor.
-     *
-     * @param index the index for the enum
-     */
-    private EventType(int index) {
-        this.index = index;
-    }
+    PROCESS_EXEC;
 
     /**
      * Gets the EventType that corresponds to the specified index
@@ -98,5 +87,9 @@ public enum EventType {
             default:
                 throw new IllegalArgumentException("No EventType with index " + index);
         }
+    }
+
+    public int getIndex() {
+        return ordinal();
     }
 }

@@ -39,6 +39,7 @@
 using std::cout;
 using std::endl;
 using std::stringstream;
+using std::string;
 
 class test_breakpoint : public UDITestCase {
     public:
@@ -80,6 +81,21 @@ bool test_breakpoint::operator()(void) {
     assert_no_error(proc, result);
 
     wait_for_breakpoint(thr, TEST_FUNCTION);
+
+    udi_address pc;
+    result = get_pc(thr, &pc);
+    assert_no_error(proc, result);
+
+    stringstream msg;
+    msg << "Actual: "
+        << std::hex
+        << pc
+        << std::dec
+        << " Expected: "
+        << std::hex
+        << TEST_FUNCTION
+        << std::dec;
+    test_assert_msg(msg.str().c_str(), pc == TEST_FUNCTION);
 
     result = continue_process(proc);
     assert_no_error(proc, result);
