@@ -66,6 +66,7 @@ struct udi_process_struct {
     udi_arch_e architecture;
     uint32_t protocol_version;
     int multithread_capable;
+    int running;
     void *user_data;
     struct udi_thread_struct *threads;
     const char *root_dir;

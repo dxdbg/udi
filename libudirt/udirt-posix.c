@@ -100,6 +100,7 @@ extern int pthread_kill(pthread_t, int) __attribute__((weak));
 
 // unexported prototypes
 static int thread_death_handshake(thread *thr, udi_errmsg *errmsg);
+static int remove_udi_filesystem();
 
 // request handling
 typedef int (*request_handler)(udi_request *, udi_errmsg *);
@@ -129,6 +130,8 @@ request_handler req_handlers[] = {
     breakpoint_remove_handler,
     breakpoint_delete_handler,
     invalid_handler,
+    invalid_handler,
+    invalid_handler,
     invalid_handler
 };
 
@@ -138,6 +141,8 @@ typedef int (*thr_request_handler)(thread *, udi_request *, udi_errmsg *);
 int read_register_handler(thread *thr, udi_request *req, udi_errmsg *);
 int write_register_handler(thread *thr, udi_request *req, udi_errmsg *);
 int thr_state_handler(thread *thr, udi_request *req, udi_errmsg *);
+int next_instr_handler(thread *thr, udi_request *req, udi_errmsg *);
+int single_step_handler(thread *thr, udi_request *req, udi_errmsg *);
 int thr_invalid_handler(thread *thr, udi_request *req, udi_errmsg *);
 
 static
@@ -154,7 +159,9 @@ thr_request_handler thr_req_handlers[] = {
     thr_invalid_handler,
     thr_invalid_handler,
     thr_state_handler,
-    thr_state_handler
+    thr_state_handler,
+    next_instr_handler,
+    single_step_handler
 };
 
 
@@ -302,6 +309,8 @@ udi_request *read_request_from_fd(int fd) {
     if (errnum != 0) {
         if ( errnum > 0 ) {
             udi_printf("read_all failed: %s\n", strerror(errnum));
+        }else{
+            udi_printf("%s\n", "read_all failed");
         }
 
         free_request(request);
@@ -327,9 +336,11 @@ udi_request *read_request(thread **thr) {
 
     thread *iter = get_thread_list();
     while (iter != NULL) {
-        FD_SET(iter->request_handle, &read_set);
-        if ( iter->request_handle > max_fd ) {
-            max_fd = iter->request_handle;
+        if (!iter->dead) {
+            FD_SET(iter->request_handle, &read_set);
+            if ( iter->request_handle > max_fd ) {
+                max_fd = iter->request_handle;
+            }
         }
         iter = iter->next_thread;
     }
@@ -562,6 +573,45 @@ int send_valid_response_thr(thread *thr, udi_request_type req_type) {
     return write_response_to_thr_request(thr, &resp);
 }
 
+static
+int send_response(udi_response *resp, udi_errmsg *errmsg) {
+    int result = REQ_SUCCESS;
+    do {
+        if ( resp->packed_data == NULL ) {
+            snprintf(errmsg->msg, errmsg->size, "%s", "failed to pack response data");
+            udi_printf("%s\n", errmsg->msg);
+            result = REQ_ERROR;
+            break;
+        }
+
+        result = write_response_to_request(resp);
+    }while(0);
+
+    udi_free(resp->packed_data);
+
+    return result;
+}
+
+static
+int send_response_thr(thread *thr, udi_response *resp, udi_errmsg *errmsg) {
+    int result = REQ_SUCCESS;
+    do {
+        if (resp->packed_data == NULL ) {
+            snprintf(errmsg->msg, errmsg->size, 
+                    "failed to pack response data for thread 0x%"PRIx64,
+                    thr->id);
+            udi_printf("%s\n", errmsg->msg);
+            result = REQ_ERROR;
+        }
+
+        result = write_response_to_thr_request(thr, resp);
+    }while(0);
+
+    udi_free(resp->packed_data);
+
+    return result;
+}
+
 /**
  * Handles a process continue request
  *
@@ -572,6 +622,8 @@ int continue_handler(udi_request *req, udi_errmsg *errmsg) {
     if (unpack_request_continue(req, &sig_val, errmsg)) {
         return REQ_FAILURE;
     }
+
+    // TODO need to handle single step breakpoint
 
     // special handling for a continue from a breakpoint
     if ( continue_bp != NULL ) {
@@ -591,22 +643,34 @@ int continue_handler(udi_request *req, udi_errmsg *errmsg) {
     if (get_multithread_capable()) {
         thread *cur_thr = get_thread_list();
         while (cur_thr != NULL) {
+            thread *next_thread = cur_thr->next_thread;
             if (cur_thr->dead) {
                 if ( thread_death_handshake(cur_thr, errmsg) ) {
                     return REQ_ERROR;
                 }
             }
-            cur_thr = cur_thr->next_thread;
+            cur_thr= next_thread;
         }
     }
     
     int result = send_valid_response(UDI_REQ_CONTINUE);
 
     if ( result == REQ_SUCCESS ) {
-        pass_signal = sig_val;
-        kill(getpid(), sig_val);
+        if (!exiting) {
+            pass_signal = sig_val;
+            kill(getpid(), sig_val);
 
-        udi_printf("continuing with signal %d\n", sig_val);
+            udi_printf("continuing with signal %d\n", sig_val);
+        }else{
+            int remove_result = remove_udi_filesystem();
+            if (remove_result != 0) {
+                if (remove_result > 0) {
+                    udi_printf("failed to cleanup udi filesystem: %s\n", strerror(remove_result));
+                }else{
+                    udi_printf("failed to cleanup udi filesystem\n");
+                }
+            }
+        }
     }
 
     return result;
@@ -643,23 +707,10 @@ int read_handler(udi_request *req, udi_errmsg *errmsg) {
         return REQ_FAILURE;
     }
 
-    // Create the response
     udi_response resp = create_response_read(memory_read, num_bytes);
+    int result = send_response(&resp, errmsg);
 
-    int result = 0;
-    do {
-        if ( resp.packed_data == NULL ) {
-            snprintf(errmsg->msg, errmsg->size, "%s", "failed to pack response data");
-            udi_printf("%s", "failed to pack response data for read request");
-            result = REQ_ERROR;
-            break;
-        }
-
-        result = write_response_to_request(&resp);
-    }while(0);
-
-    if ( memory_read != NULL ) udi_free(memory_read);
-    if ( resp.packed_data != NULL ) udi_free(resp.packed_data);
+    udi_free(memory_read);
 
     return result;
 }
@@ -919,30 +970,19 @@ int read_register_handler(thread *thr, udi_request *req, udi_errmsg *errmsg) {
     if (!thr->event_state.context_valid) {
         snprintf(errmsg->msg, errmsg->size, "%s", "register context is unavailable");
         udi_printf("%s\n", errmsg->msg);
-        return REQ_FAILURE;
+        return REQ_ERROR;
     }
 
     udi_address value;
-    int result = get_register(get_architecture(), reg, errmsg, &value, &thr->event_state.context);
+    int result = get_register(get_architecture(), reg, errmsg, &value,
+            &thr->event_state.context);
     if ( result != 0 ) {
         return REQ_FAILURE;
     }
 
     udi_response resp = create_response_read_register(value);
-    do {
-        if (resp.packed_data == NULL) {
-            snprintf(errmsg->msg, errmsg->size, "%s", "failed to pack data for read register response");
-            udi_printf("%s\n", errmsg->msg);
-            result = REQ_ERROR;
-            break;
-        }
 
-        result = write_response_to_thr_request(thr, &resp);
-    }while (0);
-
-    udi_free(resp.packed_data); 
-
-    return result;
+    return send_response_thr(thr, &resp, errmsg);
 }
 
 /**
@@ -963,16 +1003,66 @@ int write_register_handler(thread *thr, udi_request *req, udi_errmsg *errmsg) {
     if (!thr->event_state.context_valid) {
         snprintf(errmsg->msg, errmsg->size, "%s", "register context is unavailable");
         udi_printf("%s\n", errmsg->msg);
-        return REQ_FAILURE;
+        return REQ_ERROR;
     }
 
-    int result = set_register(get_architecture(), reg, errmsg, value, &thr->event_state.context);
+    int result = set_register(get_architecture(), reg, errmsg, value,
+            &thr->event_state.context);
     if (result != 0) {
         return REQ_FAILURE;
     }
 
     return send_valid_response_thr(thr, req->request_type);
 }
+
+/**
+ * Thread next instruction handler
+ *
+ * Standard request handler interface
+ */
+int next_instr_handler(thread *thr, udi_request *req, udi_errmsg *errmsg) {
+    if (!thr->event_state.context_valid) {
+        snprintf(errmsg->msg, errmsg->size, "%s", "register context unavailable");
+        udi_printf("%s\n", errmsg->msg);
+        return REQ_ERROR;
+    }
+
+    ucontext_t *context = &(thr->event_state.context);
+
+    udi_address pc = get_pc(context);
+    udi_address address = get_ctf_successor(pc, errmsg, context);
+    if (address == 0) {
+        snprintf(errmsg->msg, errmsg->size, 
+                "failed to determine successor instruction from 0x%"PRIx64, pc);
+        udi_printf("%s\n", errmsg->msg);
+        return REQ_FAILURE;
+    }
+
+    udi_response resp = create_response_next_instr(address);
+    return send_response_thr(thr, &resp, errmsg);
+}
+
+/**
+ * Thread single step handler
+ *
+ * Standard request handler interface
+ */
+int single_step_handler(thread *thr, udi_request *req, udi_errmsg *errmsg) {
+
+    uint16_t setting;
+    if (unpack_request_single_step(req, &setting, errmsg)) {
+        udi_printf("failed to unpack data for single step request: %s\n",
+                errmsg->msg);
+        return REQ_FAILURE;
+    }
+
+    uint16_t prev_setting = thr->single_step;
+    thr->single_step = setting;
+
+    udi_response resp = create_response_single_step(prev_setting);
+    return send_response_thr(thr, &resp, errmsg);
+}
+
 
 /**
  * Thread invalid request handler
@@ -1176,8 +1266,10 @@ event_result decode_breakpoint(thread *thr, breakpoint *bp, ucontext_t *context,
     result.failure = 0;
     result.wait_for_request = 1;
 
-    // Before creating the event, need to remove the breakpoint and indicate that a breakpoint continue
-    // will be required after the next continue
+    // TODO need to handle single step breakpoints
+
+    // Before creating the event, need to remove the breakpoint and indicate 
+    // that a breakpoint continue will be required after the next continue
     int remove_result = remove_breakpoint_for_continue(bp, errmsg);
     if ( remove_result != 0 ) {
         udi_printf("failed to remove breakpoint at 0x%"PRIx64"\n", bp->address);
@@ -1240,7 +1332,7 @@ event_result decode_breakpoint(thread *thr, breakpoint *bp, ucontext_t *context,
     last_bp_address = bp->address;
 
     if ( is_event_breakpoint(bp) ) {
-        udi_printf("Handling event breakpoint at 0x%"PRIx64"\n", bp->address);
+        udi_printf("handling event breakpoint at 0x%"PRIx64"\n", bp->address);
         return handle_event_breakpoint(bp, context, errmsg);
     }
 
@@ -1508,6 +1600,16 @@ static void global_variable_initialization() {
 }
 
 /**
+ * Removes the udi filesystem for this process on exit
+ */
+static
+int remove_udi_filesystem() {
+    // TODO
+    
+    return 0;
+}
+
+/**
  * Creates the necessary elements for the udi filesystem
  */
 static int create_udi_filesystem() {
@@ -1666,6 +1768,7 @@ int block_other_threads() {
         unsigned int sync_var = __sync_val_compare_and_swap(&(thread_barrier.sync_var), 0, 1);
         if (sync_var == 0) {
             thr->control_thread = 1;
+            udi_printf("thread 0x%"PRIx64" is the control thread\n", thr->id);
 
             int num_suspended = 0;
             thread *iter = get_thread_list();
@@ -1800,6 +1903,12 @@ int release_other_threads() {
                 }
             }
         }else{
+            // clear "lock" for future entrances to block_other_threads
+            //
+            // Note: it's possible that the sync var is already 0 when the first thread was created
+            // -- just ignore this case as the below code handles this case correctly
+            __sync_val_compare_and_swap(&(thread_barrier.sync_var), 1, 0);
+
             // release the other threads, if they should be running
             iter = get_thread_list();
             while ( iter != NULL ) {
@@ -1820,11 +1929,6 @@ int release_other_threads() {
 
             udi_printf("thread 0x%"PRIx64" released other threads\n", get_user_thread_id());
 
-            // clear "lock" for future entrances to block_other_threads
-            //
-            // Note: it's possible that the sync var is already 0 when the first thread was created
-            // -- just ignore this case as the below code handles this case correctly
-            __sync_val_compare_and_swap(&(thread_barrier.sync_var), 1, 0);
 
             if ( thr != NULL && thr->ts == UDI_TS_SUSPENDED ) {
                 // If the current thread was suspended in this signal handler call, block here
@@ -2147,6 +2251,8 @@ int thread_death_handshake(thread *thr, udi_errmsg *errmsg) {
     udi_free(thread_dir);
     udi_free(response_file);
     udi_free(request_file);
+
+    destroy_thread(thr);
 
     return 0;
 }

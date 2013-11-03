@@ -34,6 +34,10 @@
 #include <errno.h>
 #include <inttypes.h>
 
+#ifndef BREAKPOINT_HASH_SIZE
+#define BREAKPOINT_HASH_SIZE 256
+#endif
+
 const int REQ_SUCCESS = 0; ///< Request processed successfully
 const int REQ_ERROR = -1; ///< Unrecoverable failure caused by environment/OS error
 const int REQ_FAILURE = -2; ///< Failure to process request due to invalid arguments
@@ -174,7 +178,12 @@ int write_memory(void *dest, const void *src, size_t num_bytes, udi_errmsg *errm
 
 // breakpoint implementation
 
-static breakpoint *breakpoints = NULL;
+static breakpoint *breakpoints[BREAKPOINT_HASH_SIZE];
+
+static inline
+unsigned int breakpoint_hash(udi_address address) {
+    return (unsigned int)(address % BREAKPOINT_HASH_SIZE);
+}
 
 /**
  * Creates a breakpoint at the specified address
@@ -196,12 +205,15 @@ breakpoint *create_breakpoint(udi_address breakpoint_addr) {
     new_breakpoint->address = breakpoint_addr;
     new_breakpoint->in_memory = 0;
 
-    // Add the breakpoint to the end of the linked list
-    if ( breakpoints == NULL ) {
-        breakpoints = new_breakpoint;
+    unsigned int hash = breakpoint_hash(breakpoint_addr);
+
+    // Add the breakpoint to the hash
+    breakpoint *current_bp = breakpoints[hash];
+    if (current_bp == NULL) {
+        breakpoints[hash] = new_breakpoint;
         new_breakpoint->next_breakpoint = NULL;
     }else{
-        breakpoint *tmp_breakpoint = breakpoints;
+        breakpoint *tmp_breakpoint = current_bp;
         while(1) {
             if ( tmp_breakpoint->address == new_breakpoint->address ) {
                 // Use the existing breakpoint
@@ -290,8 +302,10 @@ int delete_breakpoint(breakpoint *bp, udi_errmsg *errmsg) {
 
     if ( remove_result ) return remove_result;
 
-    breakpoint *tmp_breakpoint = breakpoints;
-    breakpoint *prev_breakpoint = breakpoints;
+    unsigned int hash = breakpoint_hash(bp->address);
+
+    breakpoint *tmp_breakpoint = breakpoints[hash];
+    breakpoint *prev_breakpoint = breakpoints[hash];
 
     while ( tmp_breakpoint != NULL ) {
         if ( tmp_breakpoint->address == bp->address ) break;
@@ -306,8 +320,9 @@ int delete_breakpoint(breakpoint *bp, udi_errmsg *errmsg) {
         return -1;
     }
 
-    if (tmp_breakpoint == breakpoints) {
-        breakpoints = NULL;
+    // single element in hash table bucket
+    if ( prev_breakpoint == tmp_breakpoint ) {
+        breakpoints[hash] = NULL;
     }else{
         prev_breakpoint->next_breakpoint = tmp_breakpoint->next_breakpoint;
     }
@@ -325,7 +340,7 @@ int delete_breakpoint(breakpoint *bp, udi_errmsg *errmsg) {
  * @return the found breakpoint (NULL if not found)
  */
 breakpoint *find_breakpoint(udi_address breakpoint_addr) {
-    breakpoint *tmp_breakpoint = breakpoints;
+    breakpoint *tmp_breakpoint = breakpoints[breakpoint_hash(breakpoint_addr)];
 
     while ( tmp_breakpoint != NULL ) {
         if ( tmp_breakpoint->address == breakpoint_addr ) break;

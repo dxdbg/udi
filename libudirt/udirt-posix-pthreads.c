@@ -242,33 +242,33 @@ thread *create_thread(uint64_t tid) {
 }
 
 /**
+ * Destroys the specified thread structure
  * Destroys the thread structure with the specified thread id, does nothing if no thread
  * exists with the specified thread id
  */
-static
-void destroy_thread(uint64_t tid) {
+void destroy_thread(thread *thr) {
 
-    thread *thr = threads;
+    thread *iter = threads;
     thread *last_thread = threads;
-    while (thr != NULL) {
-        if (thr->id == tid) break;
+    while (iter != NULL) {
+        if (iter == thr) break;
 
-        last_thread = thr;
-        thr = thr->next_thread;
+        last_thread = iter;
+        iter = iter->next_thread;
     }
 
-    if (thr == NULL) return;
+    if (iter == NULL) return;
 
-    if (thr == threads) {
+    if (iter == threads) {
         threads = NULL;
     }else{
-        last_thread->next_thread = thr->next_thread;
+        last_thread->next_thread = iter->next_thread;
     }
 
-    close(thr->control_write);
-    close(thr->control_read);
+    close(iter->control_write);
+    close(iter->control_read);
 
-    udi_free(thr);
+    udi_free(iter);
     num_threads--;
 }
 
@@ -413,8 +413,6 @@ event_result handle_thread_death(const ucontext_t *context, udi_errmsg *errmsg) 
             result.failure = 1;
             break;
         }
-
-        destroy_thread(tid);
 
         udi_event_internal event = create_event_thread_death(tid);
         result.failure = write_event(&event);

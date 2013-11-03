@@ -141,6 +141,8 @@ udi_response create_response_read(const void *data, udi_length num_bytes);
 udi_response create_response_init(udi_version_e protocol_version,
         udi_arch_e arch, int multithread, uint64_t tid);
 udi_response create_response_read_register(udi_address value);
+udi_response create_response_next_instr(udi_address value);
+udi_response create_response_single_step(uint16_t setting);
 
 typedef struct thread_state_struct {
     uint64_t tid;
@@ -154,6 +156,8 @@ int unpack_response_init(udi_response *resp,  uint32_t *protocol_version,
         udi_arch_e *architecture, int *multithread_capable, uint64_t *tid);
 int unpack_response_state(udi_response *resp, int *num_threads, thread_state **states);
 int unpack_response_read_register(udi_response *resp, udi_address *value);
+int unpack_response_next_instr(udi_response *resp, udi_address *value);
+int unpack_response_single_step(udi_response *resp, uint16_t *setting);
 
 int unpack_request_continue(udi_request *req, uint32_t *sig_val, udi_errmsg *errmsg);
 int unpack_request_read(udi_request *req, udi_address *addr, udi_length *num_bytes, udi_errmsg *errmsg);
@@ -163,6 +167,7 @@ int unpack_request_breakpoint_create(udi_request *req, udi_address *addr, udi_er
 int unpack_request_breakpoint(udi_request *req, udi_address *addr, udi_errmsg *errmsg);
 int unpack_request_read_register(udi_request *req, uint32_t *reg, udi_errmsg *errmsg);
 int unpack_request_write_register(udi_request *req, uint32_t *reg, udi_address *value, udi_errmsg *errmsg);
+int unpack_request_single_step(udi_request *req, uint16_t *setting, udi_errmsg *errmsg);
 
 udi_request create_request_breakpoint_create(udi_address addr);
 udi_request create_request_breakpoint(udi_request_type request_type, udi_address addr);
@@ -173,6 +178,8 @@ udi_request create_request_state();
 udi_request create_request_thr_state(udi_thread_state_e state);
 udi_request create_request_read_reg(udi_register_e reg);
 udi_request create_request_write_reg(udi_register_e reg, udi_address value);
+udi_request create_request_next_instr();
+udi_request create_request_single_step(uint16_t setting);
 
 #ifdef __cplusplus
 } // extern C

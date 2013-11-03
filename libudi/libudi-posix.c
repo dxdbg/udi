@@ -1000,6 +1000,9 @@ udi_event *wait_for_events(udi_process *procs[], int num_procs) {
                     current_event->next_event = new_event;
                     current_event = new_event;
                 }
+
+                // The process is no longer running
+                procs[i]->running = 0;
             }
         }
 

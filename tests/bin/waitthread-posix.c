@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
 
     fclose(fifo);
 
-    unlink(FIFO_NAME);
+    unlink(fifo_name);
 
     return EXIT_SUCCESS;
 }

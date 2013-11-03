@@ -182,6 +182,7 @@ udi_process *create_process(const char *executable, char * const argv[],
         proc->error_code = UDI_ERROR_NONE;
         proc->errmsg.size = ERRMSG_SIZE;
         proc->errmsg.msg[ERRMSG_SIZE-1] = '\0';
+        proc->running = 0;
 
         if ( config->root_dir != NULL ) {
             if ( set_root_dir(proc, config->root_dir) != 0 ) {
@@ -367,6 +368,15 @@ udi_thread *get_initial_thread(udi_process *proc) {
 }
 
 /**
+ * @param proc the process handle
+ *
+ * @return non-zero if the process has been continued, but events haven't been received yet
+ */
+int is_running(udi_process *proc) {
+    return proc->running;
+}
+
+/**
  * Gets the next thread
  * 
  * @param thr the thread
@@ -414,7 +424,12 @@ udi_error_e submit_request(udi_process *proc,
     udi_error_e error_code = UDI_ERROR_NONE;
 
     do {
-        // Perform the request
+        if (proc->running) {
+            error_code = UDI_ERROR_REQUEST;
+            snprintf(proc->errmsg.msg, ERRMSG_SIZE-1, "process[%d] is running, cannot send request",
+                    proc->pid);
+            break;
+        }
 
         int valid_request_type = 1;
         switch (req->request_type) {
@@ -438,6 +453,7 @@ udi_error_e submit_request(udi_process *proc,
             }
         }
 
+        // Perform the request
         if ( write_request(req, proc) != 0 ) {
             udi_printf("failed to write %s\n", desc);
             error_code = UDI_ERROR_LIBRARY;
@@ -779,10 +795,23 @@ udi_error_e get_pc(udi_thread *thr, udi_address *pc) {
  * @return the result of the operation
  */
 udi_error_e continue_process(udi_process *proc) {
+    if (proc->running) {
+        snprintf(proc->errmsg.msg, proc->errmsg.size, "process[%d] is already running",
+                proc->pid);
+        udi_printf("%s\n", proc->errmsg.msg);
+        return UDI_ERROR_REQUEST;
+    }
+
     udi_request req = create_request_continue(0);
 
-    return submit_request_noresp(proc, &req, "continue request",
+    udi_error_e result = submit_request_noresp(proc, &req, "continue request",
             __FILE__, __LINE__);
+    
+    if (result == UDI_ERROR_NONE) {
+        proc->running = 1;
+    }
+
+    return result;
 }
 
 /**

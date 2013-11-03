@@ -76,6 +76,8 @@ struct sigaction app_actions[NUM_SIGNALS];
 int signal_map[MAX_SIGNAL_NUM]; // Used to map signals to their application action
 struct sigaction default_lib_action;
 
+int exiting = 0;
+
 // wrapper function pointers
 sigaction_type real_sigaction;
 fork_type real_fork;
@@ -236,6 +238,7 @@ event_result handle_exit_breakpoint(const ucontext_t *context, udi_errmsg *errms
     }
 
     udi_printf("exit entered with status %d\n", exit_result.status);
+    exiting = 1;
 
     // create the event
     udi_event_internal exit_event = create_event_exit(get_user_thread_id(), exit_result.status);

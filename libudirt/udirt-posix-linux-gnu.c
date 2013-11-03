@@ -503,7 +503,6 @@ uint64_t initialize_thread(udi_errmsg *errmsg) {
  *
  * @return the tid for the finalized thread, 0 on error
  */   
-volatile int value = 0;
 uint64_t finalize_thread(udi_errmsg *errmsg) {
 
     /* for some reason, libthread_db is not returning consistent results for td_thr_event_getmsg
