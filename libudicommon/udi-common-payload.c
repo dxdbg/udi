@@ -349,6 +349,42 @@ udi_response create_response_read_register(udi_address value) {
 }
 
 /**
+ * Creates a next instruction response
+ *
+ * @param value the address of the next instruction to execute
+ *
+ * @return the created response
+ */
+udi_response create_response_next_instr(udi_address value) {
+    udi_response instr_response;
+    instr_response.response_type = UDI_RESP_VALID;
+    instr_response.request_type = UDI_REQ_NEXT_INSTRUCTION;
+    instr_response.length = sizeof(udi_address);
+    instr_response.packed_data = udi_pack_data(instr_response.length,
+            UDI_DATATYPE_ADDRESS, value);
+
+    return instr_response;
+}
+
+/**
+ * Creates a single step respone
+ *
+ * @param setting the previous single step setting
+ *
+ * @return the created response
+ */
+udi_response create_response_single_step(uint16_t setting) {
+    udi_response resp;
+    resp.response_type = UDI_RESP_VALID;
+    resp.request_type = UDI_REQ_SINGLESTEP;
+    resp.length = sizeof(uint16_t);
+    resp.packed_data = udi_pack_data(resp.length,
+            UDI_DATATYPE_ADDRESS, setting);
+
+    return resp;
+}
+
+/**
  * Creates a state response
  *
  * @param num_threads the number of threads
@@ -547,6 +583,25 @@ int unpack_request_write_register(udi_request *req, uint32_t *reg, udi_address *
 }
 
 /**
+ * Unpack data for the single step request
+ *
+ * @param req the request
+ * @param setting the new single step setting
+ * @param errmsg the error message populated on error
+ *
+ * @return 0 on success; non-zero otherwise
+ */
+int unpack_request_single_step(udi_request *req, uint16_t *setting, udi_errmsg *errmsg) {
+    if (udi_unpack_data(req->packed_data, req->length, UDI_DATATYPE_INT16, setting))
+    {
+        snprintf(errmsg->msg, errmsg->size, "%s", "failed to parse single step request");
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
  * Creates a request to create a breakpoint
  *
  * @param addr the address for the breakpoint
@@ -714,6 +769,37 @@ udi_request create_request_write_reg(udi_register_e reg, udi_address value) {
 }
 
 /**
+ * Create a request to get the next instruction
+ *
+ * @return the created request
+ */
+udi_request create_request_next_instr() {
+    udi_request req;
+    req.request_type = UDI_REQ_NEXT_INSTRUCTION;
+    req.length = 0;
+    req.packed_data = NULL;
+
+    return req;
+}
+
+/**
+ * Create the single step
+ *
+ * @param setting the new single step setting
+ *
+ * @return the created request
+ */
+udi_request create_request_single_step(uint16_t setting) {
+    udi_request req;
+    req.request_type = UDI_REQ_SINGLESTEP;
+    req.length = sizeof(uint16_t);
+    req.packed_data = udi_pack_data(req.length,
+            UDI_DATATYPE_INT16, setting);
+
+    return req;
+}
+
+/**
  * Unpacks the read response
  *
  * @param resp the response
@@ -762,6 +848,39 @@ int unpack_response_error(udi_response *resp, udi_length *size, char **errmsg) {
 
     if (udi_unpack_data(resp->packed_data, resp->length,
                 UDI_DATATYPE_BYTESTREAM, size, errmsg)) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Unpacks the next instruction response into the specified parameters
+ *
+ * @param resp the response
+ * @param value the next instruction address
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int unpack_response_next_instr(udi_response *resp, udi_address *value) {
+
+    if (udi_unpack_data(resp->packed_data, resp->length,
+                UDI_DATATYPE_ADDRESS, value)) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * Unpacks the single step response into the specified parameters
+ *
+ * @param resp the response
+ * @param setting the previous single step setting
+ */
+int unpack_response_single_step(udi_response *resp, uint16_t *setting) {
+    if (udi_unpack_data(resp->packed_data, resp->length,
+                UDI_DATATYPE_INT16, setting)) {
         return -1;
     }
 

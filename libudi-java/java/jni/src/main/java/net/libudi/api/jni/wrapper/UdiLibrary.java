@@ -85,6 +85,14 @@ public interface UdiLibrary extends Library {
     Pointer get_initial_thread(Pointer process);
 
     /**
+     * @param process the process
+     *
+     * @return non-zero if the process is in a running state. That is, the process has been continued and no events
+     * have been received for the process.
+     */
+    int is_running(Pointer process);
+
+    /**
      * The last error message recorded for the specified process
      *
      * @param process the process

@@ -184,6 +184,8 @@ typedef enum
     UDI_REQ_DELETE_BREAKPOINT,
     UDI_REQ_THREAD_SUSPEND,
     UDI_REQ_THREAD_RESUME,
+    UDI_REQ_NEXT_INSTRUCTION,
+    UDI_REQ_SINGLESTEP,
     UDI_REQ_MAX,
     UDI_REQ_INVALID,
 } udi_request_type_e;
@@ -339,7 +341,32 @@ typedef enum
  *      None
  */
 
-/* State request and response
+/**
+ * Thread next instruction request and response
+ *
+ * It is an error to send this request to the process request pipe
+ *
+ * Request arguments:
+ *      None
+ *
+ * Response values:
+ *      UDI_DATATYPE_ADDRESS - the address of the next instruction to be executed
+ */
+
+/**
+ * Thread singlestep setting request and response
+ *
+ * It is an error to send this request to the process request pipe
+ *
+ * Request arguments:
+ *      UDI_DATATYPE_INT16 - non-zero to enable single stepping -- not include to just retrieve the value
+ *
+ * Response values:
+ *      UDI_DATATYPE_INT16 - the previous setting value
+ */
+
+/* 
+ * State request and response
  *
  * Request arguments:
  *      None
@@ -366,6 +393,7 @@ typedef enum
     UDI_EVENT_PROCESS_EXIT,
     UDI_EVENT_PROCESS_FORK,
     UDI_EVENT_PROCESS_EXEC,
+    UDI_EVENT_SINGLE_STEP,
     UDI_EVENT_MAX,
     UDI_EVENT_UNKNOWN
 } udi_event_type_e;
@@ -420,6 +448,10 @@ typedef enum
  * Process fork data
  *
  * UDI_DATATYPE_INT32   - the process id for the new process
+ */
+
+/*
+ * Thread single step event
  */
 
 #ifdef __cplusplus

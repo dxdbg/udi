@@ -32,6 +32,7 @@
 
 #include <sstream>
 #include <cerrno>
+#include <cstring>
 #include <map>
 
 #include <stdio.h>
@@ -68,6 +69,15 @@ void release_debuggee_threads(udi_process *proc) {
 
 }
 
+static
+string get_pipe_name(udi_process *proc) {
+    stringstream pipe_name_stream;
+
+    pipe_name_stream << PIPE_BASE_NAME << get_proc_pid(proc);
+
+    return pipe_name_stream.str();
+}
+
 /**
  * Cleans up the resources for the debuggee pipe
  *
@@ -90,11 +100,7 @@ void cleanup_debuggee_pipe(udi_process *proc) {
  */
 void wait_for_debuggee_pipe(udi_process *proc) {
 
-    stringstream pipe_name_stream;
-
-    pipe_name_stream << PIPE_BASE_NAME << get_proc_pid(proc);
-
-    string pipe_name = pipe_name_stream.str();
+    string pipe_name = get_pipe_name(proc);
 
     struct stat pipe_stat;
 

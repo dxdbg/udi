@@ -75,6 +75,12 @@ public interface UdiProcess extends AutoCloseable {
     UdiThread getInitialThread();
 
     /**
+     * @return true, if the process is running. That is, if the process has been continued and hasn't been stopped by
+     * an event yet.
+     */
+    boolean isRunning();
+
+    /**
      * Continues the process
      *
      * @throws UdiException on error

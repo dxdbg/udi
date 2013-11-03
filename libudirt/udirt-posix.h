@@ -71,6 +71,7 @@ int wait_and_execute_command(udi_errmsg *errmsg, thread **thr);
 void reinit_udi_rt();
 
 // exit event handling
+extern int exiting; // indicates that the process will exit on the next continue request
 typedef struct exit_result_struct {
     int status;
     int failure;
@@ -126,6 +127,7 @@ struct thread_struct {
     int control_read;
     int control_thread;
     int suspend_pending;
+    int single_step;
     signal_state event_state;
     struct thread_struct *next_thread;
 };
@@ -167,6 +169,7 @@ uint64_t initialize_thread(udi_errmsg *errmsg);
 
 int thread_death_callback(thread *thr, udi_errmsg *errmsg);
 uint64_t finalize_thread(udi_errmsg *errmsg);
+void destroy_thread(thread *thr);
 
 #ifdef __cplusplus
 } // extern C

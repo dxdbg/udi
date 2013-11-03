@@ -71,6 +71,7 @@ int get_proc_pid(udi_process *proc);
 udi_arch_e get_proc_architecture(udi_process *proc);
 int get_multithread_capable(udi_process *proc);
 udi_thread *get_initial_thread(udi_process *proc);
+int is_running(udi_process *proc);
 
 // Thread properties //
 void set_thread_user_data(udi_thread *thr, void *user_data);
@@ -83,6 +84,7 @@ udi_thread *get_next_thread(udi_thread *thr);
 // Thread control //
 udi_error_e resume_thread(udi_thread *thr);
 udi_error_e suspend_thread(udi_thread *thr);
+udi_error_e set_singlestep(int enable);
 
 // Breakpoint interface //
 udi_error_e create_breakpoint(udi_process *proc, udi_address addr);
