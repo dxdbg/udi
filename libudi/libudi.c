@@ -747,16 +747,22 @@ udi_error_e register_access(udi_thread *thr, int write, udi_register_e reg, udi_
         error_code = submit_request_thr(thr, &request, &resp, "register access request",
                 __FILE__, __LINE__);
 
-        if (error_code != UDI_ERROR_NONE) return error_code;
+        if (error_code != UDI_ERROR_NONE) break;
 
         if ( resp->request_type == UDI_REQ_READ_REGISTER ) {
             if (unpack_response_read_register(resp, value)) {
-                udi_printf("%s\n", "failed to unpack response for read register request");
+                snprintf(thr->proc->errmsg.msg,
+                         thr->proc->errmsg.size,
+                         "%s",
+                         "failed to unpack response for read register request");
+                udi_printf("%s\n", thr->proc->errmsg.msg);
                 error_code = UDI_ERROR_LIBRARY;
                 break;
             }
         }
     }while(0);
+
+    free_response(resp);
 
     return error_code;
 }
@@ -785,6 +791,41 @@ udi_error_e get_pc(udi_thread *thr, udi_address *pc) {
     }
 
     return register_access(thr, 0, reg, pc);
+}
+
+/**
+ * Gets the next instruction to be executed by the specified thread
+ *
+ * @param thr the thread
+ * @param instr the output parameter for the instruction address
+ *
+ * @return the result of the operation
+ */
+udi_error_e get_next_instruction(udi_thread *thr, udi_address *instr) {
+
+    udi_error_e error_code = UDI_ERROR_NONE;
+    udi_request req = create_request_next_instr();
+
+    udi_response *resp = NULL;
+    do {
+        error_code = submit_request_thr(thr, &req, &resp, "next instruction", __FILE__,
+                __LINE__);
+
+        if (error_code != UDI_ERROR_NONE) break;
+
+        if ( unpack_response_next_instr(resp, instr) ) {
+            snprintf(thr->proc->errmsg.msg,
+                     thr->proc->errmsg.size,
+                     "%s",
+                     "failed to unpack response to next instruction request");
+            udi_printf("%s\n", thr->proc->errmsg.msg);
+            error_code = UDI_ERROR_LIBRARY;
+        }
+    }while(0);
+
+    free_response(resp);
+
+    return error_code;
 }
 
 /**
@@ -873,6 +914,44 @@ udi_error_e suspend_thread(udi_thread *thr) {
     udi_request req = create_request_thr_state(UDI_TS_SUSPENDED);
 
     return submit_request_thr_noresp(thr, &req, "thread suspend", __FILE__, __LINE__);
+}
+
+/**
+ * Sets the single step setting for a specific thread
+ *
+ * @param thr the thread
+ * @param enable the new setting
+ *
+ * @return the result of the operation
+ */
+udi_error_e set_single_step(udi_thread *thr, int enable) {
+
+    udi_error_e error_code = UDI_ERROR_NONE;
+    udi_request req = create_request_single_step(enable);
+
+    udi_response *resp = NULL;
+    do {
+        error_code = submit_request_thr(thr, &req, &resp, "single step modification",
+                __FILE__, __LINE__);
+
+        if (error_code != UDI_ERROR_NONE) break;
+
+        // Cache the setting
+        thr->single_step = enable;
+    }while(0);
+
+    free_response(resp);
+
+    return error_code;
+}
+
+/**
+ * @param thr the thread
+ *
+ * @return the current single step setting for the specified thread
+ */
+int get_single_step(udi_thread *thr) {
+    return thr->single_step;
 }
 
 /**
@@ -1094,6 +1173,11 @@ udi_event *decode_event(udi_process *proc, udi_event_internal *event) {
                 return NULL;
             }
             ret_event->event_data = break_event;
+            break;
+        }
+        // The following events don't have any extra information
+        case UDI_EVENT_SINGLE_STEP:
+        {
             break;
         }
         default:

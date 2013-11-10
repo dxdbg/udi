@@ -57,6 +57,10 @@ const char *request_type_str(udi_request_type req_type) {
         CASE_TO_STR(UDI_REQ_DELETE_BREAKPOINT);
         CASE_TO_STR(UDI_REQ_THREAD_SUSPEND);
         CASE_TO_STR(UDI_REQ_THREAD_RESUME);
+        CASE_TO_STR(UDI_REQ_READ_REGISTER);
+        CASE_TO_STR(UDI_REQ_WRITE_REGISTER);
+        CASE_TO_STR(UDI_REQ_NEXT_INSTRUCTION);
+        CASE_TO_STR(UDI_REQ_SINGLE_STEP);
         CASE_TO_STR(UDI_REQ_MAX);
         CASE_TO_STR(UDI_REQ_INVALID);
         default: return "UNKNOWN";
@@ -73,6 +77,7 @@ const char *event_type_str(udi_event_type event_type) {
         CASE_TO_STR(UDI_EVENT_PROCESS_EXIT);
         CASE_TO_STR(UDI_EVENT_PROCESS_FORK);
         CASE_TO_STR(UDI_EVENT_PROCESS_EXEC);
+        CASE_TO_STR(UDI_EVENT_SINGLE_STEP);
         CASE_TO_STR(UDI_EVENT_MAX);
         CASE_TO_STR(UDI_EVENT_UNKNOWN);
         default: return "UNSPECIFIED";

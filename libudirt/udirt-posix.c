@@ -623,8 +623,6 @@ int continue_handler(udi_request *req, udi_errmsg *errmsg) {
         return REQ_FAILURE;
     }
 
-    // TODO need to handle single step breakpoint
-
     // special handling for a continue from a breakpoint
     if ( continue_bp != NULL ) {
         int install_result = install_breakpoint(continue_bp, errmsg);
@@ -1059,6 +1057,16 @@ int single_step_handler(thread *thr, udi_request *req, udi_errmsg *errmsg) {
     uint16_t prev_setting = thr->single_step;
     thr->single_step = setting;
 
+    // Need to remove an existing single step breakpoint if it already exists
+    if ( !thr->single_step && thr->single_step_bp != NULL) {
+        if ( delete_breakpoint(thr->single_step_bp, errmsg) ) {
+            udi_printf("failed to delete existing single step breakpoint: %s\n",
+                    errmsg->msg);
+            return REQ_FAILURE;
+        }
+        thr->single_step_bp = NULL;
+    }
+
     udi_response resp = create_response_single_step(prev_setting);
     return send_response_thr(thr, &resp, errmsg);
 }
@@ -1249,6 +1257,19 @@ static event_result decode_segv(const siginfo_t *siginfo, ucontext_t *context, u
     return result;
 }
 
+static
+int write_single_step_event(thread *thr) {
+    udi_event_internal ss_event = create_event_single_step(thr->id);
+    
+    int result = write_event(&ss_event);
+
+    if (result != 0) {
+        udi_printf("failed to report single step event for thread 0x%"PRIx64"\n", thr->id);
+    }
+
+    return result;
+}
+
 /**
  * Handles the breakpoint event that occurred at the specified breakpoint
  *
@@ -1266,7 +1287,31 @@ event_result decode_breakpoint(thread *thr, breakpoint *bp, ucontext_t *context,
     result.failure = 0;
     result.wait_for_request = 1;
 
-    // TODO need to handle single step breakpoints
+    rewind_pc(context);
+    if (thr != NULL) {
+        // make sure a read of the pc at a breakpoint returns the expected value
+        rewind_pc(&thr->event_state.context); 
+    }
+
+    // Handle single step breakpoints
+    if (thr != NULL && thr->single_step_bp == bp) {
+        udi_printf("single step breakpoint at 0x%"PRIx64"\n", bp->address);
+
+        int delete_result = delete_breakpoint(bp, errmsg);
+        if (delete_result != 0) {
+            udi_printf("failed to delete breakpoint at 0x%"PRIx64"\n", bp->address);
+            result.failure = delete_result;
+        }
+
+        int write_result = write_single_step_event(thr);
+        if ( write_result != 0 ) {
+            result.failure = write_result;
+        }
+
+        thr->single_step_bp = NULL;
+
+        return result;
+    }
 
     // Before creating the event, need to remove the breakpoint and indicate 
     // that a breakpoint continue will be required after the next continue
@@ -1275,13 +1320,6 @@ event_result decode_breakpoint(thread *thr, breakpoint *bp, ucontext_t *context,
         udi_printf("failed to remove breakpoint at 0x%"PRIx64"\n", bp->address);
         result.failure = remove_result;
         return result;
-    }
-
-    rewind_pc(context);
-
-    if (thr != NULL) {
-        // make sure a read of the pc at a breakpoint returns the expected value
-        rewind_pc(&thr->event_state.context); 
     }
 
     if ( continue_bp == bp ) {
@@ -1318,6 +1356,13 @@ event_result decode_breakpoint(thread *thr, breakpoint *bp, ucontext_t *context,
             udi_printf("Not re-installing breakpoint at 0x%"PRIx64"\n", last_bp_address);
         }
 
+        // Need to report single step event if this continue_bp was used for single stepping
+        if (result.failure == 0 && thr != NULL && thr->single_step) {
+            udi_printf("%s\n", "Using continue breakpoint as single step breakpoint");
+            result.failure = write_single_step_event(thr);
+            result.wait_for_request = 1;
+        }
+
         return result;
     }
 
@@ -1329,6 +1374,12 @@ event_result decode_breakpoint(thread *thr, breakpoint *bp, ucontext_t *context,
     }
 
     continue_bp = create_breakpoint(successor);
+    if (continue_bp == NULL) {
+        udi_printf("%s\n", "failed to create continue breakpoint");
+        result.failure = 1;
+        return result;
+    }
+
     last_bp_address = bp->address;
 
     if ( is_event_breakpoint(bp) ) {
@@ -1336,12 +1387,20 @@ event_result decode_breakpoint(thread *thr, breakpoint *bp, ucontext_t *context,
         return handle_event_breakpoint(bp, context, errmsg);
     }
 
+    // Handle the case where this thread hit another thread-specific breakpoint
+    // The thread should just be continued silently
+    if ( bp->thread != NULL && bp->thread != thr ) {
+        udi_printf("thread 0x%"PRIx64" hit breakpoint for thread 0x%"PRIx64"\n",
+                bp->thread->id, thr->id);
+        result.wait_for_request = 0;
+        return result;
+    }
+
     udi_printf("user breakpoint at 0x%"PRIx64"\n", bp->address);
 
     // create the event
-    udi_event_internal brkpt_event = create_event_breakpoint(get_user_thread_id(), bp->address);
+    udi_event_internal brkpt_event = create_event_breakpoint(thr->id, bp->address);
 
-    // Explicitly ignore errors as there is no way to report them
     do {
         if ( brkpt_event.packed_data == NULL ) {
             result.failure = 1;
@@ -1464,6 +1523,11 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
             udi_printf("<<< waiting thread 0x%"PRIx64" exiting signal handler\n", get_user_thread_id());
             return;
         }
+    }else if (continue_bp != NULL) {
+        if (thr != NULL ) {
+            thr->event_state.context = *context;
+            thr->event_state.context_valid = 1;
+        }
     }
 
     udi_printf("thread 0x%"PRIx64"/%u now handling signal %d\n",
@@ -1497,6 +1561,36 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
 
                 result.failure = write_event(&event);
                 break;
+            }
+        }
+
+        if ( thr != NULL && thr->single_step ) {
+            unsigned long pc = get_pc(context);
+            unsigned long successor = get_ctf_successor(pc, &errmsg, context);
+            if (successor == 0) {
+                udi_printf("failed to determine successor for instruction at 0x%"PRIx64"\n", pc);
+                result.failure = 1;
+            }else{
+                breakpoint *existing_bp = find_breakpoint(successor);
+
+                // If it is a continue breakpoint, it will be used as a single step breakpoint. If it
+                // is an event breakpoint or user breakpoint, no single step event will be
+                // generated
+                if ( existing_bp == NULL ) {
+                    thr->single_step_bp = create_breakpoint(successor);
+                    if (thr->single_step_bp == NULL) {
+                        udi_printf("failed to create single step breakpoint at 0x%"PRIx64"\n",
+                                successor);
+                        result.failure = 1;
+                    }else{
+                        int install_result = install_breakpoint(thr->single_step_bp, &errmsg);
+                        if (install_result != 0) {
+                            udi_printf("failed to install single step breakpoint at 0x%"PRIx64"\n",
+                                    successor);
+                            result.failure = install_result;
+                        }
+                    }
+                }
             }
         }
 

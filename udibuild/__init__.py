@@ -95,6 +95,7 @@ def GetSymbolAddressReadelf(program, binary, symbol):
 
     raise SCons.Errors.BuildError(errstr=symErrStr)
 
+
 def GetSymbolAddressNm(program, binary, symbol):
     raise SCons.Errors.BuildError(errstr='Unsupported symbol parser')
 
@@ -110,6 +111,15 @@ def GetSymbolAddress(binary, symbol):
         return GetSymbolAddressObjdump(objdump, binary, symbol)
     else:
         raise SCons.Errors.BuildError(errstr='Failed to locate symbol program')
+
+def GetSymbolLengthObjdump(program, binary, symbol):
+    ( symaddr, symlength ) = GetSymbolInfoObjdump(program, binary, symbol)
+
+    return int(symlength, 16)
+
+def GetSymbolLength(binary, symbol):
+    if objdump is not None:
+        return GetSymbolLengthObjdump(objdump, binary, symbol)
 
 def GetInstructionLengthObjdump(program, binary, symbol):
     # First get the length of the function

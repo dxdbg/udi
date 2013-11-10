@@ -268,6 +268,23 @@ udi_event_internal create_event_fork(uint64_t thread_id, uint32_t pid) {
 }
 
 /**
+ * Creates a single step event
+ *
+ * @param thread_id the id of the thread
+ *
+ * @return the created event
+ */
+udi_event_internal create_event_single_step(uint64_t thread_id) {
+    udi_event_internal result;
+    result.event_type = UDI_EVENT_SINGLE_STEP;
+    result.thread_id = thread_id;
+    result.length = 0;
+    result.packed_data = NULL;
+
+    return result;
+}
+
+/**
  * Creates an error response
  *
  * @return the created response
@@ -376,7 +393,7 @@ udi_response create_response_next_instr(udi_address value) {
 udi_response create_response_single_step(uint16_t setting) {
     udi_response resp;
     resp.response_type = UDI_RESP_VALID;
-    resp.request_type = UDI_REQ_SINGLESTEP;
+    resp.request_type = UDI_REQ_SINGLE_STEP;
     resp.length = sizeof(uint16_t);
     resp.packed_data = udi_pack_data(resp.length,
             UDI_DATATYPE_ADDRESS, setting);
@@ -791,7 +808,7 @@ udi_request create_request_next_instr() {
  */
 udi_request create_request_single_step(uint16_t setting) {
     udi_request req;
-    req.request_type = UDI_REQ_SINGLESTEP;
+    req.request_type = UDI_REQ_SINGLE_STEP;
     req.length = sizeof(uint16_t);
     req.packed_data = udi_pack_data(req.length,
             UDI_DATATYPE_INT16, setting);

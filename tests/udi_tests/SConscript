@@ -30,6 +30,10 @@ def build_binary_header(target, source, env):
         # symbol addresses
         target_file.write("#define SIMPLE_FUNCTION1 0x{0}\n".format(udibuild.GetSymbolAddress(bin_dir + 'simple', 'function1')))
         target_file.write("#define THREAD_BREAK_FUNC 0x{0}\n".format(udibuild.GetSymbolAddress(bin_dir + 'waitthread', 'breakpoint_func')))
+        target_file.write("#define SIMPLE_FUNCTION2 0x{0}\n".format(udibuild.GetSymbolAddress(bin_dir + 'simple', 'function2')))
+
+        # symbol lengths
+        target_file.write("#define SIMPLE_FUNCTION2_LENGTH {0}\n".format(udibuild.GetSymbolLength(bin_dir + 'simple', 'function2')))
 
         # instruction lengths
         target_file.write("#define SIMPLE_FUNCTION1_INST_LENGTH {0}\n".format(udibuild.GetInstructionLength(bin_dir + 'simple', 'function1')))

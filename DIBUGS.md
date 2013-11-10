@@ -1,7 +1,5 @@
------
-This file is attempt to create a list illustrating the prevalence and
+This file is an attempt to create a list illustrating the prevalence and 
 complexity of bugs in kernel provided debugger interfaces.
------
 
 FreeBSD
 -------

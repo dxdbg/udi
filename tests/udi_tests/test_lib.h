@@ -50,6 +50,7 @@ void wait_for_events(const std::set<udi_process *> &procs, EventCallback &callba
 
 void wait_for_exit(udi_thread *thr, int expected_status);
 void wait_for_breakpoint(udi_thread *thr, udi_address breakpoint);
+void wait_for_single_step(udi_thread *thr);
 
 udi_thread *wait_for_thread_create(udi_process *proc);
 void wait_for_thread_death(udi_thread *thr);

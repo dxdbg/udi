@@ -129,6 +129,7 @@ udi_event_internal create_event_exit(uint64_t thread_id, uint32_t exit_status);
 udi_event_internal create_event_thread_create(uint64_t creator_id, uint64_t new_id);
 udi_event_internal create_event_thread_death(uint64_t thread_id);
 udi_event_internal create_event_fork(uint64_t thread_id, uint32_t pid);
+udi_event_internal create_event_single_step(uint64_t thread_id);
 
 int unpack_event_error(udi_event_internal *event, char **errmsg, unsigned int *errmsg_size);
 int unpack_event_exit(udi_event_internal *event, int *exit_code);

@@ -128,6 +128,7 @@ struct thread_struct {
     int control_thread;
     int suspend_pending;
     int single_step;
+    breakpoint *single_step_bp;
     signal_state event_state;
     struct thread_struct *next_thread;
 };

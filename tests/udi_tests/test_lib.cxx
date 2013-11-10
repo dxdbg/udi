@@ -154,6 +154,7 @@ void wait_for_breakpoint(udi_thread *thr, udi_address breakpoint) {
 
     udi_event *event = wait_for_events(&proc, 1);
 
+    test_assert(event != NULL);
     test_assert(event->proc == proc);
     test_assert(event->thr == thr);
     test_assert(event->event_type == UDI_EVENT_BREAKPOINT);
@@ -161,6 +162,20 @@ void wait_for_breakpoint(udi_thread *thr, udi_address breakpoint) {
     udi_event_breakpoint *proc_breakpoint = (udi_event_breakpoint *)event->event_data;
     test_assert(proc_breakpoint->breakpoint_addr == breakpoint);
     test_assert(event->next_event == NULL);
+
+    free_event_list(event);
+}
+
+void wait_for_single_step(udi_thread *thr) {
+
+    udi_process *proc = get_process(thr);
+
+    udi_event *event = wait_for_events(&proc, 1);
+
+    test_assert(event != NULL);
+    test_assert(event->proc == proc);
+    test_assert(event->thr == thr);
+    test_assert(event->event_type == UDI_EVENT_SINGLE_STEP);
 
     free_event_list(event);
 }
@@ -176,6 +191,7 @@ void wait_for_exit(udi_thread *thr, int expected_status) {
     udi_process *proc = get_process(thr);
 
     udi_event *event = wait_for_events(&proc, 1);
+    test_assert(event != NULL);
     test_assert(event->proc == proc);
     test_assert(event->thr == thr);
     test_assert(event->event_type == UDI_EVENT_PROCESS_EXIT);

@@ -84,7 +84,8 @@ udi_thread *get_next_thread(udi_thread *thr);
 // Thread control //
 udi_error_e resume_thread(udi_thread *thr);
 udi_error_e suspend_thread(udi_thread *thr);
-udi_error_e set_singlestep(int enable);
+udi_error_e set_single_step(udi_thread *thr, int enable);
+int get_single_step(udi_thread *thr);
 
 // Breakpoint interface //
 udi_error_e create_breakpoint(udi_process *proc, udi_address addr);
@@ -99,6 +100,7 @@ udi_error_e mem_access(udi_process *proc, int write, void *value,
 // Register access interface //
 udi_error_e register_access(udi_thread *thr, int write, udi_register_e reg, udi_address *value);
 udi_error_e get_pc(udi_thread *thr, udi_address *pc);
+udi_error_e get_next_instruction(udi_thread *thr, udi_address *instr);
 
 // Error handling //
 const char *get_last_error_message(udi_process *proc);

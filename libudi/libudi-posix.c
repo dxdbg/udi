@@ -807,10 +807,12 @@ udi_thread *handle_thread_create(udi_process *proc, uint64_t tid) {
         udi_printf("malloc failed: %s\n", strerror(errno));
         return NULL;
     }
+    memset(thr, 0, sizeof(udi_thread));
     thr->tid = tid;
     thr->proc = proc;
     thr->next_thread = NULL;
     thr->state = UDI_TS_RUNNING;
+    thr->single_step = 0;
 
     // perform the handshake with the debuggee //
     
