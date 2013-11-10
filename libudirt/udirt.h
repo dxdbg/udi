@@ -104,7 +104,6 @@ typedef struct breakpoint_struct {
     udi_address address;
     unsigned char in_memory;
     thread *thread; // NULL if the breakpoint is set for all threads
-    unsigned char single_step;
     struct breakpoint_struct *next_breakpoint;
 } breakpoint;
 

@@ -1,9 +1,9 @@
-Design document for the Userland Debugger Interface (UDI)
+# Design document for the Userland Debugger Interface (UDI) #
 
 The UDI attempts to provide a full-featured debugger interface completely
 in userland with little to no support from the kernel.
 
-1 Motivation
+## 1 Motivation ##
 
 Debugger interfaces vary across all operating systems. POSIX does not specify a
 standard debugger interface and as such, all the Unices implement a different
@@ -16,7 +16,7 @@ by normal system usage. Thus, debugger interactions are a breeding ground for
 complex bugs. These problems make the implementation of a cross-platform
 debugger difficult.
 
-2 Proposed Solution
+## 2 Proposed Solution ##
 
 This project explores the implementation of a system debugger interface 
 completely in userland, in an effort to solve these previously stated
@@ -81,7 +81,7 @@ With an operating system provided debugger interface, the debugger can
 intercept these signals and stop them from being delivered. This cannot be done
 using UDI's approach.
 
-3 Debugger Interface Details
+## 3 Debugger Interface Details ##
 
 The debugger interface will be constructed using named pipes (or some similar
 mechanism). These named pipes will be used to create a pseudo-filesystem. The UDI
@@ -95,7 +95,7 @@ library creates the following file hierarchy:
         request     All requests are written into this file
         response    Receive thread-specific response from requests
 
-3.1 Process and thread control model
+## 3.1 Process and thread control model ##
 
 As stated earlier, the process and thread control model varies across current
 debugger interfaces. UDI presents a single process and thread control model
@@ -111,7 +111,7 @@ by UDI.
   (i.e. all threads must be stopped) -- all operations performed on a running
   process will be discarded
 
-3.2 Initialization
+## 3.2 Initialization ##
 
 Before attaching or creating a process, the debugger must create the root
 directory of the pseudo-filesystem. This will avoid race conditions when
@@ -127,7 +127,7 @@ debuggee.
 Once the debuggee completes the initialization for the process, the thread
 initialization handshake should be completed for the initial thread.
 
-3.2.1 Thread initialization
+## 3.2.1 Thread initialization ##
 
 When a thread is created, the debuggee library will create a request and 
 response file in the udi pseudo-filesystem in a directory named the
@@ -138,7 +138,7 @@ open the request file for writing and issue an INIT request. After issuing
 this request, the debugger should open the response file for reading and
 wait for the INIT response.
 
-3.2.2 Thread destruction
+## 3.2.2 Thread destruction ##
 
 When a thread dies, the debuggee library will deliver the thread death event.
 The debugger should close the request and response file for the thread prior to
@@ -147,7 +147,7 @@ upon if the request is for a thread for which a thread death event has already
 been reported. After the continue request is issued, the directory for the
 thread in the pseudo-filesystem will be removed by the debuggee.
 
-3.3 Debugging primitives
+## 3.3 Debugging primitives ##
 
 The following is an incomplete list of debugging primitives that can be
 provided by a debugging interface.
@@ -170,15 +170,15 @@ The UDI implements the following:
 
 * under construction *
 
-4. Library design
+## 4. Library design ##
 
 debuggee side             debugger side
 
-+----------+  <=======>  +--------+  +----------+
-| libudirt |  <  ipc  >  | libudi |  | libudidb |
-+----------+  <=======>  +--------+  +----------+
++----------+  <------->  +--------+
+| libudirt |  <  ipc  >  | libudi |
++----------+  <------->  +--------+
 
-4.1 Library dependencies
+# 4.1 Library dependencies #
 
 This section documents the various dependencies of each library in this
 project.
@@ -189,8 +189,3 @@ libudirt
 
 libudi
 * libc
-
-libudidb
-* libstdc++
-* libc
-* ... more coming
