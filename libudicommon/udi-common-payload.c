@@ -396,7 +396,7 @@ udi_response create_response_single_step(uint16_t setting) {
     resp.request_type = UDI_REQ_SINGLE_STEP;
     resp.length = sizeof(uint16_t);
     resp.packed_data = udi_pack_data(resp.length,
-            UDI_DATATYPE_ADDRESS, setting);
+            UDI_DATATYPE_INT16, setting);
 
     return resp;
 }

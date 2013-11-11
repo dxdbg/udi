@@ -379,8 +379,10 @@ int get_sym_addr(const char *object_name, const char *sym_name, unsigned long *a
         char *obj_base = basename(name);
 
         if (strcmp(object_name, obj_base) == 0) {
+            udi_free(name);
             return search_for_sym_in_obj(cur_link->l_name, sym_name, cur_link->l_addr, addr);
         }
+        udi_free(name);
         cur_link = cur_link->l_next;
     }
 
