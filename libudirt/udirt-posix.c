@@ -204,14 +204,16 @@ int single_thread_executing() {
 void udi_abort(const char *file, unsigned int line) {
     udi_printf("udi_abort at %s[%d]\n", file, line);
 
-    struct sigaction default_action;
-    memset(&default_action, 0, sizeof(struct sigaction));
-    default_action.sa_handler = SIG_DFL;
+    if ( real_sigaction ) {
+        struct sigaction default_action;
+        memset(&default_action, 0, sizeof(struct sigaction));
+        default_action.sa_handler = SIG_DFL;
 
-    // Need to avoid any user handlers
-    real_sigaction(SIGABRT, (struct sigaction *)&default_action, NULL);
+        // Need to avoid any user handlers
+        real_sigaction(SIGABRT, (struct sigaction *)&default_action, NULL);
 
-    disable_debugging();
+        disable_debugging();
+    }
 
     abort();
 }
@@ -1162,7 +1164,8 @@ int wait_and_execute_command(udi_errmsg *errmsg, thread **thr) {
     int result = 0;
 
     while(1) {
-        udi_request *req = read_request(thr);
+        udi_printf("%s\n", "waiting for request");
+        req = read_request(thr);
         if ( req == NULL ) {
             snprintf(errmsg->msg, errmsg->size, "%s", "failed to read command");
             udi_printf("%s\n", "failed to read request");
@@ -1171,6 +1174,7 @@ int wait_and_execute_command(udi_errmsg *errmsg, thread **thr) {
         }
 
         if ( *thr == NULL ) {
+            udi_printf("%s\n", "received process request");
             result = req_handlers[req->request_type](req, errmsg);
             if ( result != REQ_SUCCESS ) {
                 udi_printf("failed to handle command %s\n", 
@@ -1178,6 +1182,7 @@ int wait_and_execute_command(udi_errmsg *errmsg, thread **thr) {
                 break;
             }
         }else{
+            udi_printf("received request for thread 0x%"PRIx64"\n", (*thr)->id);
             result = thr_req_handlers[req->request_type](*thr, req, errmsg);
             if ( result != REQ_SUCCESS ) {
                 udi_printf("failed to handle command %s\n",
@@ -1187,6 +1192,8 @@ int wait_and_execute_command(udi_errmsg *errmsg, thread **thr) {
         }
 
         if ( req->request_type == UDI_REQ_CONTINUE ) break;
+
+        free_request(req);
     }
 
     if (req != NULL) free_request(req);
@@ -1583,6 +1590,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
                                 successor);
                         result.failure = 1;
                     }else{
+                        thr->single_step_bp->thread = thr;
                         int install_result = install_breakpoint(thr->single_step_bp, &errmsg);
                         if (install_result != 0) {
                             udi_printf("failed to install single step breakpoint at 0x%"PRIx64"\n",

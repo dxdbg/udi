@@ -201,9 +201,11 @@ breakpoint *create_breakpoint(udi_address breakpoint_addr) {
         return NULL;
     }
 
+    memset(new_breakpoint, 0, sizeof(new_breakpoint));
     memset(new_breakpoint->saved_bytes, 0, sizeof(new_breakpoint->saved_bytes));
     new_breakpoint->address = breakpoint_addr;
     new_breakpoint->in_memory = 0;
+    new_breakpoint->thread = NULL;
 
     unsigned int hash = breakpoint_hash(breakpoint_addr);
 

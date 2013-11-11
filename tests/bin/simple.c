@@ -3,7 +3,7 @@
 
 #include "bin_lib.h"
 
-int limit = 10;
+int limit = 100;
 int j = 0;
 
 void function2() {

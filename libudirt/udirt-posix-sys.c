@@ -255,6 +255,10 @@ event_result handle_exit_breakpoint(const ucontext_t *context, udi_errmsg *errms
 
     if ( result.failure ) {
         udi_printf("failed to report exit status of %d\n", exit_result.status);
+    }else{
+        if ( udi_debug_on ) {
+            dump_heap();
+        }
     }
 
     return result;

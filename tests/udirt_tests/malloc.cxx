@@ -37,6 +37,10 @@
 using std::cout;
 using std::endl;
 
+extern "C" {
+extern void check_free_space(const char *file, int line);
+}
+
 class test_malloc : public UDITestCase {
     public:
         test_malloc()
@@ -48,7 +52,6 @@ class test_malloc : public UDITestCase {
 
 static test_malloc testInstance;
 
-static
 bool basic_test() {
     int **ptr = (int **)udi_malloc(sizeof(int *)*10);
 
@@ -71,6 +74,8 @@ bool basic_test() {
     }
     udi_free(ptr);
 
+    check_free_space(__FILE__, __LINE__);
+
     return true;
 }
 
@@ -84,7 +89,6 @@ void set_all_chars(char *str, int length) {
     }
 }
 
-static
 bool fragment_test() {
     const int malloc_size = 16;
 
@@ -115,7 +119,45 @@ bool fragment_test() {
         set_all_chars(current_alloc, malloc_size*(i+1));
     }
 
+    udi_free(last_alloc);
     udi_free(current_alloc);
+
+    check_free_space(__FILE__, __LINE__);
+
+    return true;
+}
+
+bool coalesce_test() {
+
+    void *one = udi_malloc(1144);
+    void *two = udi_malloc(32);
+    void *three = udi_malloc(41);
+    void *four = udi_malloc(40);
+
+    udi_free(two);
+    check_free_space(__FILE__, __LINE__);
+
+    udi_free(three);
+    check_free_space(__FILE__, __LINE__);
+
+    udi_free(four);
+    check_free_space(__FILE__, __LINE__);
+
+    two = udi_malloc(16);
+    three = udi_malloc(2);
+    four = udi_malloc(2);
+
+    udi_free(four);
+    check_free_space(__FILE__, __LINE__);
+
+    udi_free(three);
+    check_free_space(__FILE__, __LINE__);
+
+    udi_free(two);
+    check_free_space(__FILE__, __LINE__);
+
+    udi_free(one);
+    check_free_space(__FILE__, __LINE__);
 
     return true;
 }
@@ -126,5 +168,9 @@ bool test_malloc::operator()(void) {
 
     if ( !result ) return result;
 
-    return fragment_test();
+    result = fragment_test();
+
+    if ( !result ) return result;
+
+    return coalesce_test();
 }
