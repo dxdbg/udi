@@ -1,4 +1,4 @@
-# Design document for the Userland Debugger Interface (UDI) #
+# Design document for the UDI #
 
 The UDI attempts to provide a full-featured debugger interface completely
 in userland with little to no support from the kernel.
@@ -41,7 +41,7 @@ Pros of this approach:
 
 * Since the debugger relies on IPC and shell job control to control and modify
 the debuggee, the debugger will utilize the same code paths as normal system
-operation. This will avoid many of debugger-specific bugs that are found in
+operation. This will avoid many of the debugger-specific bugs that are found in
 current operating systems. 
 
 * An operating system that uses UDI could remove all debugger-specific code in
@@ -69,11 +69,14 @@ may not be as clean as a system call.
 
 * Single-stepping is also complicated because this feature typically requires
 operating system support to modify processor flags that enable single stepping.
+However, single-stepping can be emulated with breakpoints. This approach
+is already in use in existing debuggers in certain situations (e.g., gdb uses
+breakpoints to single step atomic instruction sequences on PPC targets).
 
 * Operations that require operating system support such as tracing all system
-calls are difficult.
+calls are difficult, although not impossible.
 
-* UDI will possibly require pre-loading the wrapper library into a running
+* UDI will require pre-loading the wrapper library into a created
 process or linking the wrapper library with the application under test.
 
 * On POSIX platforms, not all signals can be caught (aka. SIGSTOP and SIGKILL).
@@ -87,13 +90,13 @@ The debugger interface will be constructed using named pipes (or some similar
 mechanism). These named pipes will be used to create a pseudo-filesystem. The UDI
 library creates the following file hierarchy:
 
-.../udi/<username>/<pid>/:
-    request     All requests are written into this file
-    response    Receive responses from requests
-    events      Used to wait for events to occur in the target process
-    <tid>/:
+    .../udi/<username>/<pid>/:
         request     All requests are written into this file
-        response    Receive thread-specific response from requests
+        response    Receive responses from requests
+        events      Used to wait for events to occur in the target process
+        <tid>/:
+           request     All thread-specific requests are written into this file
+           response    Receive thread-specific response from requests
 
 ## 3.1 Process and thread control model ##
 
@@ -159,33 +162,50 @@ provided by a debugging interface.
 * Access registers of debuggees
 * Control running state of debuggees
 * Control running state of threads within a debuggee
+* Enable single-stepping behavior for specific threads
 * Set and remove breakpoints
 * Provide alerts on the occurrence of the following events:
   - entrance and exit from system calls
-  - hit of breakpoint
+  - breakpoint hit
+  - single step complete
   - creation of new processes
   - creation and destruction of threads
+  - process exit
 
-The UDI implements the following:
+The UDI currently implements the following:
 
-* under construction *
+* Create debuggees
+* Access memory of debuggees
+* Access registers of debuggees
+* Control running state of debuggees
+* Control running state of threads within a debuggee
+* Set and remove breakpoints
+* Enable single-stepping behavior for specific threads
+* Provide alerts on the occurrence of the following events:
+  - breakpoint hit
+  - single step complete
+  - process exit
+  - creation and destruction of threads
 
 ## 4. Library design ##
 
-debuggee side             debugger side
-
-+----------+  <------->  +--------+
-| libudirt |  <  ipc  >  | libudi |
-+----------+  <------->  +--------+
+    debuggee side             debugger side
+    
+    +----------+  <------->  +--------+
+    | libudirt |  <  ipc  >  | libudi |
+    +----------+  <------->  +--------+
 
 # 4.1 Library dependencies #
 
 This section documents the various dependencies of each library in this
 project.
 
-libudirt
+## libudirt ##
+
 * libc
+* libudis86
 * dynamic loading libraries (vary across platforms)
 
-libudi
+## libudi ##
+
 * libc
