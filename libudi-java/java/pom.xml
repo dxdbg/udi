@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-Copyright (c) 2011-2013, Dan McNulty
+Copyright (c) 2013, Dan McNulty
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -10,7 +10,7 @@ modification, are permitted provided that the following conditions are met:
  * Redistributions in binary form must reproduce the above copyright
    notice, this list of conditions and the following disclaimer in the
    documentation and/or other materials provided with the distribution.
- * Neither the name of the UDI project nor the
+ * Neither the value of the Source Crumbs project nor the
    names of its contributors may be used to endorse or promote products
    derived from this software without specific prior written permission.
 
@@ -31,15 +31,29 @@ POSSIBILITY OF SUCH DAMAGE.
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <parent>
-        <groupId>net.libudi</groupId>
-        <artifactId>libudi-java-parent</artifactId>
-        <version>1.0-SNAPSHOT</version>
-    </parent>
-    <artifactId>java-api</artifactId>
-    <packaging>jar</packaging>
-    <name>Libudi Java API</name>
+    <groupId>net.libudi</groupId>
+    <artifactId>libudi-java-parent</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>Libudi Java API Parent</name>
 
-    <dependencies>
-    </dependencies>
+    <modules>
+        <module>api</module>
+        <module>jni</module>
+        <module>test</module>
+    </modules>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.1</version>
+                <configuration>
+                    <source>1.7</source>
+                    <target>1.7</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>
