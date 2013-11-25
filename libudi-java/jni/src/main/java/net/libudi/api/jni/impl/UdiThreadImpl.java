@@ -78,7 +78,7 @@ public class UdiThreadImpl implements UdiThread {
 
     @Override
     public ThreadState getState() {
-        return null;
+        return ThreadState.fromIndex(udiLibrary.get_state(handle));
     }
 
     @Override
@@ -91,9 +91,7 @@ public class UdiThreadImpl implements UdiThread {
 
         LongByReference value = new LongByReference();
 
-        int errorCode = udiLibrary.get_pc(handle, value);
-        UdiException ex = UdiError.toException(errorCode, udiLibrary.get_last_error_message(udiLibrary.get_process(handle)));
-        if (ex != null) throw ex;
+        checkForException(udiLibrary.get_pc(handle, value));
 
         return value.getValue();
     }
@@ -118,17 +116,31 @@ public class UdiThreadImpl implements UdiThread {
 
     private void registerAccess(Register reg, int write, LongByReference value) throws UdiException {
 
-        int errorCode = udiLibrary.register_access(handle, write, reg.getIndex(), value);
-        UdiException ex = UdiError.toException(errorCode, udiLibrary.get_last_error_message(udiLibrary.get_process(handle)));
-        if (ex != null) throw ex;
-
+        checkForException(udiLibrary.register_access(handle, write, reg.getIndex(), value));
     }
 
     @Override
     public void resume() throws UdiException {
+        checkForException(udiLibrary.resume_thread(handle));
     }
 
     @Override
     public void suspend() throws UdiException {
+        checkForException(udiLibrary.suspend_thread(handle));
+    }
+
+    @Override
+    public void setSingleStep(boolean singleStep) throws UdiException {
+        checkForException(udiLibrary.set_single_step(handle, singleStep));
+    }
+
+    @Override
+    public boolean getSingleStep() {
+        return udiLibrary.get_single_step(handle);
+    }
+
+    private void checkForException(int errorCode) throws UdiException {
+        UdiException ex = UdiError.toException(errorCode, udiLibrary.get_last_error_message(udiLibrary.get_process(handle)));
+        if (ex != null) throw ex;
     }
 }

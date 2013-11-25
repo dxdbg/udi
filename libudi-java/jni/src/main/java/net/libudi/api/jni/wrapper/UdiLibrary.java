@@ -61,6 +61,15 @@ public interface UdiLibrary extends Library {
             IntByReference errorCode, PointerByReference errMsg);
 
     /**
+     * Frees the process
+     *
+     * @param process the process
+     *
+     * @return the error code for the operation
+     */
+    int free_process(Pointer process);
+
+    /**
      * Continues a process
      *
      * @param process the process
@@ -68,6 +77,68 @@ public interface UdiLibrary extends Library {
      * @return the error code for the operation
      */
     int continue_process(Pointer process);
+
+    /**
+     * Refreshes the state of all threads in the process
+     *
+     * @param process the process
+     *
+     * @return the error code for the operation
+     */
+    int refresh_state(Pointer process);
+
+    /**
+     * Creates a breakpoint in the process
+     *
+     * @param process the process
+     * @param address the address of the breakpoint
+     *
+     * @return the error code for the operation
+     */
+    int create_breakpoint(Pointer process, long address);
+
+    /**
+     * Installs a breakpoint into the process' memory
+     *
+     * @param process the process
+     * @param address the address of the breakpoint
+     *
+     * @return the error code for the operation
+     */
+    int install_breakpoint(Pointer process, long address);
+
+    /**
+     * Remove a breakpoint from the process' memory
+     *
+     * @param process the process
+     * @param address the address of the breakpoint
+     *
+     * @return the error code for the operation
+     */
+    int remove_breakpoint(Pointer process, long address);
+
+    /**
+     * Deletes the breakpoint at the specified address
+     *
+     * @param process the process
+     * @param address the address
+     *
+     * @return the error code for the operation
+     */
+    int delete_breakpoint(Pointer process, long address);
+
+    /**
+     * Performs a memory access at the specified address
+     *
+     * @param process the process
+     * @param write true if a write should be performed
+     * @param value the destination or the source (depending on the value of the write parameter)
+     * @param length the length of data to read or write
+     * @param address the address of the data
+     *
+     * @return the error code of the operation
+     */
+    int mem_access(Pointer process, boolean write, Pointer value, int length, long address);
 
     /**
      * Gets the PID for the process
@@ -79,6 +150,21 @@ public interface UdiLibrary extends Library {
     int get_proc_pid(Pointer process);
 
     /**
+     * Gets the architecture for the process
+     *
+     * @param process the process
+     *
+     * @return the architecture
+     */
+    int get_proc_architecture(Pointer process);
+
+    /**
+     * @param process the process
+     * @return true if the process is multithread capable
+     */
+    boolean get_multithread_capable(Pointer process);
+
+    /**
      * @param process the process
      * @return the initial thread for the process
      */
@@ -87,10 +173,10 @@ public interface UdiLibrary extends Library {
     /**
      * @param process the process
      *
-     * @return non-zero if the process is in a running state. That is, the process has been continued and no events
+     * @return true if the process is in a running state. That is, the process had been continued and no events
      * have been received for the process.
      */
-    int is_running(Pointer process);
+    boolean is_running(Pointer process);
 
     /**
      * The last error message recorded for the specified process
@@ -122,6 +208,12 @@ public interface UdiLibrary extends Library {
     Pointer get_process(Pointer thread);
 
     /**
+     * @param thread the thread
+     * @return the current state of the thread
+     */
+    int get_state(Pointer thread);
+
+    /**
      * Gets the next thread in the parent process
      *
      * @param thread the thread
@@ -129,6 +221,41 @@ public interface UdiLibrary extends Library {
      * @return the next thread
      */
     Pointer get_next_thread(Pointer thread);
+
+    /**
+     * Sets the running state of the thread to resumed
+     *
+     * @param thread the thread
+     *
+     * @return the error code of the operation
+     */
+    int resume_thread(Pointer thread);
+
+    /**
+     * Sets the running state of the thread to suspended
+     *
+     * @param thread the thread
+     *
+     * @return the error code of the operation
+     */
+    int suspend_thread(Pointer thread);
+
+    /**
+     * Sets the single step setting of the thread
+     *
+     * @param thread the thread
+     * @param enable true if single step should be enabled
+     *
+     * @return the error code of the operation
+     */
+    int set_single_step(Pointer thread, boolean enable);
+
+    /**
+     * @param thread the thread
+     *
+     * @return the current single step setting
+     */
+    boolean get_single_step(Pointer thread);
 
     /**
      * Access a register in the specified thread
@@ -151,6 +278,16 @@ public interface UdiLibrary extends Library {
      * @return the error code of the operation
      */
     int get_pc(Pointer thread, LongByReference value);
+
+    /**
+     * Gets the next instruction to be executed by the specified thread
+     *
+     * @param thread the thread
+     * @param value the destination for the value
+     *
+     * @return the error code of the operation
+     */
+    int get_next_instruction(Pointer thread, LongByReference value);
 
     // Events //
 
