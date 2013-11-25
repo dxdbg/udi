@@ -57,7 +57,10 @@ public enum EventType {
     PROCESS_FORK,
 
     /** A process has execed */
-    PROCESS_EXEC;
+    PROCESS_EXEC,
+
+    /** A thread has completed a single step */
+    SINGLE_STEP;
 
     /**
      * Gets the EventType that corresponds to the specified index
@@ -84,6 +87,8 @@ public enum EventType {
                 return PROCESS_FORK;
             case 7:
                 return PROCESS_EXEC;
+            case 8:
+                return SINGLE_STEP;
             default:
                 throw new IllegalArgumentException("No EventType with index " + index);
         }

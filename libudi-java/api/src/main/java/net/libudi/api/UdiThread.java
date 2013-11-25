@@ -115,4 +115,17 @@ public interface UdiThread {
      */
     void suspend() throws UdiException;
 
+    /**
+     * Changes the value of the single step setting for the thread
+     *
+     * @param singleStep the single step setting
+     *
+     * @throws UdiException on error
+     */
+    void setSingleStep(boolean singleStep) throws UdiException;
+
+    /**
+     * @return the single step setting
+     */
+    boolean getSingleStep();
 }

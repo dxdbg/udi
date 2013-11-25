@@ -32,7 +32,9 @@ package net.libudi.api.jni.impl;
 import java.util.Arrays;
 import java.util.List;
 
+import com.sun.jna.Memory;
 import com.sun.jna.Pointer;
+import com.sun.jna.ptr.LongByReference;
 
 import net.libudi.api.Architecture;
 import net.libudi.api.UdiProcess;
@@ -56,7 +58,7 @@ public class UdiProcessImpl implements UdiProcess {
 
     private final UdiLibrary udiLibrary;
 
-    private final UdiProcessManager procManager;
+    private final UdiProcessManagerImpl procManager;
 
     /**
      * Constructor.
@@ -65,7 +67,7 @@ public class UdiProcessImpl implements UdiProcess {
      * @param udiLibrary the handle to the udi library
      * @param procManager the process manager that created this process
      */
-    public UdiProcessImpl(Pointer handle, UdiLibrary udiLibrary, UdiProcessManager procManager) {
+    public UdiProcessImpl(Pointer handle, UdiLibrary udiLibrary, UdiProcessManagerImpl procManager) {
         this.handle = handle;
         this.udiLibrary = udiLibrary;
         this.procManager = procManager;
@@ -87,53 +89,67 @@ public class UdiProcessImpl implements UdiProcess {
 
     @Override
     public Architecture getArchitecture() {
-        return null;
+        return Architecture.fromIndex(udiLibrary.get_proc_architecture(handle));
     }
 
     @Override
     public boolean isMultithreadCapable() {
-        return false;
+        return udiLibrary.get_multithread_capable(handle);
     }
 
     @Override
     public UdiThread getInitialThread() {
-        return null;
+        return procManager.getThread(udiLibrary.get_initial_thread(handle));
+    }
+
+    @Override
+    public boolean isRunning() {
+        return udiLibrary.is_running(handle);
     }
 
     @Override
     public void continueProcess() throws UdiException {
-        int nativeResult = udiLibrary.continue_process(handle);
-        UdiException ex = UdiError.toException(nativeResult, udiLibrary.get_last_error_message(handle));
-
-        if ( ex != null ) throw ex;
+        checkForException(udiLibrary.continue_process(handle));
     }
 
     @Override
     public void refreshState() throws UdiException {
+        checkForException(udiLibrary.refresh_state(handle));
     }
 
     @Override
     public void readMemory(byte[] data, long sourceAddr) throws UdiException {
+
+        Pointer value = new Memory(data.length);
+        checkForException(udiLibrary.mem_access(handle, false, value, data.length, sourceAddr));
+        value.read(0, data, 0, data.length);
     }
 
     @Override
     public void writeMemory(byte[] data, long destAddr) throws UdiException {
+        Pointer value = new Memory(data.length);
+        value.write(0, data, 0, data.length);
+        checkForException(udiLibrary.mem_access(handle, true, value, data.length, destAddr));
     }
 
     @Override
     public void createBreakpoint(long brkptAddr) throws UdiException {
+        checkForException(udiLibrary.create_breakpoint(handle, brkptAddr));
     }
 
     @Override
     public void installBreakpoint(long brkptAddr) throws UdiException {
+        checkForException(udiLibrary.install_breakpoint(handle, brkptAddr));
     }
 
     @Override
     public void removeBreakpoint(long brkptAddr) throws UdiException {
+        checkForException(udiLibrary.remove_breakpoint(handle, brkptAddr));
     }
 
     @Override
     public void deleteBreakpoint(long brkptAddr) throws UdiException {
+        checkForException(udiLibrary.delete_breakpoint(handle, brkptAddr));
     }
 
     @Override
@@ -154,5 +170,11 @@ public class UdiProcessImpl implements UdiProcess {
 
     @Override
     public void close() throws Exception {
+        checkForException(udiLibrary.free_process(handle));
+    }
+
+    private void checkForException(int errorCode) throws UdiException {
+        UdiException ex = UdiError.toException(errorCode, udiLibrary.get_last_error_message(handle));
+        if (ex != null) throw ex;
     }
 }
