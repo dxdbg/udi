@@ -72,13 +72,22 @@ public interface UdiThread {
     UdiThread getNextThread();
 
     /**
-     * Retrieves the program counter/instruction pointer for the current thread.
+     * Retrieves the program counter/instruction pointer for this thread.
      *
-     * @return the PC for the current thread
+     * @return the PC for this thread
      *
      * @throws UdiException on error
      */
     long getPC() throws UdiException;
+
+    /**
+     * Retrieves the program counter/instruction pointer for next instruction for this thread
+     *
+     * @return the next instruction for this thread
+     *
+     * @throws UdiException on error
+     */
+    long getNextPC() throws UdiException;
 
     /**
      * Retrieves the value of the specified register

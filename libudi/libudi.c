@@ -42,11 +42,10 @@
 ////////////////////
 int udi_debug_on = 0;
 
-/**
- * Get a message describing the passed error code
- *
- * @param proc the process
- */
+///////////////////////
+// Library functions //
+///////////////////////
+
 const char *get_last_error_message(udi_process *proc) {
     switch(proc->error_code) {
         case UDI_ERROR_LIBRARY:
@@ -57,10 +56,6 @@ const char *get_last_error_message(udi_process *proc) {
             return "Error not set";
     }
 }
-
-///////////////////////
-// Library functions //
-///////////////////////
 
 /**
  * Finds the thread structure for the specified tid
@@ -143,21 +138,6 @@ void allocate_error(udi_error_e code,
     *dest_errmsg = local_errmsg;
 }
 
-/*
- * Create UDI-controlled process
- * 
- * @param executable   the full path to the executable
- * @param argv         the arguments
- * @param envp         the environment, if NULL, the newly created process will
- *                     inherit the environment for this process
- * @param config       the configuration for creating the process
- * @param error_code   on error, populated with the error code
- * @param errmsg       on error, populated with the error message (allocated by malloc)
- *
- * @return a handle to the created process
- *
- * @see execve on a UNIX system
- */
 udi_process *create_process(const char *executable, char * const argv[],
         char * const envp[], const udi_proc_config *config,
         udi_error_e *error_code, char **errmsg)
@@ -221,13 +201,6 @@ udi_process *create_process(const char *executable, char * const argv[],
     return proc;
 }
 
-/**
- * Tells the library that resources allocated for the process can be released
- *
- * @param proc          the process handle
- *
- * @return UDI_ERROR_NONE if the resources are released successfully
- */
 udi_error_e free_process(udi_process *proc) {
     // TODO detach from the process, etc.
     
@@ -240,121 +213,46 @@ udi_error_e free_process(udi_process *proc) {
     return UDI_ERROR_NONE;
 }
 
-/**
- * Sets the user data stored with the internal process structure
- *
- * @param proc          the process handle
- * @param user_data     the user data to associated with the process handle
- */
 void set_user_data(udi_process *proc, void *user_data) {
     proc->user_data = user_data;
 }
 
-/**
- * Gets the user data stored with the internal process structure
- *
- * @param proc          the process handle
- *
- * @return the user data
- */
 void *get_user_data(udi_process *proc) {
     return proc->user_data;
 }
 
-/**
- * Sets the user data stored with the internal thread structure
- *
- * @param thread       the thread handle
- * @param user_data    the user data
- */
 void set_thread_user_data(udi_thread *thr, void *user_data) {
     thr->user_data = user_data;
 }
 
-/**
- * Gets the user data stored with the internal thread structure
- *
- * @param thread       the thread handle
- *
- * @return the user data
- */
 void *get_thread_user_data(udi_thread *thr) {
     return thr->user_data;
 }
 
-/**
- * Gets the process identifier for the specified process
- *
- * @param proc          the process handle
- *
- * @return the pid for the process
- */
 int get_proc_pid(udi_process *proc) {
     return proc->pid;
 }
 
-/**
- * Gets the architecture for the specified process
- *
- * @param proc          the process handle
- *
- * @return the architecture for the process
- */
 udi_arch_e get_proc_architecture(udi_process *proc) {
     return proc->architecture;
 }
 
-/**
- * Gets whether the specified process is multithread capable
- *
- * @param proc          the process handle
- *
- * @return non-zero if the process is multithread capable
- */
 int get_multithread_capable(udi_process *proc) {
     return proc->multithread_capable;
 }
 
-/**
- * Gets the thread id for the specified thread
- *
- * @param thr the thread handle
- *
- * @return the thread id for the thread
- */
 uint64_t get_tid(udi_thread *thr) {
     return thr->tid;
 }
 
-/**
- * Gets the process for the specified thread
- *
- * @param thr the thread handle
- *
- * @return the process handle
- */
 udi_process *get_process(udi_thread *thr) {
     return thr->proc;
 }
 
-/**
- * Gets the state for the specified thread
- *
- * @param thr thre thread handle
- *
- * @return the thread handle
- */
 udi_thread_state_e get_state(udi_thread *thr) {
     return thr->state;
 }
 
-/*
- * Gets the initial thread in the specified process
- *
- * @param proc the process handle
- *
- * @return the thread handle or NULL if no initial thread could be found
- */
 udi_thread *get_initial_thread(udi_process *proc) {
     udi_thread *iter = proc->threads;
 
@@ -367,22 +265,10 @@ udi_thread *get_initial_thread(udi_process *proc) {
     return iter;
 }
 
-/**
- * @param proc the process handle
- *
- * @return non-zero if the process has been continued, but events haven't been received yet
- */
 int is_running(udi_process *proc) {
     return proc->running;
 }
 
-/**
- * Gets the next thread
- * 
- * @param thr the thread
- *
- * @return the thread or NULL if no more threads
- */
 udi_thread *get_next_thread(udi_thread *thr) {
     return thr->next_thread;
 }
@@ -596,15 +482,6 @@ udi_error_e submit_request_thr_noresp(udi_thread *thr,
     return error_code;
 }
 
-/**
- * Creates a breakpoint in the specified process at the specified
- * virtual address
- *
- * @param proc          the process handle
- * @param addr          the address to place the breakpoint
- * 
- * @return the result of the operation
- */
 udi_error_e create_breakpoint(udi_process *proc, udi_address addr) {
     udi_request request = create_request_breakpoint_create(addr);
 
@@ -634,62 +511,22 @@ udi_error_e breakpoint_request(udi_process *proc, udi_address addr,
     return submit_request_noresp(proc, &request, desc, file, line);
 }
 
-/**
- *
- * Install a previously created breakpoint into the specified process'
- * memory
- *
- * @param proc          the process handle
- * @param addr          the address of the breakpoint
- *
- * @return the result of the operation
- */
 udi_error_e install_breakpoint(udi_process *proc, udi_address addr) {
     return breakpoint_request(proc, addr, UDI_REQ_INSTALL_BREAKPOINT,
             "breakpoint install request", __FILE__, __LINE__);
 }
 
-/**
- *
- * Remove a previously installed breakpoint from the specified process'
- * memory
- *
- * @param proc          the process handle
- * @param addr          the address of the breakpoint
- *
- * @return the result of the operation
- */
 udi_error_e remove_breakpoint(udi_process *proc, udi_address addr) {
     return breakpoint_request(proc, addr, UDI_REQ_REMOVE_BREAKPOINT,
             "breakpoint remove request", __FILE__, __LINE__);
 
 }
 
-/**
- *
- * Delete a previously created breakpoint for the specified process
- *
- * @param proc          the process handle
- * @param addr          the address of the breakpoint
- *
- * @return the result of the operation
- */
 udi_error_e delete_breakpoint(udi_process *proc, udi_address addr) {
     return breakpoint_request(proc, addr, UDI_REQ_DELETE_BREAKPOINT,
             "breakpoint delete request", __FILE__, __LINE__);
 }
 
-/**
- * Access memory in a process
- *
- * @param proc          the process handle
- * @param write         if non-zero, write to specified address
- * @param value         pointer to the value to read/write
- * @param size          the size of the data block pointed to by value
- * @param addr          the location in memory to read/write
- *
- * @return the result of the operation
- */
 udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length size, 
         udi_address addr) 
 {
@@ -726,16 +563,6 @@ udi_error_e mem_access(udi_process *proc, int write, void *value, udi_length siz
     return error_code;
 }
 
-/**
- * Access a register in the specified thread
- *
- * @param thr the thread
- * @param write 1 if the value should written into the register, 0 read
- * @param reg the register to access
- * @param value the destination of the register value on read; the value to write otherwise
- *
- * @return the result of the operation
- */
 udi_error_e register_access(udi_thread *thr, int write, udi_register_e reg, udi_address *value) {
     udi_error_e error_code = UDI_ERROR_NONE;
     udi_request request = write ?
@@ -767,14 +594,6 @@ udi_error_e register_access(udi_thread *thr, int write, udi_register_e reg, udi_
     return error_code;
 }
 
-/**
- * Gets the PC for the specified thread
- *
- * @param thr the thread
- * @param pc the output parameter for the pc
- *
- * @return the result of the operation
- */
 udi_error_e get_pc(udi_thread *thr, udi_address *pc) {
     udi_arch_e arch = get_proc_architecture(thr->proc);
     udi_register_e reg;
@@ -793,14 +612,6 @@ udi_error_e get_pc(udi_thread *thr, udi_address *pc) {
     return register_access(thr, 0, reg, pc);
 }
 
-/**
- * Gets the next instruction to be executed by the specified thread
- *
- * @param thr the thread
- * @param instr the output parameter for the instruction address
- *
- * @return the result of the operation
- */
 udi_error_e get_next_instruction(udi_thread *thr, udi_address *instr) {
 
     udi_error_e error_code = UDI_ERROR_NONE;
@@ -828,13 +639,6 @@ udi_error_e get_next_instruction(udi_thread *thr, udi_address *instr) {
     return error_code;
 }
 
-/**
- * Continue a stopped UDI process
- *
- * @param proc          the process handle
- *
- * @return the result of the operation
- */
 udi_error_e continue_process(udi_process *proc) {
     if (proc->running) {
         snprintf(proc->errmsg.msg, proc->errmsg.size, "process[%d] is already running",
@@ -855,13 +659,6 @@ udi_error_e continue_process(udi_process *proc) {
     return result;
 }
 
-/**
- * Refreshes the state of the specified process
- *
- * @param proc          the process handle
- *
- * @return the result of the operation
- */
 udi_error_e refresh_state(udi_process *proc) {
     udi_request req = create_request_state();
 
@@ -894,36 +691,18 @@ udi_error_e refresh_state(udi_process *proc) {
     return sub_result;
 }
 
-/**
- * Resumes the specified thread.
- *
- * @return the result of the operation
- */
 udi_error_e resume_thread(udi_thread *thr) {
     udi_request req = create_request_thr_state(UDI_TS_RUNNING);
 
     return submit_request_thr_noresp(thr, &req, "thread resume", __FILE__, __LINE__);
 }
 
-/**
- * Suspend the specified thread.
- *
- * @return the result of the operation. it is an error to suspend all the threads in a process
- */
 udi_error_e suspend_thread(udi_thread *thr) {
     udi_request req = create_request_thr_state(UDI_TS_SUSPENDED);
 
     return submit_request_thr_noresp(thr, &req, "thread suspend", __FILE__, __LINE__);
 }
 
-/**
- * Sets the single step setting for a specific thread
- *
- * @param thr the thread
- * @param enable the new setting
- *
- * @return the result of the operation
- */
 udi_error_e set_single_step(udi_thread *thr, int enable) {
 
     udi_error_e error_code = UDI_ERROR_NONE;
@@ -945,17 +724,12 @@ udi_error_e set_single_step(udi_thread *thr, int enable) {
     return error_code;
 }
 
-/**
- * @param thr the thread
- *
- * @return the current single step setting for the specified thread
- */
 int get_single_step(udi_thread *thr) {
     return thr->single_step;
 }
 
 /**
- * Sets the global error message and logs it
+ * Sets the process error message and logs it
  *
  * @param proc          the process
  * @param resp          the response containing the error message
@@ -1005,11 +779,6 @@ void free_event(udi_event *event) {
     free(event);
 }
 
-/**
- * Frees a event list returned by wait_for_events
- *
- * @param event_list the event list to free
- */
 void free_event_list(udi_event *event_list) {
     udi_event *current_event = event_list;
     while ( current_event != NULL ) {
@@ -1019,9 +788,6 @@ void free_event_list(udi_event *event_list) {
     }
 }
 
-/**
- * @return a string representation of the specified event type
- */
 const char *get_event_type_str(udi_event_type event_type) {
     return event_type_str(event_type);
 }
