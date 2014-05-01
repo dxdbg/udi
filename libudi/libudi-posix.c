@@ -942,14 +942,6 @@ int handle_thread_death(udi_process *proc, udi_thread *thr) {
     return 0;
 }
 
-/**
- * Wait for events to occur in the specified processes.
- *
- * @param procs         the processes
- * @param num_procs     the number of processes
- *
- * @return a list of events that occurred in the processes, NULL on failure
- */
 udi_event *wait_for_events(udi_process *procs[], int num_procs) {
     fd_set read_set;
     FD_ZERO(&read_set);

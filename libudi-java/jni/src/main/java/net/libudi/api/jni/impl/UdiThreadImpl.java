@@ -97,6 +97,15 @@ public class UdiThreadImpl implements UdiThread {
     }
 
     @Override
+    public long getNextPC() throws UdiException {
+        LongByReference value = new LongByReference();
+
+        checkForException(udiLibrary.get_next_instruction(handle, value));
+
+        return value.getValue();
+    }
+
+    @Override
     public long readRegister(Register reg) throws UdiException {
 
         LongByReference value = new LongByReference();
