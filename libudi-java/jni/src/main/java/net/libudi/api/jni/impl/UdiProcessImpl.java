@@ -108,6 +108,11 @@ public class UdiProcessImpl implements UdiProcess {
     }
 
     @Override
+    public boolean isTerminated() {
+        return udiLibrary.is_terminated(handle);
+    }
+
+    @Override
     public void continueProcess() throws UdiException {
         checkForException(udiLibrary.continue_process(handle));
     }

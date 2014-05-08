@@ -394,6 +394,7 @@ typedef enum
     UDI_EVENT_PROCESS_FORK,
     UDI_EVENT_PROCESS_EXEC,
     UDI_EVENT_SINGLE_STEP,
+    UDI_EVENT_PROCESS_CLEANUP,
     UDI_EVENT_MAX,
     UDI_EVENT_UNKNOWN
 } udi_event_type_e;
@@ -452,6 +453,10 @@ typedef enum
 
 /*
  * Thread single step event
+ */
+
+/*
+ * Process cleanup data
  */
 
 #ifdef __cplusplus

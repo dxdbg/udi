@@ -207,6 +207,10 @@ public class UdiProcessManagerImpl implements UdiProcessManager {
                 eventImpl = threadCreateImpl;
                 break;
             }
+            case PROCESS_CLEANUP: {
+                eventImpl = new UdiEventProcessCleanupImpl();
+                break;
+            }
             default:
                 throw new UdiException(String.format("Unknown event encountered with type '%s'", eventType));
         }
@@ -243,9 +247,10 @@ public class UdiProcessManagerImpl implements UdiProcessManager {
         }
 
         List<UdiEvent> events = new ArrayList<>();
-        while (event != null) {
-            events.add(unpackJavaEvent(event));
-            event = event.next_event;
+        UdiNativeEvent iter = event;
+        while (iter != null) {
+            events.add(unpackJavaEvent(iter));
+            iter = iter.next_event;
         }
 
         nativeLibrary.free_event_list(event);

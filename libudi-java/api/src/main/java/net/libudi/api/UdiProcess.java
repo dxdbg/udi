@@ -81,6 +81,11 @@ public interface UdiProcess extends AutoCloseable {
     boolean isRunning();
 
     /**
+     * @return true if the process has terminated and is no longer accessible
+     */
+    boolean isTerminated();
+
+    /**
      * Continues the process
      *
      * @throws UdiException on error

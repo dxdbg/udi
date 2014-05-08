@@ -68,6 +68,7 @@ struct udi_process_struct {
     uint32_t protocol_version;
     int multithread_capable;
     int running;
+    int terminated;
     void *user_data;
     struct udi_thread_struct *threads;
     const char *root_dir;
@@ -89,7 +90,7 @@ int write_request(udi_request *req, udi_process *proc);
 int write_request_thr(udi_request *req, udi_thread *thr);
 udi_response *read_response(udi_process *proc);
 udi_response *read_response_thr(udi_thread *thr);
-udi_event *read_event(udi_process *proc);
+int read_event(udi_process *proc, udi_event **output);
 udi_event *decode_event(udi_process *proc, udi_event_internal *event);
 
 // logging
