@@ -179,6 +179,13 @@ public interface UdiLibrary extends Library {
     boolean is_running(Pointer process);
 
     /**
+     * @param process the process
+     *
+     * @return true if the process has terminated and is longer accessible.
+     */
+    boolean is_terminated(Pointer process);
+
+    /**
      * The last error message recorded for the specified process
      *
      * @param process the process

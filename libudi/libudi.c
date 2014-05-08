@@ -163,6 +163,7 @@ udi_process *create_process(const char *executable, char * const argv[],
         proc->errmsg.size = ERRMSG_SIZE;
         proc->errmsg.msg[ERRMSG_SIZE-1] = '\0';
         proc->running = 0;
+        proc->terminated = 0;
 
         if ( config->root_dir != NULL ) {
             if ( set_root_dir(proc, config->root_dir) != 0 ) {
@@ -267,6 +268,10 @@ udi_thread *get_initial_thread(udi_process *proc) {
 
 int is_running(udi_process *proc) {
     return proc->running;
+}
+
+int is_terminated(udi_process *proc) {
+    return proc->terminated;
 }
 
 udi_thread *get_next_thread(udi_thread *thr) {
@@ -779,7 +784,9 @@ void free_event(udi_event *event) {
     free(event);
 }
 
-void free_event_list(udi_event *event_list) {
+void free_event_list(udi_event *event_list) {\
+    if (event_list == NULL) return;
+
     udi_event *current_event = event_list;
     while ( current_event != NULL ) {
         udi_event *next_event = current_event->next_event;

@@ -167,6 +167,13 @@ udi_thread *get_initial_thread(udi_process *proc);
  */
 int is_running(udi_process *proc);
 
+/**
+ * @param proc the process handle
+ *
+ * @return non-zero if the process is terminated and can no longer be interacted with
+ */
+int is_terminated(udi_process *proc);
+
 // Thread properties //
 
 /**

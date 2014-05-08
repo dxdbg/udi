@@ -60,7 +60,10 @@ public enum EventType {
     PROCESS_EXEC,
 
     /** A thread has completed a single step */
-    SINGLE_STEP;
+    SINGLE_STEP,
+
+    /** The process has terminated and any cleanup should be performed */
+    PROCESS_CLEANUP;
 
     /**
      * Gets the EventType that corresponds to the specified index
@@ -89,6 +92,8 @@ public enum EventType {
                 return PROCESS_EXEC;
             case 8:
                 return SINGLE_STEP;
+            case 9:
+                return PROCESS_CLEANUP;
             default:
                 throw new IllegalArgumentException("No EventType with index " + index);
         }

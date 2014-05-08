@@ -201,9 +201,19 @@ void wait_for_exit(udi_thread *thr, int expected_status) {
     test_assert(event->next_event == NULL);
 
     free_event_list(event);
+    event = NULL;
 
     udi_error_e result = continue_process(proc);
     assert_no_error(proc, result);
+
+    event = wait_for_events(&proc, 1);
+    test_assert(event != NULL);
+    test_assert(event->proc == proc);
+    test_assert(event->thr == thr);
+    test_assert(event->event_type == UDI_EVENT_PROCESS_CLEANUP);
+
+    free_event_list(event);
+    event = NULL;
 
     result = free_process(proc);
     assert_no_error(proc, result);

@@ -29,34 +29,10 @@
 package net.libudi.api.event;
 
 /**
- * Visitor for dispatching events for handling
+ * The interface for a UdiEvent with a type PROCESS_CLEANUP
  *
  * @author mcnulty
  */
-public interface UdiEventVisitor {
+public interface UdiEventProcessCleanup extends UdiEvent {
 
-    /**
-     * @param breakpointEvent the breakpoint event
-     */
-    void visit(UdiEventBreakpoint breakpointEvent);
-
-    /**
-     * @param errorEvent the error event
-     */
-    void visit(UdiEventError errorEvent);
-
-    /**
-     * @param processExitEvent the process event
-     */
-    void visit(UdiEventProcessExit processExitEvent);
-
-    /**
-     * @param threadCreateEvent the thread create event
-     */
-    void visit(UdiEventThreadCreate threadCreateEvent);
-
-    /**
-     * @param processCleanup the process cleanup event
-     */
-    void visit(UdiEventProcessCleanup processCleanup);
 }

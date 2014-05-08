@@ -196,18 +196,20 @@ udi_response *read_response_thr(udi_thread *thr) {
 /**
  * Reads an event from the specified process
  *
- * @param proc  the process handle
+ * @param proc the process handle
+ * @param output the output event
  *
- * @return 0 on success, non-zero on failure; if result > 0, it is errno
+ * @return 0 on success
+ * @return < 0 when the debuggee has closed the event pipe
+ * @return > 0 when the is an error reading the event from the debuggee
  */
-udi_event *read_event(udi_process *proc) {
-    udi_event_internal *event = (udi_event_internal *)
-        malloc(sizeof(udi_event_internal));
+int read_event(udi_process *proc, udi_event **output) {
+    udi_event_internal *event = (udi_event_internal *)malloc(sizeof(udi_event_internal));
     event->packed_data = NULL;
 
     if ( event == NULL ) {
         udi_printf("malloc failed: %s\n", strerror(errno));
-        return NULL;
+        return 0;
     }
 
     // Read the raw event
@@ -247,14 +249,15 @@ udi_event *read_event(udi_process *proc) {
         }
 
         free_event_internal(event);
-        return NULL;
+        return errnum;
     }
 
     // Convert the event to a higher level representation
     udi_event *ret_event = decode_event(proc, event);
     free_event_internal(event);
 
-    return ret_event;
+    *output = ret_event;
+    return 0;
 }
 
 /**
@@ -975,14 +978,27 @@ udi_event *wait_for_events(udi_process *procs[], int num_procs) {
 
         for (i = 0; i < num_procs; ++i) {
             if ( FD_ISSET(procs[i]->events_handle, &changed_set) ) {
-                udi_event *new_event = read_event(procs[i]);
+                udi_event *new_event = NULL;
+                int read_result = read_event(procs[i], &new_event);
+                if (read_result < 0) {
+                    udi_printf("process %d has closed its event pipe\n", procs[i]->pid);
+                    new_event = (udi_event *)malloc(sizeof(udi_event));
+                    if (new_event == NULL) {
+                        udi_printf("%s\n", "failed to allocate event");
+                        free_event_list(return_list);
+                        return NULL;
+                    }
+                    new_event->event_type = UDI_EVENT_PROCESS_CLEANUP;
+                    new_event->thr = get_initial_thread(procs[i]);
+                    new_event->proc = procs[i];
+                    new_event->event_data = NULL;
+                    new_event->next_event = NULL;
 
-                if ( new_event == NULL ) {
+                    procs[i]->terminated = 1;
+                }else if (read_result > 0) {
                     udi_printf("failed to read event for process %d\n",
                             procs[i]->pid);
-                    if ( return_list != NULL ) {
-                        free_event_list(return_list);
-                    }
+                    free_event_list(return_list);
                     return NULL;
                 }
 

@@ -26,37 +26,28 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-package net.libudi.api.event;
+package net.libudi.api.jni.impl;
+
+import net.libudi.api.event.EventType;
+import net.libudi.api.event.UdiEventProcessCleanup;
+import net.libudi.api.event.UdiEventVisitor;
 
 /**
- * Visitor for dispatching events for handling
+ * Implementation of UdiEventProcessCleanup
  *
  * @author mcnulty
  */
-public interface UdiEventVisitor {
+public class UdiEventProcessCleanupImpl extends UdiEventImpl implements UdiEventProcessCleanup {
 
     /**
-     * @param breakpointEvent the breakpoint event
+     * Constructor.
      */
-    void visit(UdiEventBreakpoint breakpointEvent);
+    public UdiEventProcessCleanupImpl() {
+        super(EventType.PROCESS_CLEANUP);
+    }
 
-    /**
-     * @param errorEvent the error event
-     */
-    void visit(UdiEventError errorEvent);
-
-    /**
-     * @param processExitEvent the process event
-     */
-    void visit(UdiEventProcessExit processExitEvent);
-
-    /**
-     * @param threadCreateEvent the thread create event
-     */
-    void visit(UdiEventThreadCreate threadCreateEvent);
-
-    /**
-     * @param processCleanup the process cleanup event
-     */
-    void visit(UdiEventProcessCleanup processCleanup);
+    @Override
+    public void accept(UdiEventVisitor visitor) {
+        visitor.visit(this);
+    }
 }
