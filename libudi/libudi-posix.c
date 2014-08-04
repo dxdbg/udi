@@ -949,6 +949,11 @@ udi_event *wait_for_events(udi_process *procs[], int num_procs) {
     fd_set read_set;
     FD_ZERO(&read_set);
 
+    if (num_procs <= 0) {
+        udi_printf("%s\n", "No processes specified, cannot wait for events");
+        return NULL;
+    }
+
     int i, max_fd = -1;
     for (i = 0; i < num_procs; ++i) {
         FD_SET(procs[i]->events_handle, &read_set);
@@ -1012,6 +1017,7 @@ udi_event *wait_for_events(udi_process *procs[], int num_procs) {
                 }
 
                 // The process is no longer running
+                udi_printf("process %d has stopped due to an event\n", procs[i]->pid);
                 procs[i]->running = 0;
             }
         }
