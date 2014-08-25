@@ -54,6 +54,16 @@ public interface UdiEvent {
     UdiThread getThread();
 
     /**
+     * @return application-specific data that is attached to this event
+     */
+    Object getUserData();
+
+    /**
+     * @param object the application-specific data that is attached to this event
+     */
+    void setUserData(Object object);
+
+    /**
      * @param visitor the visitor used to process this event
      */
     void accept(UdiEventVisitor visitor);
