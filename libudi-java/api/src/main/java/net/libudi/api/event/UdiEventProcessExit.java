@@ -33,7 +33,7 @@ package net.libudi.api.event;
  *
  * @author mcnulty
  */
-public interface UdiEventProcessExit {
+public interface UdiEventProcessExit extends UdiEvent {
 
     /**
      * @return the exit code for the process exit

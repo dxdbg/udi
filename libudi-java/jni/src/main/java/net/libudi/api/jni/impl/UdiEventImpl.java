@@ -47,6 +47,8 @@ public abstract class UdiEventImpl implements UdiEvent {
 
     private UdiThread thread;
 
+    private Object userData;
+
     /**
      * Constructor.
      *
@@ -83,5 +85,15 @@ public abstract class UdiEventImpl implements UdiEvent {
     @Override
     public UdiThread getThread() {
         return thread;
+    }
+
+    @Override
+    public Object getUserData() {
+        return userData;
+    }
+
+    @Override
+    public void setUserData(Object userData) {
+        this.userData = userData;
     }
 }
