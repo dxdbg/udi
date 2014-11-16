@@ -39,3 +39,5 @@ for source in sources:
         continue
 
     bin_env.Program(udibuild.GetFilename(source), [ source, bin_lib_obj, bin_lib_os_obj ])
+
+# vim: ft=python

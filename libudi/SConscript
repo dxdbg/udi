@@ -19,3 +19,5 @@ libs = ['udicommon']
 
 lib_env.SharedLibrary('udi', sources, LIBS=libs,
         LIBPATH=['#/build/libudicommon'])
+
+# vim: ft=python

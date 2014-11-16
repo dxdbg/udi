@@ -1,4 +1,4 @@
-# 
+#
 # Top level SConscript file for udi projects
 #
 
@@ -71,3 +71,5 @@ ctags = topenv.Command('ctags', '', 'ctags -R libudirt libudi libudicommon tests
 
 # cscope generator
 cscope = topenv.Command('cscope', '', 'cscope -b -R')
+
+# vim: ft=python

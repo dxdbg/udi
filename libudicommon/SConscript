@@ -21,3 +21,5 @@ else:
     sources.append('udi-common-big.c')
 
 lib_env.StaticLibrary('udicommon', sources)
+
+# vim: ft=python

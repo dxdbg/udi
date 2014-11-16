@@ -12,3 +12,5 @@ libs = [ 'udis86' ]
 sources = [ 'disutil.c' ]
 
 bin_env.Program('disutil', sources, LIBS=libs)
+
+# vim: ft=python

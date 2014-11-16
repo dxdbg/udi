@@ -32,3 +32,5 @@ for binary,source in bins.items():
     bin_env.Program(binary, [ source, lib_file_obj ], LIBS=libs, LIBPATH=libpath)
 
 bin_env.Program('all_udirt_tests', [ bins.values(), lib_file_obj ], LIBS=libs, LIBPATH=libpath)
+
+# vim: ft=python

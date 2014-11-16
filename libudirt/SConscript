@@ -36,3 +36,5 @@ if udibuild.IsLinux():
 
 lib_env.SharedLibrary('udirt', sources, LIBS=libs,
         LIBPATH='#/build/libudicommon')
+
+# vim: ft=python
