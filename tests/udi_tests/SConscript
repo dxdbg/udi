@@ -96,3 +96,5 @@ test_bins_h = bin_env.BinaryHeaderBuilder('test_bins.h', sources)
 bin_env.Depends(test_bins_h, '#/build/tests/bin')
 
 bin_env.Depends(bins.values(), test_bins_h)
+
+# vim: ft=python

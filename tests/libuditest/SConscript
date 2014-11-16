@@ -11,3 +11,5 @@ sources = ['libuditest.cxx']
 lib_env.SharedLibrary('uditest', sources)
 
 lib_env.StaticLibrary('uditestmain', ['uditestmain.cxx'])
+
+# vim: ft=python
