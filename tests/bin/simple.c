@@ -6,6 +6,7 @@
 int limit = 100;
 int j = 0;
 
+static
 void function2() {
     for (int i = 0; i < limit; ++i) {
         j++;
