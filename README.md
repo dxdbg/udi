@@ -25,4 +25,4 @@ tools installed:
 
 ## License ##
 
-UDI is licensed under the MPL 2 license.
+UDI is licensed under the [MPL 2](https://www.mozilla.org/MPL/2.0/).
