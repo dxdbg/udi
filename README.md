@@ -25,4 +25,4 @@ tools installed:
 
 ## License ##
 
-UDI is licensed under the 3-clause BSD license.
+UDI is licensed under the MPL 2 license.
