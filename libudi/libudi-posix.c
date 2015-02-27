@@ -385,7 +385,7 @@ char **modify_environment(char * const envp[], const char *root_dir) {
 
     // Allocate a local copy of the array
     int original_elements = i+1;
-    int num_elements = i+2;
+    int num_elements = i+1;
     if (ld_preload_index == -1) {
         num_elements++;
     }
