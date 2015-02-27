@@ -364,9 +364,14 @@ char **modify_environment(char * const envp[], const char *root_dir) {
     const int LD_DEBUG = 0;
 
     char *root_dir_entry = (char *)malloc(strlen(UDI_ROOT_DIR_ENV)+1+1);
+    if (root_dir_entry == NULL) {
+	udi_printf("Failed to allocate memory: %s", strerror(errno));
+	return NULL;
+    }
+
     strncpy(root_dir_entry, UDI_ROOT_DIR_ENV, strlen(UDI_ROOT_DIR_ENV)+1);
     strncat(root_dir_entry, "=", 1);
- 
+
     int i, ld_preload_index = -1, root_dir_index = -1;
     for (i = 0; envp[i] != NULL; ++i) {
         if (strncmp(envp[i],"LD_PRELOAD=", strlen("LD_PRELOAD=")) == 0) {
@@ -380,7 +385,7 @@ char **modify_environment(char * const envp[], const char *root_dir) {
 
     // Allocate a local copy of the array
     int original_elements = i+1;
-    int num_elements = i+1;
+    int num_elements = i+2;
     if (ld_preload_index == -1) {
         num_elements++;
     }
