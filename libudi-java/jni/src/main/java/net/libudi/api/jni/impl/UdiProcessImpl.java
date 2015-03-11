@@ -41,6 +41,8 @@ public class UdiProcessImpl implements UdiProcess {
 
     private final UdiProcessManagerImpl procManager;
 
+    private boolean waitingForStart = true;
+
     /**
      * Constructor.
      *
@@ -94,8 +96,15 @@ public class UdiProcessImpl implements UdiProcess {
     }
 
     @Override
+    public boolean isWaitingForStart()
+    {
+        return waitingForStart;
+    }
+
+    @Override
     public void continueProcess() throws UdiException {
         checkForException(udiLibrary.continue_process(handle));
+        waitingForStart = false;
     }
 
     @Override

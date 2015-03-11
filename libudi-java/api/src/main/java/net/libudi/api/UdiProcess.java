@@ -67,6 +67,11 @@ public interface UdiProcess extends AutoCloseable {
     boolean isTerminated();
 
     /**
+     * @return true if the process has been initialized but is waiting for the initial continue
+     */
+    boolean isWaitingForStart();
+
+    /**
      * Continues the process
      *
      * @throws UdiException on error
