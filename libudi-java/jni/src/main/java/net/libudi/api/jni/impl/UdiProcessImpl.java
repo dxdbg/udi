@@ -43,6 +43,8 @@ public class UdiProcessImpl implements UdiProcess {
 
     private boolean waitingForStart = true;
 
+    private Object userData = null;
+
     /**
      * Constructor.
      *
@@ -161,6 +163,18 @@ public class UdiProcessImpl implements UdiProcess {
         }
 
         return events.get(0);
+    }
+
+    @Override
+    public Object getUserData()
+    {
+        return userData;
+    }
+
+    @Override
+    public void setUserData(Object object)
+    {
+        this.userData = object;
     }
 
     @Override

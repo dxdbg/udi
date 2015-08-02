@@ -160,4 +160,14 @@ public interface UdiProcess extends AutoCloseable {
      * @throws UdiException on general error
      */
     UdiEvent waitForEvent(EventType eventType) throws UnexpectedEventException, UdiException;
+
+    /**
+     * @return application-specific data that is attached to this process
+     */
+    Object getUserData();
+
+    /**
+     * @param object the application-specific data that is attached to this process
+     */
+    void setUserData(Object object);
 }
