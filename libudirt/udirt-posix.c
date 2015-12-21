@@ -1132,6 +1132,23 @@ int post_mem_access_hook(void *hook_arg) {
     return result;
 }
 
+static
+void write_error_response(udi_errmsg *errmsg, thread *thr)
+{
+    udi_response resp = create_response_error(errmsg);
+
+    if ( resp.packed_data != NULL ) {
+        // explicitly ignore errors
+        if (thr != NULL) {
+            write_response_to_thr_request(thr, &resp);
+        }else{
+            write_response(&resp);
+        }
+        udi_free(resp.packed_data);
+        udi_printf("Wrote error message '%s'\n", errmsg->msg);
+    }
+}
+
 /**
  * Wait for and request and process the request on reception.
  *
@@ -1144,7 +1161,8 @@ int wait_and_execute_command(udi_errmsg *errmsg, thread **thr) {
     udi_request *req = NULL;
     int result = 0;
 
-    while(1) {
+    int more_reqs = 1;
+    while(more_reqs) {
         udi_printf("%s\n", "waiting for request");
         req = read_request(thr);
         if ( req == NULL ) {
@@ -1157,24 +1175,31 @@ int wait_and_execute_command(udi_errmsg *errmsg, thread **thr) {
         if ( *thr == NULL ) {
             udi_printf("%s\n", "received process request");
             result = req_handlers[req->request_type](req, errmsg);
-            if ( result != REQ_SUCCESS ) {
-                udi_printf("failed to handle command %s\n", 
-                        request_type_str(req->request_type));
-                break;
-            }
         }else{
             udi_printf("received request for thread 0x%"PRIx64"\n", (*thr)->id);
             result = thr_req_handlers[req->request_type](*thr, req, errmsg);
-            if ( result != REQ_SUCCESS ) {
-                udi_printf("failed to handle command %s\n",
-                        request_type_str(req->request_type));
-                break;
-            }
         }
 
-        if ( req->request_type == UDI_REQ_CONTINUE ) break;
+        if ( result != REQ_SUCCESS ) {
+            if ( result == REQ_FAILURE ) {
+                write_error_response(errmsg, *thr);
+                more_reqs = 1;
+            }else if ( result == REQ_ERROR ) {
+                more_reqs = 0;
+            }else if ( result > REQ_SUCCESS ) {
+                strncpy(errmsg->msg, strerror(result), errmsg->size-1);
+                more_reqs = 0;
+            }
+        }else{
+            more_reqs = 1;
+        }
+
+        if ( req->request_type == UDI_REQ_CONTINUE ) {
+            more_reqs = 0;
+        }
 
         free_request(req);
+        req = NULL;
     }
 
     if (req != NULL) free_request(req);
@@ -1529,12 +1554,12 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
     // create event
     // Note: each decoder function will call write_event to avoid unnecessary
     // heap allocations
-    int request_error = 0;
 
     event_result result;
     result.failure = 0;
     result.wait_for_request = 1;
 
+    int request_error = 0;
     thread *request_thr = NULL;
     do {
         switch(signal) {
@@ -1606,18 +1631,19 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
         // wait for command
         if ( result.wait_for_request ) {
             int req_result = wait_and_execute_command(&errmsg, &request_thr);
-            if ( req_result != REQ_SUCCESS ) {
+            if (req_result == REQ_SUCCESS) {
+                result.failure = 0;
+                request_error = 0;
+            }else if (req_result == REQ_FAILURE) {
                 result.failure = 1;
-
-                if ( req_result == REQ_FAILURE ) {
-                    request_error = 0;
-                }else if ( req_result == REQ_ERROR ) {
-                    request_error = 1;
-                }else if ( req_result > REQ_SUCCESS ) {
-                    request_error = 1;
-                    strncpy(errmsg.msg, strerror(req_result), errmsg.size-1);
-                }
-                break;
+                request_error = 0;
+            }else if (req_result == REQ_ERROR) {
+                result.failure = 1;
+                request_error = 1;
+            }else{
+                result.failure = 1;
+                request_error = 1;
+                strncpy(errmsg.msg, strerror(req_result), errmsg.size-1);
             }
         }
     }while(0);
@@ -1626,19 +1652,7 @@ void signal_entry_point(int signal, siginfo_t *siginfo, void *v_context) {
         // A failed request most likely means the debugger is no longer around, so
         // don't try to send a response
         if ( !request_error ) {
-            // Shared error response code
-            udi_response resp = create_response_error(&errmsg);
-
-            if ( resp.packed_data != NULL ) {
-                // explicitly ignore errors
-                if (request_thr != NULL) {
-                    write_response_to_thr_request(request_thr, &resp);
-                }else{
-                    write_response(&resp);
-                }
-                udi_free(resp.packed_data);
-                udi_printf("Wrote error message '%s'\n", errmsg.msg);
-            }
+            write_error_response(&errmsg, request_thr);
         }else{
             udi_printf("Aborting due to request failure: %s\n", errmsg.msg);
             udi_abort(__FILE__, __LINE__);
@@ -2534,17 +2548,7 @@ void init_udi_rt() {
 
         if(output_enabled) {
             // explicitly don't worry about return
-            udi_response resp = create_response_error(&errmsg);
-
-            if ( resp.packed_data != NULL ) {
-                if (request_thr != NULL) {
-                    write_response_to_thr_request(request_thr, &resp);
-                }else{
-                    write_response(&resp);
-                }
-
-                udi_free(resp.packed_data);
-            }
+            write_error_response(&errmsg, request_thr);
         }
 
         udi_printf("%s\n", "Initialization failed");

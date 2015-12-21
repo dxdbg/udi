@@ -765,7 +765,7 @@ void free_event(udi_event *event) {
     free(event);
 }
 
-void free_event_list(udi_event *event_list) {\
+void free_event_list(udi_event *event_list) {
     if (event_list == NULL) return;
 
     udi_event *current_event = event_list;
