@@ -186,7 +186,7 @@ int ctf_condition_met(ud_mnemonic_code_t mnemonic, void *context) {
         case UD_Ijz:
             result = ZF & flags;
             break;
-        case UD_Iloopnz: 
+        case UD_Iloopne: 
             result = (!(ZF & flags) && (cx-1) != 0);
             break;
         case UD_Iloope:
@@ -325,7 +325,7 @@ unsigned long get_ctf_successor(unsigned long pc, udi_errmsg *errmsg, void *cont
         case UD_Ijcxz:
         case UD_Ijecxz:
         case UD_Ijrcxz:
-        case UD_Iloopnz:
+        case UD_Iloopne:
         case UD_Iloope:
         case UD_Iloop:
             if ( ctf_condition_met(ud_obj.mnemonic, context) ) {
