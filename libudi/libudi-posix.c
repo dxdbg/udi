@@ -561,6 +561,7 @@ udi_pid fork_process(udi_process *proc, const char *executable, char * const arg
         // an error
         int errnum = 0;
         int read_result = read_all(pipefd[0], &errnum, sizeof(int));
+        int saved_errno = errno;
 
         close(pipefd[0]);
 
@@ -574,6 +575,9 @@ udi_pid fork_process(udi_process *proc, const char *executable, char * const arg
         
         if ( read_result > 0 ) {
             // This means the read failed, try to clean up the child
+            udi_printf("read from child pipe failed: %s\n",
+                    strerror(saved_errno));
+
             kill(child, SIGKILL); // explicitly ignore return value
             return -1;
         }
