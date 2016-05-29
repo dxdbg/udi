@@ -27,6 +27,7 @@ import net.libudi.api.exceptions.UdiException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 
 /**
  * Base unit test for libudi Java API -- implementations extend this class
@@ -42,11 +43,13 @@ public abstract class BaseApiUt {
      */
     protected abstract UdiProcessManager getProcessManager();
 
-    protected static final String TEST_EXECS = "build/tests/bin";
+    protected static final String UDI_SRC_ROOT = System.getProperty("udi.src.root");
 
     protected static final String ROOT_DIR = System.getProperty("java.io.tmpdir");
 
     protected static final String SIMPLE_EXECUTABLE = "simple";
+
+    protected final String testExecs;
 
     private final UdiProcessConfig config;
 
@@ -56,6 +59,9 @@ public abstract class BaseApiUt {
     public BaseApiUt() {
         config = new UdiProcessConfig();
         config.setRootDir(Paths.get(ROOT_DIR, "test-udi"));
+
+        assertNotNull(UDI_SRC_ROOT);
+        testExecs = Paths.get(UDI_SRC_ROOT, "build/tests/bin").toAbsolutePath().toString();
     }
 
     /**
@@ -68,7 +74,7 @@ public abstract class BaseApiUt {
 
         UdiProcessManager procManager = getProcessManager();
 
-        UdiProcess process = procManager.createProcess(Paths.get(TEST_EXECS, SIMPLE_EXECUTABLE),
+        UdiProcess process = procManager.createProcess(Paths.get(testExecs, SIMPLE_EXECUTABLE),
                 new String[0],
                 null, // Need to inherit the current environment
                 config);
