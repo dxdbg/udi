@@ -145,6 +145,7 @@ udi_process *create_process(const char *executable, char * const argv[],
         proc->errmsg.msg[ERRMSG_SIZE-1] = '\0';
         proc->running = 0;
         proc->terminated = 0;
+        proc->terminating = 0;
 
         if ( config->root_dir != NULL ) {
             if ( set_root_dir(proc, config->root_dir) != 0 ) {
@@ -325,10 +326,25 @@ udi_error_e submit_request(udi_process *proc,
             }
         }
 
+        int resp_expected = 1;
+        // No response is expected when continuing a terminating process
+        if (req->request_type == UDI_REQ_CONTINUE && proc->terminating) {
+            resp_expected = 0;
+        }
+
+        if (req->request_type == UDI_REQ_CONTINUE) {
+            proc->running = 1;
+        }
+
         // Perform the request
         if ( write_request(req, proc) != 0 ) {
             udi_printf("failed to write %s\n", desc);
             error_code = UDI_ERROR_LIBRARY;
+            break;
+        }
+
+        if (!resp_expected) {
+            error_code = UDI_ERROR_NONE;
             break;
         }
 
@@ -638,8 +654,8 @@ udi_error_e continue_process(udi_process *proc) {
     udi_error_e result = submit_request_noresp(proc, &req, "continue request",
             __FILE__, __LINE__);
     
-    if (result == UDI_ERROR_NONE) {
-        proc->running = 1;
+    if (result != UDI_ERROR_NONE) {
+        proc->running = 0;
     }
 
     return result;

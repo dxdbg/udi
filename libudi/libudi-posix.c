@@ -1009,6 +1009,10 @@ udi_event *wait_for_events(udi_process *procs[], int num_procs) {
                 // The process is no longer running
                 udi_printf("process %d has stopped due to an event\n", procs[i]->pid);
                 procs[i]->running = 0;
+
+                if (new_event->event_type == UDI_EVENT_PROCESS_EXIT) {
+                    procs[i]->terminating = 1;
+                }
             }
         }
 

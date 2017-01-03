@@ -49,6 +49,7 @@ struct udi_process_struct {
     uint32_t protocol_version;
     int multithread_capable;
     int running;
+    int terminating;
     int terminated;
     void *user_data;
     struct udi_thread_struct *threads;
