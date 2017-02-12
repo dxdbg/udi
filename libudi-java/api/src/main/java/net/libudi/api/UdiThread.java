@@ -17,8 +17,6 @@ import net.libudi.api.exceptions.UdiException;
  * <p>
  *     All methods require the process to be in the stopped state unless otherwise stated
  * </p>
- *
- * @author mcnulty
  */
 public interface UdiThread {
 
@@ -26,8 +24,10 @@ public interface UdiThread {
      * This method does not require that the parent process be stopped
      *
      * @return the id for the thread
+     *
+     * @throws UdiException on error
      */
-    long getTid();
+    long getTid() throws UdiException;
 
     /**
      * This method does not require that the parent process be stopped
@@ -40,8 +40,10 @@ public interface UdiThread {
      * This method does not require that the parent process be stopped
      *
      * @return the state for the thread
+     *
+     * @throws UdiException on error
      */
-    ThreadState getState();
+    ThreadState getState() throws UdiException;
 
     /**
      * This method links this thread to another thread in the same process. This interface does not enforce any ordering
@@ -49,8 +51,10 @@ public interface UdiThread {
      * thread for a process.
      *
      * @return the "next" thread, null if there is no "next" thread
+     *
+     * @throws UdiException on error
      */
-    UdiThread getNextThread();
+    UdiThread getNextThread() throws UdiException;
 
     /**
      * Retrieves the program counter/instruction pointer for this thread.
@@ -116,6 +120,8 @@ public interface UdiThread {
 
     /**
      * @return the single step setting
+     *
+     * @throws UdiException on error
      */
-    boolean getSingleStep();
+    boolean getSingleStep() throws UdiException;
 }

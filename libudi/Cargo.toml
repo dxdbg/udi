@@ -1,0 +1,19 @@
+[package]
+name = "udi"
+version = "0.1.0"
+authors = ["Dan McNulty <dkmcnulty@gmail.com>"]
+build = "build.rs"
+
+[dependencies]
+
+users = "0.5.2"
+serde =  "1.0"
+serde_derive = "1.0"
+serde_cbor = "0.6"
+mio = "0.6.6"
+downcast-rs = "1.0.0"
+error-chain = "0.11.x"
+derive-error-chain = "0.11.0"
+
+[build-dependencies]
+native_file_tests = { path = "../../native-file-tests/rust-binding" }

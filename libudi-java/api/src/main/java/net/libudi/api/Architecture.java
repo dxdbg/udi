@@ -11,8 +11,6 @@ package net.libudi.api;
 
 /**
  * The architecture enum for a UdiProcess
- *
- * @author mcnulty
  */
 public enum Architecture {
 

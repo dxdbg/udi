@@ -15,8 +15,6 @@ import net.libudi.api.event.UdiEventVisitor;
 
 /**
  * Implementation of UdiEventProcessExit
- *
- * @author mcnulty
  */
 public class UdiEventProcessExitImpl extends UdiEventImpl implements UdiEventProcessExit {
 

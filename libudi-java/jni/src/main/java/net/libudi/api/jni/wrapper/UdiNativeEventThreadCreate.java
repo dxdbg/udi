@@ -17,8 +17,6 @@ import com.sun.jna.Structure;
 
 /**
  * Structure for event_data for event with type THREAD_CREATE
- *
- * @author mcnulty
  */
 public class UdiNativeEventThreadCreate extends Structure {
 

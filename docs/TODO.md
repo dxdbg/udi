@@ -1,0 +1,13 @@
+A list of possible enhancements/bugfixes
+----------------------------------------
+- catch fork, exec syscalls
+- catch library events
+- implement detach/attach
+- implement register interface
+  - partially complete, still needs support for retrieving FP registers.
+- add documentation generation
+- Need to handle abnormal termination of debuggee (via debuggee library error or SIGKILL)
+- intercept calls to block signals so the debugger can still intercept the signals
+- add file to UDI interface to allow multiple agents to cooperate via file locking
+- handle case where user creates breakpoint at exit function
+- implement debuggee-side conditional breakpoints

@@ -10,19 +10,18 @@ package net.libudi.api.jni.wrapper;
 
 import com.sun.jna.Library;
 import com.sun.jna.Pointer;
+import com.sun.jna.StringArray;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.LongByReference;
 import com.sun.jna.ptr.PointerByReference;
 
 /**
  * The native interface to libudi
- *
- * @author mcnulty
  */
 public interface UdiLibrary extends Library {
 
     /** The library name */
-    public static final String LIBRARY_NAME = "udi";
+    String LIBRARY_NAME = "udi";
 
     // Processes //
 
@@ -33,40 +32,40 @@ public interface UdiLibrary extends Library {
      * @param argv the arguments to the process
      * @param envp the environment for the process (name=value pair format)
      * @param config the configuration for the process
-     * @param errorCode the error code (populated on error)
-     * @param errMsg the error message (populated on error)
+     * @param process the process (populated on success)
      *
-     * @return the handle the udi_process
+     * @return the result of the operation
      */
-    Pointer create_process(String executablePath, String[] argv, String[] envp, UdiNativeProcConfig config,
-            IntByReference errorCode, PointerByReference errMsg);
+    UdiNativeError create_process(String executablePath,
+                                  String[] argv,
+                                  String[] envp,
+                                  UdiNativeProcConfig config,
+                                  PointerByReference process);
 
     /**
      * Frees the process
      *
      * @param process the process
-     *
-     * @return the error code for the operation
      */
-    int free_process(Pointer process);
+    void free_process(Pointer process);
 
     /**
      * Continues a process
      *
      * @param process the process
      *
-     * @return the error code for the operation
+     * @return the result of the operation
      */
-    int continue_process(Pointer process);
+    UdiNativeError continue_process(Pointer process);
 
     /**
      * Refreshes the state of all threads in the process
      *
      * @param process the process
      *
-     * @return the error code for the operation
+     * @return the result of the operation
      */
-    int refresh_state(Pointer process);
+    UdiNativeError refresh_state(Pointer process);
 
     /**
      * Creates a breakpoint in the process
@@ -74,9 +73,9 @@ public interface UdiLibrary extends Library {
      * @param process the process
      * @param address the address of the breakpoint
      *
-     * @return the error code for the operation
+     * @return the result of the operation
      */
-    int create_breakpoint(Pointer process, long address);
+    UdiNativeError create_breakpoint(Pointer process, long address);
 
     /**
      * Installs a breakpoint into the process' memory
@@ -84,9 +83,9 @@ public interface UdiLibrary extends Library {
      * @param process the process
      * @param address the address of the breakpoint
      *
-     * @return the error code for the operation
+     * @return the result of the operation
      */
-    int install_breakpoint(Pointer process, long address);
+    UdiNativeError install_breakpoint(Pointer process, long address);
 
     /**
      * Remove a breakpoint from the process' memory
@@ -94,9 +93,9 @@ public interface UdiLibrary extends Library {
      * @param process the process
      * @param address the address of the breakpoint
      *
-     * @return the error code for the operation
+     * @return the result of the operation
      */
-    int remove_breakpoint(Pointer process, long address);
+    UdiNativeError remove_breakpoint(Pointer process, long address);
 
     /**
      * Deletes the breakpoint at the specified address
@@ -104,76 +103,86 @@ public interface UdiLibrary extends Library {
      * @param process the process
      * @param address the address
      *
-     * @return the error code for the operation
+     * @return the result of the operation
      */
-    int delete_breakpoint(Pointer process, long address);
+    UdiNativeError delete_breakpoint(Pointer process, long address);
 
     /**
-     * Performs a memory access at the specified address
+     * Read the memory
      *
      * @param process the process
-     * @param write true if a write should be performed
-     * @param value the destination or the source (depending on the value of the write parameter)
-     * @param length the length of data to read or write
-     * @param address the address of the data
+     * @param dst the destination buffer
+     * @param size the size of data to read
+     * @param address the address of the data to read
      *
      * @return the error code of the operation
      */
-    int mem_access(Pointer process, boolean write, Pointer value, int length, long address);
+    UdiNativeError read_mem(Pointer process, Pointer dst, int size, long address);
+
+    /**
+     * Write the memory
+     *
+     * @param process the process
+     * @param src the source for the data to write
+     * @param size the size of the data to write
+     * @param address the address of the data to write
+     *
+     * @return the error code of the operation
+     */
+    UdiNativeError write_mem(Pointer process, Pointer src, int size, long address);
 
     /**
      * Gets the PID for the process
      *
      * @param process the process
+     * @param output the output
      *
-     * @return the PID
+     * @return the result of the operation
      */
-    int get_proc_pid(Pointer process);
+    UdiNativeError get_proc_pid(Pointer process, IntByReference output);
 
     /**
      * Gets the architecture for the process
      *
      * @param process the process
+     * @param output the output
      *
-     * @return the architecture
+     * @return the result of the operation
      */
-    int get_proc_architecture(Pointer process);
+    UdiNativeError get_proc_architecture(Pointer process, IntByReference output);
 
     /**
      * @param process the process
-     * @return true if the process is multithread capable
+     * @param output the output
+     *
+     * @return the result of the operation
      */
-    boolean get_multithread_capable(Pointer process);
+    UdiNativeError get_multithread_capable(Pointer process, IntByReference output);
 
     /**
      * @param process the process
+     * @param output the output
+     *
      * @return the initial thread for the process
      */
-    Pointer get_initial_thread(Pointer process);
+    UdiNativeError get_initial_thread(Pointer process, PointerByReference output);
 
     /**
      * @param process the process
-     *
-     * @return true if the process is in a running state. That is, the process had been continued and no events
+     * @param output true if the process is in a running state. That is, the process had been continued and no events
      * have been received for the process.
+     *
+     * @return the result of the operation
      */
-    boolean is_running(Pointer process);
+    UdiNativeError is_running(Pointer process, IntByReference output);
 
     /**
      * @param process the process
+     * @param output true if the process has terminated and is longer accessible.
      *
-     * @return true if the process has terminated and is longer accessible.
+     * @return the result of the operation
      */
-    boolean is_terminated(Pointer process);
-
-    /**
-     * The last error message recorded for the specified process
-     *
-     * @param process the process
-     *
-     * @return the error message
-     */
-    String get_last_error_message(Pointer process);
+    UdiNativeError is_terminated(Pointer process, IntByReference output);
 
     // Threads //
 
@@ -181,34 +190,32 @@ public interface UdiLibrary extends Library {
      * Gets the id for the thread
      *
      * @param thread the thread
+     * @param output the id
      *
-     * @return the id
+     * @return the result of the operation
      */
-    long get_tid(Pointer thread);
-
-    /**
-     * Gets the parent process for a thread
-     *
-     * @param thread the thread
-     *
-     * @return the parent process
-     */
-    Pointer get_process(Pointer thread);
+    UdiNativeError get_tid(Pointer thread, LongByReference output);
 
     /**
      * @param thread the thread
-     * @return the current state of the thread
+     * @param output the current state of the thread
+     *
+     * @return the result of the operation
      */
-    int get_state(Pointer thread);
+    UdiNativeError get_state(Pointer thread, IntByReference output);
 
     /**
      * Gets the next thread in the parent process
      *
+     * @param process the process
      * @param thread the thread
+     * @param output the output
      *
      * @return the next thread
      */
-    Pointer get_next_thread(Pointer thread);
+    UdiNativeError get_next_thread(Pointer process,
+                                   Pointer thread,
+                                   PointerByReference output);
 
     /**
      * Sets the running state of the thread to resumed
@@ -217,7 +224,7 @@ public interface UdiLibrary extends Library {
      *
      * @return the error code of the operation
      */
-    int resume_thread(Pointer thread);
+    UdiNativeError resume_thread(Pointer thread);
 
     /**
      * Sets the running state of the thread to suspended
@@ -226,7 +233,7 @@ public interface UdiLibrary extends Library {
      *
      * @return the error code of the operation
      */
-    int suspend_thread(Pointer thread);
+    UdiNativeError suspend_thread(Pointer thread);
 
     /**
      * Sets the single step setting of the thread
@@ -236,26 +243,37 @@ public interface UdiLibrary extends Library {
      *
      * @return the error code of the operation
      */
-    int set_single_step(Pointer thread, boolean enable);
+    UdiNativeError set_single_step(Pointer thread, boolean enable);
 
     /**
      * @param thread the thread
+     * @param output the current single step setting
      *
-     * @return the current single step setting
+     * @return the error code of the operation
      */
-    boolean get_single_step(Pointer thread);
+    UdiNativeError get_single_step(Pointer thread, IntByReference output);
 
     /**
-     * Access a register in the specified thread
+     * Read a register in the specified thread
      *
      * @param thread the thread
-     * @param write non-zero if the register should be written into
      * @param register the register to access
      * @param value the destination or source of the register value
      *
      * @return the error code of the operation
      */
-    int register_access(Pointer thread, int write, int register, LongByReference value);
+    UdiNativeError read_register(Pointer thread, int register, LongByReference value);
+
+    /**
+     * Write a register in the specified thread
+     *
+     * @param thread the thread
+     * @param register the register to access
+     * @param value the source of the register value
+     *
+     * @return the error code of the operation
+     */
+    UdiNativeError write_register(Pointer thread, int register, long value);
 
     /**
      * Gets the program counter for the specified thread
@@ -265,7 +283,7 @@ public interface UdiLibrary extends Library {
      *
      * @return the error code of the operation
      */
-    int get_pc(Pointer thread, LongByReference value);
+    UdiNativeError get_pc(Pointer thread, LongByReference value);
 
     /**
      * Gets the next instruction to be executed by the specified thread
@@ -275,7 +293,7 @@ public interface UdiLibrary extends Library {
      *
      * @return the error code of the operation
      */
-    int get_next_instruction(Pointer thread, LongByReference value);
+    UdiNativeError get_next_instruction(Pointer thread, LongByReference value);
 
     // Events //
 
@@ -284,10 +302,11 @@ public interface UdiLibrary extends Library {
      *
      * @param procs the processes
      * @param numProcs the number of processes in the array
+     * @param output the native events
      *
-     * @return the native events
+     * @return the error code of the operation
      */
-    UdiNativeEvent wait_for_events(Pointer[] procs, int numProcs);
+    UdiNativeError wait_for_events(Pointer[] procs, int numProcs, PointerByReference output);
 
     /**
      * Frees the events returned by wait_for_events

@@ -11,8 +11,6 @@ package net.libudi.api.event;
 
 /**
  * Visitor for dispatching events for handling
- *
- * @author mcnulty
  */
 public interface UdiEventVisitor {
 

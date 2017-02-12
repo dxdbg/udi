@@ -1,0 +1,38 @@
+#
+# SConscript file for udirt tests
+#
+
+import udibuild
+
+Import('topenv')
+
+bin_env = topenv.Clone()
+
+bin_env.Append(CPPPATH = ['#/src'])
+bin_env.Append(LIBPATH = ['#/build/src'])
+bin_env.Append(RPATH = [Dir('#/build/src').abspath])
+
+read_test_req_srcs = [
+    'read-test-req.c',
+    'mock-lib.c'
+]
+
+libs = [ 'udirt', 'cbor' ]
+
+if udibuild.IsX86():
+    libs.append('udis86')
+
+read_test_req_bin = bin_env.Program('read-test-req', read_test_req_srcs, LIBS=libs)
+bin_env.Depends(read_test_req_bin, '#/src/udirt-msg.c')
+bin_env.Depends(read_test_req_bin, '#/src/udirt-malloc.c')
+
+tests = [
+    read_test_req_bin
+]
+
+for test in tests:
+    bin_env.AlwaysBuild(bin_env.Alias("test-" + str(test[0]), test, test[0].abspath))
+
+bin_env.AlwaysBuild(bin_env.Alias("all_tests", tests, " && ".join(map(lambda x: x[0].abspath, tests))))
+
+# vim: ft=python

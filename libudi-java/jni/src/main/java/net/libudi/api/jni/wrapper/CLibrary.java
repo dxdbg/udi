@@ -15,13 +15,11 @@ import com.sun.jna.Pointer;
 
 /**
  * Provides access to libc for use with libudi
- *
- * @author mcnulty
  */
 public interface CLibrary extends Library {
 
     /** Library name for libc */
-    public static final String LIBRARY_NAME = (Platform.isWindows()) ? "msvcrt" : "c";
+    String LIBRARY_NAME = (Platform.isWindows()) ? "msvcrt" : "c";
 
     /**
      * @param ptr the pointer returned a libudi function

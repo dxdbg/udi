@@ -1,0 +1,13 @@
+[package]
+name = "udi_c"
+version = "0.1.0"
+authors = ["Dan McNulty <dkmcnulty@gmail.com>"]
+
+[lib]
+name = "udi"
+crate-type = [ "dylib" ]
+
+[dependencies]
+
+udi = { path = "../libudi" }
+libc = "0.2.20"

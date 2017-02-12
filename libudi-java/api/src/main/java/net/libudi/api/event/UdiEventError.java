@@ -11,8 +11,6 @@ package net.libudi.api.event;
 
 /**
  * An interface for a UdiEvent of type ERROR
- *
- * @author mcnulty
  */
 public interface UdiEventError extends UdiEvent {
 

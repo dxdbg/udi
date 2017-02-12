@@ -13,8 +13,6 @@ import net.libudi.api.event.UdiEvent;
 
 /**
  * Thrown to indicate that an unexpected event was encountered
- *
- * @author mcnulty
  */
 public class UnexpectedEventException extends UdiException {
 

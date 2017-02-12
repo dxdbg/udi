@@ -11,8 +11,6 @@ package net.libudi.api;
 
 /**
  * The state for a UdiThread
- *
- * @author mcnulty
  */
 public enum ThreadState {
 

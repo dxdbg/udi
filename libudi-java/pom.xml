@@ -18,6 +18,10 @@
     <packaging>pom</packaging>
     <name>Libudi Java API Parent</name>
 
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
     <modules>
         <module>api</module>
         <module>jni</module>

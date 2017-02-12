@@ -14,9 +14,6 @@ import net.libudi.api.event.EventType;
 import net.libudi.api.event.UdiEventThreadCreate;
 import net.libudi.api.event.UdiEventVisitor;
 
-/**
- * @author mcnulty
- */
 public class UdiEventThreadCreateImpl extends UdiEventImpl implements UdiEventThreadCreate {
 
     private UdiThread newThread;

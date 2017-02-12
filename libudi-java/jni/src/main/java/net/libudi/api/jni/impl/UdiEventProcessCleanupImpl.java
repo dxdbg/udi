@@ -15,8 +15,6 @@ import net.libudi.api.event.UdiEventVisitor;
 
 /**
  * Implementation of UdiEventProcessCleanup
- *
- * @author mcnulty
  */
 public class UdiEventProcessCleanupImpl extends UdiEventImpl implements UdiEventProcessCleanup {
 

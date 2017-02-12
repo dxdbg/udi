@@ -1,0 +1,94 @@
+#
+# Top level SConscript file for udi projects
+#
+
+import sys
+import os
+
+# import utility functionality
+sys.path.append(os.path.abspath('udibuild'))
+import udibuild
+
+
+vars = Variables(['.udirt.config'])
+vars.Add("UDIS86_INC", "Include directory for udis86 library")
+vars.Add("UDIS86_LIB", "Library directory for udis86 library")
+vars.Add("CBOR_INC", "Include directory cbor library")
+vars.Add("CBOR_LIB", "Library directory cbor library")
+
+topenv = Environment(variables = vars)
+
+Help(vars.GenerateHelpText(topenv))
+
+if topenv['CC'] == 'gcc':
+    # C compiler flags
+    topenv.Append(CFLAGS = "-Wall -Werror -fPIC -std=gnu99 -g")
+
+    # C++ compiler flags
+    topenv.Append(CXXFLAGS = "-Wall -Werror -g -fPIC")
+
+    if 'ENABLE_OPT' in os.environ:
+        topenv.Append(CFLAGS = "-O2")
+        topenv.Append(CXXFLAGS = "-O2")
+
+else:
+    print 'Unknown compiler'
+    quit()
+
+# configuring based on the environment
+conf = Configure(topenv)
+
+if "UDIS86_INC" in topenv:
+    topenv.Append(CPPPATH=[topenv["UDIS86_INC"]])
+
+if "UDIS86_LIB" in topenv:
+    topenv.Append(LIBPATH=[topenv["UDIS86_LIB"]])
+    topenv.Append(RPATH=[topenv["UDIS86_LIB"]])
+
+if "CBOR_INC" in topenv:
+    topenv.Append(CPPPATH=[topenv["CBOR_INC"]])
+
+if "CBOR_LIB" in topenv:
+    topenv.Append(LIBPATH=[topenv["CBOR_LIB"]])
+    topenv.Append(RPATH=[topenv["CBOR_LIB"]])
+
+# platform and architecture specific defines
+if udibuild.IsUnix():
+    topenv.Append(CPPDEFINES=['UNIX'])
+else:
+    topenv.Append(CPPDEFINES=['WINDOWS'])
+
+if udibuild.IsLittleEndian():
+    topenv.Append(CPPDEFINES=['LITTLE_ENDIAN'])
+else:
+    topenv.Append(CPPDEFINES=['BIG_ENDIAN'])
+
+if udibuild.IsLinux():
+    topenv.Append(CPPDEFINES=['LINUX'])
+
+if udibuild.IsX86():
+    if not conf.CheckLibWithHeader('udis86', 'udis86.h', 'c'):
+        print 'Did not find libudis86'
+        Exit(1)
+
+if not conf.CheckLibWithHeader('cbor', 'cbor.h', 'c'):
+    print('Did not find libcbor')
+    Exit(1)
+
+topenv = conf.Finish()
+
+vars.Save('.udirt.config', topenv)
+
+Export('topenv')
+
+# subdirectories
+topenv.SConscript('#/src/SConscript', variant_dir='#/build/src', duplicate=False)
+topenv.SConscript('#/tests/SConscript', variant_dir='#/build/tests', duplicate=False)
+topenv.SConscript('#/util/SConscript', variant_dir='#/build/util', duplicate=False)
+
+# default target
+topenv.Default('src', 'tests', 'util')
+
+topenv.Clean('src', 'build')
+
+# vim: ft=python

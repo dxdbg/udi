@@ -11,8 +11,6 @@ package net.libudi.api.event;
 
 /**
  * The interface for a UdiEvent with a type PROCESS_CLEANUP
- *
- * @author mcnulty
  */
 public interface UdiEventProcessCleanup extends UdiEvent {
 

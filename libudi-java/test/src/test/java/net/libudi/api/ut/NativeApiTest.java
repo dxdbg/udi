@@ -9,17 +9,26 @@
 
 package net.libudi.api.ut;
 
+import java.io.IOException;
+
 import net.libudi.api.UdiProcessManager;
 import net.libudi.api.jni.impl.UdiProcessManagerImpl;
 
 /**
- * Implementation of unit tests for Native implementation of libudi api
- *
- * @author mcnulty
+ * Implementation of unit tests for native implementation of the libudi api
  */
 public class NativeApiTest extends BaseApiUt {
 
     private final UdiProcessManagerImpl impl = new UdiProcessManagerImpl();
+
+    /**
+     * Constructor.
+     *
+     * @throws IOException on failure to read the native file tests info
+     */
+    public NativeApiTest() throws IOException
+    {
+    }
 
     @Override
     protected UdiProcessManager getProcessManager() {

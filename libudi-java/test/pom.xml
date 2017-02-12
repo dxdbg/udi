@@ -21,6 +21,12 @@
     <packaging>jar</packaging>
     <name>Libudi Java API tests</name>
 
+    <properties>
+        <native.file.tests.basePath>${project.parent.basedir}/../libudi/native-file-tests</native.file.tests.basePath>
+        <udi.native.lib.searchPath>${project.parent.basedir}/../libudi-c/target/debug</udi.native.lib.searchPath>
+        <udi.native.rtlib.path>${project.parent.basedir}/../libudirt/build/src/libudirt.so</udi.native.rtlib.path>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>net.libudi</groupId>
@@ -31,6 +37,12 @@
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.11</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.libudi</groupId>
+            <artifactId>native-file-tests</artifactId>
+            <version>1.0-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
         <!-- list all implementations under test here -->
@@ -57,8 +69,12 @@
                 <version>2.10</version>
                 <configuration>
                     <systemPropertyVariables>
-                        <udi.src.root>${project.parent.basedir}/..</udi.src.root>
+                        <native.file.tests.basePath>${native.file.tests.basePath}</native.file.tests.basePath>
+                        <udi.native.lib.searchPath>${udi.native.lib.searchPath}</udi.native.lib.searchPath>
+                        <udi.native.rtlib.path>${udi.native.rtlib.path}</udi.native.rtlib.path>
                     </systemPropertyVariables>
+                    <forkMode>never</forkMode>
+                    <useFile>false</useFile>
                 </configuration>
             </plugin>
         </plugins>

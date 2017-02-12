@@ -11,8 +11,6 @@ package net.libudi.api.exceptions;
 
 /**
  * Indicates an invalid request was issued to the debuggee process
- *
- * @author mcnulty
  */
 public class RequestException extends UdiException {
 

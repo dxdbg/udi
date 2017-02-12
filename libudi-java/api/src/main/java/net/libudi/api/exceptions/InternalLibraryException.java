@@ -11,8 +11,6 @@ package net.libudi.api.exceptions;
 
 /**
  * Indicates the libudi library had an internal error
- *
- * @author mcnulty
  */
 public class InternalLibraryException extends UdiException {
 

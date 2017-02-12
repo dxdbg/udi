@@ -18,12 +18,20 @@ import com.sun.jna.Structure.ByReference;
 
 /**
  * Structure for a native udi_event
- *
- * @author mcnulty
  */
 public class UdiNativeEvent extends Structure {
 
     public static class ByReference extends UdiNativeEvent implements Structure.ByReference {}
+
+    public UdiNativeEvent()
+    {
+    }
+
+    public UdiNativeEvent(Pointer p)
+    {
+        super(p);
+        this.read();
+    }
 
     public int event_type;
 

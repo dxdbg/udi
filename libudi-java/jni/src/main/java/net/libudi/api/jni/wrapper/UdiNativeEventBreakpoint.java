@@ -17,8 +17,6 @@ import com.sun.jna.Structure;
 
 /**
  * Structure for event_data for event with type BREAKPOINT
- *
- * @author mcnulty
  */
 public class UdiNativeEventBreakpoint extends Structure {
 

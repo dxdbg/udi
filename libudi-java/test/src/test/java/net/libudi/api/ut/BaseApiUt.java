@@ -9,6 +9,8 @@
 
 package net.libudi.api.ut;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -24,6 +26,7 @@ import net.libudi.api.event.EventType;
 import net.libudi.api.event.UdiEvent;
 import net.libudi.api.event.UdiEventProcessExit;
 import net.libudi.api.exceptions.UdiException;
+import net.libudi.nativefiletests.NativeFileTestsInfo;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -31,37 +34,34 @@ import static org.junit.Assert.assertNotNull;
 
 /**
  * Base unit test for libudi Java API -- implementations extend this class
- *
- * This test assumes the working directory is set to the base of the udi repository.
- *
- * @author mcnulty
  */
 public abstract class BaseApiUt {
 
-    /**
-     * @return the actual implementation to test as determined by the base class
-     */
-    protected abstract UdiProcessManager getProcessManager();
-
-    protected static final String UDI_SRC_ROOT = System.getProperty("udi.src.root");
-
-    protected static final String ROOT_DIR = System.getProperty("java.io.tmpdir");
-
-    protected static final String SIMPLE_EXECUTABLE = "simple";
-
-    protected final String testExecs;
+    private static final String ROOT_DIR = System.getProperty("java.io.tmpdir");
+    private static final String SIMPLE_BINARY = "simple-debug-noopt-dynamic";
+    private static final String NATIVE_FILE_TEST_PATH = "native.file.tests.basePath";
+    private static final String RT_LIB_PATH = System.getProperty("udi.native.rtlib.path");
 
     private final UdiProcessConfig config;
+    private final NativeFileTestsInfo nativeFileTestsInfo;
 
     /**
      * Constructor.
+     *
+     * @throws IOException on failure to read the native file tests info
      */
-    public BaseApiUt() {
+    public BaseApiUt() throws IOException
+    {
         config = new UdiProcessConfig();
         config.setRootDir(Paths.get(ROOT_DIR, "test-udi"));
+        if (RT_LIB_PATH != null) {
+            config.setRtLibPath(Paths.get(RT_LIB_PATH));
+        }
 
-        assertNotNull(UDI_SRC_ROOT);
-        testExecs = Paths.get(UDI_SRC_ROOT, "build/tests/bin").toAbsolutePath().toString();
+        String basePath = System.getProperty(NATIVE_FILE_TEST_PATH);
+        assertNotNull(NATIVE_FILE_TEST_PATH + " must be set.", basePath);
+
+        nativeFileTestsInfo = new NativeFileTestsInfo(Paths.get(basePath));
     }
 
     /**
@@ -74,10 +74,10 @@ public abstract class BaseApiUt {
 
         UdiProcessManager procManager = getProcessManager();
 
-        UdiProcess process = procManager.createProcess(Paths.get(testExecs, SIMPLE_EXECUTABLE),
-                new String[0],
-                null, // Need to inherit the current environment
-                config);
+        UdiProcess process = procManager.createProcess(nativeFileTestsInfo.getFirstExecutablePath(SIMPLE_BINARY),
+                                                       new String[0],
+                                                       null, // Need to inherit the current environment
+                                                       config);
         assertNotEquals(process, null);
 
         process.continueProcess();
@@ -85,8 +85,13 @@ public abstract class BaseApiUt {
         UdiEvent event = process.waitForEvent(EventType.PROCESS_EXIT);
         assertNotEquals(event, null);
         assertEquals(event.getEventType(), EventType.PROCESS_EXIT);
-        assertEquals(((UdiEventProcessExit)event).getExitCode(), 1);
+        assertEquals(1, ((UdiEventProcessExit)event).getExitCode());
 
         process.continueProcess();
     }
+
+    /**
+     * @return the actual implementation to test as determined by the base class
+     */
+    protected abstract UdiProcessManager getProcessManager();
 }

@@ -15,8 +15,6 @@ import net.libudi.api.exceptions.UdiException;
 
 /**
  * Encapsulation for an error returned by a libudi exported function
- *
- * @author mcnulty
  */
 public enum UdiError {
 
@@ -26,8 +24,11 @@ public enum UdiError {
     /** indicates there was an error processing the request */
     REQUEST(1),
 
+    /** indicates a memory allocation error was encountered */
+    NO_MEM(2),
+
     /** there was no error */
-    NONE(2);
+    NONE(3);
 
     private final int errorCode;
 
@@ -36,7 +37,7 @@ public enum UdiError {
      *
      * @param errorCode the error codde
      */
-    private UdiError(int errorCode) {
+    UdiError(int errorCode) {
         this.errorCode = errorCode;
     }
 
@@ -45,42 +46,42 @@ public enum UdiError {
      * @return the corresponding error
      */
     public static UdiError fromErrorCode(int errorCode) {
-        switch (errorCode) {
-            case 0:
-                return LIBRARY;
-            case 1:
-                return REQUEST;
-            case 2:
-                return NONE;
-            default:
-                throw new IllegalArgumentException("Unknown error code: " + errorCode);
+
+        for (UdiError error : UdiError.values()) {
+            if (error.errorCode == errorCode) {
+                return error;
+            }
         }
+
+        throw new IllegalArgumentException("Unknown error code: " + errorCode);
     }
 
     /**
      * @param errorCode the error code
      * @param errMsg the error message
      *
-     * @return the exception encapsulating the error message (or null for no exception)
+     * @throws UdiException when the specified error code does not correspond to the NONE error code
      */
-    public static UdiException toException(int errorCode, String errMsg) {
-        return toException(fromErrorCode(errorCode), errMsg);
+    public static void toException(int errorCode, String errMsg) throws UdiException {
+        toException(fromErrorCode(errorCode), errMsg);
     }
 
     /**
      * @param error the error
      * @param errMsg the error message
      *
-     * @return the exception encapsulating the error message (or null for no exception)
+     * @throws UdiException when the specified error code does not correspond to the NONE error code
      */
-    public static UdiException toException(UdiError error, String errMsg) {
+    public static void toException(UdiError error, String errMsg) throws UdiException {
         switch (error) {
             case LIBRARY:
-                return new InternalLibraryException(errMsg);
+                throw new InternalLibraryException(errMsg);
             case REQUEST:
-                return new RequestException(errMsg);
+                throw new RequestException(errMsg);
+            case NO_MEM:
+                throw new OutOfMemoryError();
             case NONE:
-                return null;
+                return;
             default:
                 throw new IllegalArgumentException("Unknown error: " + error);
         }

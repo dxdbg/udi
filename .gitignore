@@ -1,12 +1,11 @@
 *.swp
-build/*
-notes.txt
 .sconsign.dblite
 __init__.pyc
-tags
-cscope.out
 .sconf_temp
 config.log
-.clang_complete
 *.iml
 target/
+libudirt/build
+libudirt/.udirt.config
+native-file-tests.zip
+native-file-tests

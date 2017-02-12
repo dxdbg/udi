@@ -1,0 +1,36 @@
+#
+# SConscript for libudirt
+#
+
+import udibuild
+
+Import('topenv')
+
+lib_env = topenv.Clone()
+
+lib_env.Append(CPPPATH = ['#/src'])
+
+sources = ['udirt.c', 'udirt-malloc.c', 'udirt-msg.c']
+
+libs = [ 'cbor' ]
+
+if udibuild.IsUnix():
+    sources.append('udirt-posix.c')
+    sources.append('udirt-posix-pthreads.c')
+    sources.append('udirt-posix-sys.c')
+
+if udibuild.IsX86():
+    sources.append('udirt-x86.c')
+    libs.append('udis86')
+
+if udibuild.IsLinux() and udibuild.IsX86():
+    sources.append('udirt-linux-x86.c')
+
+if udibuild.IsLinux():
+    sources.append('udirt-posix-linux-gnu.c')
+    libs.append('dl')
+
+lib_env.SharedLibrary('udirt', sources, LIBS=libs)
+lib_env.StaticLibrary('udirt', sources)
+
+# vim: ft=python

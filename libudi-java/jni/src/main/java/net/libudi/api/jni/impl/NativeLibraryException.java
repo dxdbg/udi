@@ -13,8 +13,6 @@ import net.libudi.api.exceptions.UdiException;
 
 /**
  * Indicates that the wrapper library encountered an unspecified error
- *
- * @author mcnulty
  */
 public class NativeLibraryException extends UdiException {
 

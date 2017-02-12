@@ -14,8 +14,6 @@ import java.util.Map;
 
 /**
  * Enumeration encapsulating all registers accessible by UDI
- *
- * @author mcnulty
  */
 public enum Register {
 

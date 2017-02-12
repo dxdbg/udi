@@ -11,8 +11,6 @@ package net.libudi.api.exceptions;
 
 /**
  * The base class exception for all exceptions thrown by this library
- *
- * @author mcnulty
  */
 public class UdiException extends Exception {
 

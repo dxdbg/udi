@@ -11,8 +11,6 @@ package net.libudi.api.event;
 
 /**
  * An interface for a UdiEvent with event type BREAKPOINT
- *
- * @author mcnulty
  */
 public interface UdiEventBreakpoint extends UdiEvent {
 

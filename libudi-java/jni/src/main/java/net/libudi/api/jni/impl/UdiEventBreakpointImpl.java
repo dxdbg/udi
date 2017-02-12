@@ -15,8 +15,6 @@ import net.libudi.api.event.UdiEventVisitor;
 
 /**
  * Implementation of UdiEventBreakpoint
- *
- * @author mcnulty
  */
 public class UdiEventBreakpointImpl extends UdiEventImpl implements UdiEventBreakpoint {
 

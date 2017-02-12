@@ -17,8 +17,6 @@ import com.sun.jna.Structure;
 
 /**
  * Represents the event_data for an event with type ERROR
- *
- * @author mcnulty
  */
 public class UdiNativeEventError extends Structure {
 

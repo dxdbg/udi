@@ -11,8 +11,6 @@ package net.libudi.api.event;
 
 /**
  * An interface for a UdiEvent of type PROCESS_EXIT
- *
- * @author mcnulty
  */
 public interface UdiEventProcessExit extends UdiEvent {
 

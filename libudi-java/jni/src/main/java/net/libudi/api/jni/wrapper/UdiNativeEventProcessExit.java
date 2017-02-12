@@ -17,8 +17,6 @@ import com.sun.jna.Structure;
 
 /**
  * Structure for event_data for event with type PROCESS_EXIT
- *
- * @author mcnulty
  */
 public class UdiNativeEventProcessExit extends Structure {
 

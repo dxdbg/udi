@@ -19,8 +19,6 @@ import net.libudi.api.exceptions.UdiException;
 /**
  * An interface that provides a mechanism to create or attach to debuggee processes and wait for events in a collection
  * of processes.
- *
- * @author mcnulty
  */
 public interface UdiProcessManager {
 
@@ -37,9 +35,9 @@ public interface UdiProcessManager {
      * @throws UdiException when the process cannot be created
      */
     UdiProcess createProcess(Path executable,
-            String[] args,
-            Map<String, String> env,
-            UdiProcessConfig config)
+                             String[] args,
+                             Map<String, String> env,
+                             UdiProcessConfig config)
             throws UdiException;
 
     /**

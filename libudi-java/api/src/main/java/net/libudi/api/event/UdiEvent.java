@@ -14,8 +14,6 @@ import net.libudi.api.UdiThread;
 
 /**
  * An interface representing an event that has occurred in a UdiProcess
- *
- * @author mcnulty
  */
 public interface UdiEvent {
 

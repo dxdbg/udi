@@ -10,25 +10,26 @@
 package net.libudi.api.jni.impl;
 
 import com.sun.jna.Pointer;
+import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.LongByReference;
+import com.sun.jna.ptr.PointerByReference;
 
 import net.libudi.api.Register;
 import net.libudi.api.ThreadState;
 import net.libudi.api.UdiProcess;
-import net.libudi.api.UdiProcessManager;
 import net.libudi.api.UdiThread;
 import net.libudi.api.exceptions.UdiException;
-import net.libudi.api.jni.wrapper.UdiError;
 import net.libudi.api.jni.wrapper.UdiLibrary;
+import net.libudi.api.jni.wrapper.UdiNativeError;
 
 /**
  * Implementation of UdiThread that uses libudi
- *
- * @author mcnulty
  */
 public class UdiThreadImpl implements UdiThread {
 
     private final Pointer handle;
+
+    private final UdiProcessImpl parentProcess;
 
     private final UdiLibrary udiLibrary;
 
@@ -38,99 +39,157 @@ public class UdiThreadImpl implements UdiThread {
      * Constructor.
      *
      * @param handle the handle
+     * @param parentProcess the parent process
      * @param procManager the UdiProcessManager
      * @param udiLibrary the library
      */
-    public UdiThreadImpl(Pointer handle, UdiProcessManagerImpl procManager, UdiLibrary udiLibrary) {
+    public UdiThreadImpl(Pointer handle,
+                         UdiProcessImpl parentProcess,
+                         UdiProcessManagerImpl procManager,
+                         UdiLibrary udiLibrary) {
         this.handle = handle;
+        this.parentProcess = parentProcess;
         this.procManager = procManager;
         this.udiLibrary = udiLibrary;
     }
 
     @Override
-    public long getTid() {
-        return udiLibrary.get_tid(handle);
+    public long getTid() throws UdiException {
+
+        parentProcess.checkNotClosed();
+
+        LongByReference output = new LongByReference();
+        try (UdiNativeError error = udiLibrary.get_tid(handle, output)) {
+            error.checkException();
+            return output.getValue();
+        }
     }
 
     @Override
     public UdiProcess getParentProcess() {
-        return procManager.getProcess(udiLibrary.get_process(handle));
+        return parentProcess;
     }
 
     @Override
-    public ThreadState getState() {
-        return ThreadState.fromIndex(udiLibrary.get_state(handle));
+    public ThreadState getState() throws UdiException {
+
+        parentProcess.checkNotClosed();
+
+        IntByReference output = new IntByReference();
+        try (UdiNativeError error = udiLibrary.get_state(handle, output)) {
+            error.checkException();
+            return ThreadState.fromIndex(output.getValue());
+        }
     }
 
     @Override
-    public UdiThread getNextThread() {
-        return procManager.getThread(udiLibrary.get_next_thread(handle));
+    public UdiThread getNextThread() throws UdiException {
+
+        parentProcess.checkNotClosed();
+
+        PointerByReference output = new PointerByReference();
+
+        try (UdiNativeError error = udiLibrary.get_next_thread(parentProcess.getHandle(),
+                                                               handle,
+                                                               output))
+        {
+            error.checkException();
+            return procManager.getThread(output.getValue());
+        }
     }
 
     @Override
     public long getPC() throws UdiException {
 
-        LongByReference value = new LongByReference();
+        parentProcess.checkNotClosed();
 
-        checkForException(udiLibrary.get_pc(handle, value));
+        LongByReference output = new LongByReference();
 
-        return value.getValue();
+        try (UdiNativeError error = udiLibrary.get_pc(handle, output)) {
+            error.checkException();
+            return output.getValue();
+        }
     }
 
     @Override
     public long getNextPC() throws UdiException {
-        LongByReference value = new LongByReference();
 
-        checkForException(udiLibrary.get_next_instruction(handle, value));
+        parentProcess.checkNotClosed();
 
-        return value.getValue();
+        LongByReference output = new LongByReference();
+
+        try (UdiNativeError error = udiLibrary.get_next_instruction(handle, output)) {
+            error.checkException();
+            return output.getValue();
+        }
     }
 
     @Override
     public long readRegister(Register reg) throws UdiException {
 
-        LongByReference value = new LongByReference();
+        parentProcess.checkNotClosed();
 
-        registerAccess(reg, 0, value);
+        LongByReference output = new LongByReference();
 
-        return value.getValue();
+        try (UdiNativeError error = udiLibrary.read_register(handle, reg.getIndex(), output)) {
+            error.checkException();
+            return output.getValue();
+        }
     }
 
     @Override
     public void writeRegister(Register reg, long value) throws UdiException {
 
-        LongByReference newValue = new LongByReference(value);
+        parentProcess.checkNotClosed();
 
-        registerAccess(reg, 1, newValue);
-    }
-
-    private void registerAccess(Register reg, int write, LongByReference value) throws UdiException {
-
-        checkForException(udiLibrary.register_access(handle, write, reg.getIndex(), value));
+        try (UdiNativeError error = udiLibrary.write_register(handle, reg.getIndex(), value)) {
+            error.checkException();
+        }
     }
 
     @Override
     public void resume() throws UdiException {
-        checkForException(udiLibrary.resume_thread(handle));
+
+        parentProcess.checkNotClosed();
+
+        try (UdiNativeError error = udiLibrary.resume_thread(handle)) {
+            error.checkException();
+        }
     }
 
     @Override
     public void suspend() throws UdiException {
-        checkForException(udiLibrary.suspend_thread(handle));
+
+        parentProcess.checkNotClosed();
+
+        try (UdiNativeError error = udiLibrary.suspend_thread(handle)) {
+            error.checkException();
+        }
     }
 
     @Override
     public void setSingleStep(boolean singleStep) throws UdiException {
-        checkForException(udiLibrary.set_single_step(handle, singleStep));
+
+        parentProcess.checkNotClosed();
+
+        try (UdiNativeError error = udiLibrary.set_single_step(handle, singleStep)) {
+            error.checkException();
+        }
     }
 
     @Override
-    public boolean getSingleStep() {
-        return udiLibrary.get_single_step(handle);
+    public boolean getSingleStep() throws UdiException {
+
+        parentProcess.checkNotClosed();
+
+        IntByReference output = new IntByReference();
+        try (UdiNativeError error = udiLibrary.get_single_step(handle, output)) {
+            error.checkException();
+            return output.getValue() != 0 ? true : false;
+        }
     }
 
-    private void checkForException(int errorCode) throws UdiException {
-        UdiException ex = UdiError.toException(errorCode, udiLibrary.get_last_error_message(udiLibrary.get_process(handle)));
-        if (ex != null) throw ex;
+    Pointer getHandle() {
+        return handle;
     }
 }

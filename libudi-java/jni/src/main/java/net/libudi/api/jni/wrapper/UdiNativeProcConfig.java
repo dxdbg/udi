@@ -18,13 +18,13 @@ import net.libudi.api.UdiProcessConfig;
 
 /**
  * The process configuration implementation
- *
- * @author mcnulty
  */
 public class UdiNativeProcConfig extends Structure {
 
     /** Needs to be public for JNA purposes */
     public String root_dir;
+
+    public String rt_lib_path;
 
     /**
      * Constructor.
@@ -34,10 +34,15 @@ public class UdiNativeProcConfig extends Structure {
     public UdiNativeProcConfig(UdiProcessConfig source) {
         this.root_dir = (source == null || source.getRootDir() == null ) ? "" :
                 source.getRootDir().toAbsolutePath().toString();
+        this.rt_lib_path = (source == null || source.getRtLibPath() == null) ? null :
+                source.getRtLibPath().toAbsolutePath().toString();
     }
 
     @Override
     protected List getFieldOrder() {
-        return Arrays.asList(new String[] {"root_dir"});
+        return Arrays.asList(new String[] {
+                "root_dir",
+                "rt_lib_path"
+        });
     }
 }

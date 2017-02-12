@@ -17,8 +17,6 @@ import net.libudi.api.event.UdiEventVisitor;
 
 /**
  * Implementation of UdiEvent
- *
- * @author mcnulty
  */
 public abstract class UdiEventImpl implements UdiEvent {
 

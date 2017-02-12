@@ -13,8 +13,6 @@ import net.libudi.api.UdiThread;
 
 /**
  * An interface for an event with type THREAD_CREATE
- *
- * @author mcnulty
  */
 public interface UdiEventThreadCreate extends UdiEvent {
 

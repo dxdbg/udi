@@ -15,8 +15,6 @@ import net.libudi.api.event.UdiEventVisitor;
 
 /**
  * Implementation of UdiEventError
- *
- * @author mcnulty
  */
 public class UdiEventErrorImpl extends UdiEventImpl implements UdiEventError {
 
