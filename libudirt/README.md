@@ -6,13 +6,12 @@ sending responses and events using a pseudo-filesystem for transport.
 ## Platforms ##
 
 - linux/x86_64
-- OS X/x86_64 (planned)
+- OS X/x86_64
 - Windows/x86_64 (planned)
 
 ## Dependencies ##
 
 - [libcbor](https://github.com/PJK/libcbor)
-  - Currently requires a patch, see this [branch](https://github.com/mcnulty/libcbor/tree/streaming-return-required)
 - [libudis86](https://github.com/vmt/udis86)
 
 ## Building ##

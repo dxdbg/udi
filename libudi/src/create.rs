@@ -164,12 +164,12 @@ fn determine_protocol(init: &response::Init) -> Result<u32> {
 /// Performs the init handshake for the new thread and adds it to the specified process
 pub fn initialize_thread(process: &mut Process, tid: u64) -> Result<()> {
     let mut request_path_buf = PathBuf::from(&process.root_dir);
-    request_path_buf.push(format!("{:x}", tid));
+    request_path_buf.push(format!("{:016x}", tid));
     request_path_buf.push(REQUEST_FILE_NAME);
     let request_path = request_path_buf.as_path();
 
     let mut response_path_buf = PathBuf::from(&process.root_dir);
-    response_path_buf.push(format!("{:x}", tid));
+    response_path_buf.push(format!("{:016x}", tid));
     response_path_buf.push(RESPONSE_FILE_NAME);
     let response_path = response_path_buf.as_path();
 
@@ -225,47 +225,7 @@ fn launch_process(executable: &str,
     Ok(child)
 }
 
-/// Adds the UDI RT library into the LD_PRELOAD environ. var. It is
-/// created at the end of the array if it does not already exist. Adds the UDI_ROOT_DIR_ENV
-/// environment variable to the end of the array after LD_PRELOAD. This environment variable
-/// is replaced if it already exists.
-fn create_environment(envp: &Vec<String>,
-                      root_dir: &str,
-                      rt_lib_path: &str) -> Vec<(String, String)> {
-    let mut output;
-    if envp.len() == 0 {
-        output = vec![];
-    }else{
-        output = envp.iter().map(|s| {
-            let mut field_iter = s.split("=");
-            field_iter.next()
-                      .map(|k| (k.to_owned(),
-                                field_iter.fold(String::new(), |mut l,r| { l.push_str(r); l})))
-                      .unwrap_or((s.clone(), String::new()))
-        }).collect::<Vec<_>>();
-    }
 
-    // Update LD_PRELOAD to include the runtime library
-    let mut updated_ld_preload = false;
-    for item in &mut output {
-        let k = &item.0;
-        let v = &mut item.1;
-
-        if k == "LD_PRELOAD" {
-            v.push_str(":");
-            v.push_str(rt_lib_path);
-            updated_ld_preload = true;
-        }
-    }
-
-    if !updated_ld_preload {
-        output.push(("LD_PRELOAD".to_owned(), rt_lib_path.to_owned()));
-    }
-
-    output.push((UDI_ROOT_DIR_ENV.to_owned(), root_dir.to_owned()));
-
-    output
-}
 
 /// Creates the root UDI filesystem for the user
 fn create_root_udi_filesystem(root_dir: &String) -> Result<String> {
@@ -294,5 +254,75 @@ fn mkdir_ignore_exists(dir: &Path) -> Result<()> {
             io::ErrorKind::AlreadyExists => Ok(()),
             _ => Err(::std::convert::From::from(e))
         }
+    }
+}
+
+/// Adds the UDI RT library into the appropriate dynamic linker environment variable.
+/// The variable is created at the end of the array if it does not already exist. Adds the
+/// UDI_ROOT_DIR_ENV environment variable to the end of the array after the dynamic
+/// linker environment variable. This environment variable is replaced if it already exists.
+fn create_environment(envp: &Vec<String>,
+                      root_dir: &str,
+                      rt_lib_path: &str) -> Vec<(String, String)> {
+    let mut output;
+    if envp.len() == 0 {
+        output = vec![];
+    } else {
+        output = envp.iter().map(|s| {
+            let mut field_iter = s.split("=");
+            field_iter.next()
+                .map(|k| (k.to_owned(),
+                          field_iter.fold(String::new(), |mut l, r| {
+                              l.push_str(r);
+                              l
+                          })))
+                .unwrap_or((s.clone(), String::new()))
+        }).collect::<Vec<_>>();
+    }
+
+    let var_name = sys::get_dyn_linker_var_name();
+
+    // Update dynamic linker variable to include the runtime library
+    let mut updated_var = false;
+    for item in &mut output {
+        let k = &item.0;
+        let v = &mut item.1;
+
+        if k == var_name {
+            v.push_str(":");
+            v.push_str(rt_lib_path);
+            updated_var = true;
+        }
+    }
+
+    if !updated_var {
+        output.push((var_name.to_owned(), rt_lib_path.to_owned()));
+    }
+
+    output.push((UDI_ROOT_DIR_ENV.to_owned(), root_dir.to_owned()));
+
+    sys::modify_env(&mut output);
+
+    output
+}
+
+#[cfg(target_os = "linux")]
+mod sys {
+    pub fn get_dyn_linker_var_name() -> &'static str {
+        "LD_PRELOAD"
+    }
+
+    pub fn modify_env(_env: &mut Vec<(String, String)>) {
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod sys {
+    pub fn get_dyn_linker_var_name() -> &'static str {
+        "DYLD_INSERT_LIBRARIES"
+    }
+
+    pub fn modify_env(env: &mut Vec<(String, String)>) {
+        env.push(("DYLD_FORCE_FLAT_NAMESPACE".to_owned(), "1".to_owned()));
     }
 }

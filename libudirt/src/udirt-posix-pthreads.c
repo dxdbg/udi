@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017, UDI Contributors
+ * Copyright (c) 2011-2018, UDI Contributors
  * All rights reserved.
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -8,6 +8,9 @@
  */
 
 // Thread support for pthreads
+
+// This needs to be included first because it sets feature macros
+#include "udirt-platform.h"
 
 #include <inttypes.h>
 #include <unistd.h>
@@ -20,39 +23,21 @@
 
 // pthread function types and definitions
 
-// these need to be weak to avoid linking pthreads with 
-// a target that doesn't link pthreads
-
-extern int pthread_sigmask(int how, const sigset_t *new_set, sigset_t *old_set) __attribute__((weak));
-extern pthread_t pthread_self() __attribute__((weak));
+// these need to be weak to avoid linking pthreads with a target that doesn't link pthreads
+extern int pthread_sigmask(int how, const sigset_t *new_set, sigset_t *old_set) UDI_WEAK;
+extern pthread_t pthread_self() UDI_WEAK;
 
 // the threads list
 static int num_threads = 0;
 static thread *threads = NULL;
 
-// event breakpoints
-static breakpoint *thread_create_bp = NULL;
-static breakpoint *thread_death_bp = NULL;
-
 int THREAD_SUSPEND_SIGNAL = SIGSYS;
 
-/**
- * Determine if the debuggee is multithread capable (i.e., linked
- * against pthreads).
- * 
- * @return non-zero if the debuggee is multithread capable
- */
 inline
 int get_multithread_capable() {
     return pthread_sigmask != 0;
 }
 
-/**
- * Determine if the debuggee is multithreaded
- *
- * @return non-zero if the debuggee is multithread capable
- */
-inline
 int get_multithreaded() {
     return get_multithread_capable() && get_num_threads() > 1;
 }
@@ -84,103 +69,99 @@ uint64_t get_user_thread_id() {
     return (uint64_t)UDI_SINGLE_THREAD_ID;
 }
 
-/**
- * Creates and installs a breakpoint at the specified address
- *
- * @param breakpoint_addr the breakpoint address
- * @param errmsg the error message populated on error
- *
- * @return the created breakpoint
- */
-static
-breakpoint *create_and_install(unsigned long breakpoint_addr, udi_errmsg *errmsg) {
-    breakpoint *bp = create_breakpoint((uint64_t)breakpoint_addr);
+typedef int (*pthread_create_type)(pthread_t *,
+                                   const pthread_attr_t *,
+                                   void *(*)(void *),
+                                   void *);
+pthread_create_type real_pthread_create;
 
-    if (bp == NULL) return NULL;
+typedef void (*pthread_exit_type)(void *) __attribute__((noreturn));
+pthread_exit_type real_pthread_exit;
 
-    if ( install_breakpoint(bp, errmsg) ) return NULL;
+int locate_thread_wrapper_functions(udi_errmsg *errmsg) {
+    int errnum = 0;
+    char *errmsg_tmp;
 
-    return bp;
-}
+    // reset dlerror()
+    dlerror();
 
-/**
- * Installs the thread event breakpoints
- *
- * @param errmsg the error message populated on failure
- *
- * @return 0 on success; non-zero otherwise
- */
-int install_thread_event_breakpoints(udi_errmsg *errmsg) {
-
-    if ( !get_multithread_capable() ) {
-        snprintf(errmsg->msg, errmsg->size, "%s", "Process is not multithread capable");
-        udi_printf("%s\n", errmsg->msg);
-        return -1;
-    }
-
-    if (!pthreads_create_event || !pthreads_death_event) {
-        snprintf(errmsg->msg, errmsg->size, "%s", "Failed to locate thread event functions");
-        udi_printf("%s\n", errmsg->msg);
-        return -1;
-    }
-
-    thread_create_bp = create_and_install((unsigned long)pthreads_create_event, errmsg);
-    if ( thread_create_bp == NULL ) {
-        udi_printf("%s\n", "failed to install thread create breakpoint");
-        return -1;
-    }
-
-    thread_death_bp = create_and_install((unsigned long)pthreads_death_event, errmsg);
-    if ( thread_death_bp == NULL ) {
-        udi_printf("%s\n", "failed to install thread death breakpoint");
-        return -1;
-    }
-
-    udi_printf("thread_create = 0x%"PRIx64" thread_death = 0x%"PRIx64"\n",
-            thread_create_bp->address, thread_death_bp->address);
-
-    return 0;
-}
-
-/**
- * @param bp the breakpoint
- *
- * @return non-zero if the specified breakpoint is a thread event breakpoint
- */
-int is_thread_event_breakpoint(breakpoint *bp) {
-    if ( thread_create_bp == bp ||
-         thread_death_bp == bp ) return 1;
-
-    return 0;
-}
-
-/**
- * @return The number of threads in this process
- */
-inline
-int get_num_threads() {
-    return num_threads;
-}
-
-/**
- * Creates a thread structure for the specified thread id
- *
- * @return the created thread structure or NULL if it could not be created
- */
-static
-thread *create_thread(uint64_t tid) {
-
-    int control_pipe[2];
-    if ( get_multithread_capable() ) {
-        // Create the pipes for synchronizing signal handler access
-        if ( pipe(control_pipe) != 0 ) {
-            udi_printf("failed to create sync pipe: %s\n", strerror(errno));
-            return NULL;
+    do {
+        real_pthread_create = (pthread_create_type) dlsym(UDI_RTLD_NEXT, "pthread_create");
+        errmsg_tmp = dlerror();
+        if (errmsg_tmp != NULL) {
+            udi_log("symbol lookup error: %s", errmsg_tmp);
+            strncpy(errmsg->msg, errmsg_tmp, errmsg->size-1);
+            errnum = -1;
+            break;
         }
-    }else{
+        udi_log("real pthread create at %a", (uint64_t)real_pthread_create);
+
+        real_pthread_exit = (pthread_exit_type) dlsym(UDI_RTLD_NEXT, "pthread_exit");
+        errmsg_tmp = dlerror();
+        if (errmsg_tmp != NULL) {
+            udi_log("symbol lookup error: %s", errmsg_tmp);
+            strncpy(errmsg->msg, errmsg_tmp, errmsg->size-1);
+            errnum = -1;
+            break;
+        }
+
+        udi_log("real pthread exit at %a", (uint64_t)real_pthread_exit);
+    }while(0);
+
+    return errnum;
+}
+
+static
+int init_control_pipe(int *control_pipe) {
+
+    if ( get_multithread_capable() ) {
+        if ( pipe(control_pipe) != 0 ) {
+            udi_log("failed to create thread control pipe: %e", errno);
+            return -1;
+        }
+    } else {
         control_pipe[0] = -1;
         control_pipe[1] = -1;
     }
+
+    return 0;
+}
+
+static
+thread *create_thread_struct(uint64_t tid) {
+    int control_pipe[2];
+
+    thread *new_thr = (thread *)udi_malloc(sizeof(thread));
+    if (new_thr == NULL) {
+        return NULL;
+    }
+    memset(new_thr, 0, sizeof(thread));
+
+    if ( init_control_pipe(control_pipe) != 0 ) {
+        return NULL;
+    }
+
+    if ( allocate_context_data(&(new_thr->event_state.context_data)) != 0 ) {
+        return NULL;
+    }
+
+    new_thr->id = tid;
+    new_thr->dead = 0;
+    new_thr->request_handle = -1;
+    new_thr->response_handle = -1;
+    new_thr->next_thread = NULL;
+    new_thr->control_read = control_pipe[0];
+    new_thr->control_write = control_pipe[1];
+    new_thr->ts = UDI_TS_RUNNING;
+    new_thr->suspend_pending = 0;
+    new_thr->control_thread = 0;
+    new_thr->stack_event_pending = 0;
+
+    return new_thr;
+}
+
+static
+void link_thread(thread *new_thr) {
 
     // find the end of the list
     thread *cur_thread = threads;
@@ -191,25 +172,6 @@ thread *create_thread(uint64_t tid) {
         cur_thread = cur_thread->next_thread;
     }
 
-    thread *new_thr = (thread *)udi_malloc(sizeof(thread));
-    if (new_thr == NULL) {
-        close(control_pipe[0]);
-        close(control_pipe[1]);
-        return NULL;
-    }
-    memset(new_thr, 0, sizeof(thread));
-
-    new_thr->id = tid;
-    new_thr->alive = 0;
-    new_thr->dead = 0;
-    new_thr->request_handle = -1;
-    new_thr->response_handle = -1;
-    new_thr->next_thread = NULL;
-    new_thr->control_read = control_pipe[0];
-    new_thr->control_write = control_pipe[1];
-    new_thr->ts = UDI_TS_RUNNING;
-    new_thr->suspend_pending = 0;
-    new_thr->control_thread = 0;
     num_threads++;
 
     if (last_thread == NULL) {
@@ -218,14 +180,333 @@ thread *create_thread(uint64_t tid) {
         last_thread->next_thread = new_thr;
     }
 
+    // global data updated, issue full memory barrier
+    __sync_synchronize();
+}
+
+/**
+ * Creates a thread structure for the specified thread id
+ *
+ * @param tid the tid
+ *
+ * @return the created thread structure or NULL if it could not be created
+ */
+static
+thread *create_thread(uint64_t tid) {
+
+    thread *new_thr = create_thread_struct(tid);
+    if (new_thr == NULL) {
+        return NULL;
+    }
+
+    link_thread(new_thr);
+
     return new_thr;
 }
 
 /**
- * Destroys the specified thread structure
- * Destroys the thread structure with the specified thread id, does nothing if no thread
- * exists with the specified thread id
+ * @param tid the thread id
+ *
+ * @return the thread or NULL if none could be found
  */
+static
+thread *find_thread(uint64_t tid) {
+    thread *thr = threads;
+    while (thr != NULL) {
+        if (thr->id == tid) break;
+        thr = thr->next_thread;
+    }
+
+    return thr;
+}
+
+thread *get_thread_list() {
+    return threads;
+}
+
+thread *get_next_thread(thread *thr) {
+    return thr->next_thread;
+}
+
+int is_thread_dead(thread *thr) {
+    return thr->dead;
+}
+
+static
+int handle_thread_create(uint64_t creator_thr)
+{
+    int result;
+    uint64_t tid;
+
+    udi_errmsg errmsg;
+    errmsg.size = ERRMSG_SIZE;
+    errmsg.msg[ERRMSG_SIZE-1] = '\0';
+
+    do {
+        tid = get_user_thread_id();
+        udi_log("thread create event for %a", tid);
+
+        thread *thr = create_thread(tid);
+        if (thr == NULL) {
+            result = RESULT_ERROR;
+            break;
+        }
+
+        if ( thread_create_callback(thr, &errmsg) != 0 ) {
+            result = RESULT_ERROR;
+            break;
+        }
+
+        result = handle_thread_create_event(creator_thr, tid, &errmsg);
+        if (result != RESULT_SUCCESS) {
+            break;
+        }
+
+        result = thread_create_handshake(thr, &errmsg);
+        if (result != RESULT_SUCCESS) {
+            break;
+        }
+
+        if ( write(thread_barrier.write_handle, &sentinel, 1) != 1 ) {
+            udi_log("failed to write trigger to pipe: %e", errno);
+            result = RESULT_ERROR;
+            break;
+        }
+
+        unsigned char trigger = 0;
+        while (trigger == 0) {
+            int trigger_read_result = read(thr->control_read, &trigger, 1);
+            if (trigger_read_result == -1) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                udi_log("failed to read control trigger from pipe: %e", errno);
+                result = RESULT_ERROR;
+                break;
+            }
+            result = RESULT_SUCCESS;
+        }
+        if (result != RESULT_SUCCESS) {
+            break;
+        }
+
+        if ( trigger != sentinel ) {
+            udi_abort();
+        }
+    }while(0);
+
+    if ( result != RESULT_SUCCESS ) {
+        udi_log("failed to report thread create of %a: %s",
+                tid,
+                errmsg.msg);
+    }
+
+    return result;
+}
+
+static
+int handle_thread_death() {
+
+    int result;
+    uint64_t tid;
+
+    udi_errmsg errmsg;
+    errmsg.size = ERRMSG_SIZE;
+    errmsg.msg[ERRMSG_SIZE-1] = '\0';
+
+    do {
+        tid = get_user_thread_id();
+
+        udi_log("thread death event for %a", tid);
+
+        thread *thr = find_thread(tid);
+        if (thr == NULL) {
+            result = RESULT_ERROR;
+            break;
+        }
+
+        if ( thread_death_callback(thr, &errmsg) != 0 ) {
+            result = RESULT_ERROR;
+            break;
+        }
+
+        result = handle_thread_death_event(tid, &errmsg);
+    }while(0);
+
+    if ( result != RESULT_SUCCESS ) {
+        udi_log("failed to report thread death of %a: %s",
+                tid,
+                errmsg.msg);
+    }
+
+    return result;
+}
+
+static
+void report_thread_death() {
+
+    // block signals while reporting the thread death
+    sigset_t block_set;
+    sigset_t original_set;
+    sigfillset(&block_set);
+
+    if (setsigmask(SIG_SETMASK, &block_set, &original_set) == -1) {
+        udi_abort();
+    }
+
+    udi_log("thread %a dying", get_user_thread_id());
+
+    thread *thr = get_current_thread();
+    thr->stack_event_pending = 1;
+
+    int block_result = block_other_threads();
+    if (block_result < 0) {
+        udi_log("failed to block other threads");
+        udi_abort();
+        return;
+    }
+
+    if (block_result > 0) {
+        // the thread should always eventually be the control thread
+        udi_abort();
+    } else {
+        thr->stack_event_pending = 0;
+
+        int death_result = handle_thread_death();
+        if (death_result != RESULT_SUCCESS) {
+            udi_log("failed to handle thread death");
+            udi_abort();
+            return;
+        }
+
+        udi_errmsg errmsg;
+        errmsg.size = ERRMSG_SIZE;
+        errmsg.msg[ERRMSG_SIZE-1] = '\0';
+        thread *request_thr = NULL;
+
+        int request_result = wait_and_execute_command(&errmsg, &request_thr);
+        if (request_result == RESULT_ERROR) {
+            udi_log("failed to handle command after thread death");
+            udi_abort();
+        }
+
+        release_other_threads();
+    }
+
+    setsigmask(SIG_SETMASK, &original_set, NULL);
+}
+
+void pthread_exit(void *value_ptr)
+{
+    report_thread_death();
+
+    real_pthread_exit(value_ptr);
+}
+
+struct wrapped_thread_context {
+    void *(*start_routine)(void *);
+    void *arg;
+    uint64_t creator_tid;
+};
+
+static
+void *wrapped_start_routine(void *arg)
+{
+    struct wrapped_thread_context *context = (struct wrapped_thread_context *)arg;
+
+    void *ret_value = NULL;
+    do {
+        int create_result = handle_thread_create(context->creator_tid);
+
+        if (create_result != RESULT_SUCCESS) {
+            udi_log("failed to handle thread creation");
+            udi_abort();
+            break;
+        }
+        ret_value = context->start_routine(context->arg);
+
+        report_thread_death();
+    }while(0);
+
+    udi_free(context);
+
+    return ret_value;
+}
+
+static
+int handshake_with_thread()
+{
+    udi_errmsg errmsg;
+    errmsg.size = ERRMSG_SIZE;
+    errmsg.msg[ERRMSG_SIZE-1] = '\0';
+
+    unsigned char trigger = 0;
+    if ( read(thread_barrier.read_handle, &trigger, 1) != 1 ) {
+        udi_log("failed to read trigger from pipe: %e", errno);
+        return RESULT_ERROR;
+    }
+
+    if ( trigger != sentinel ) {
+        udi_abort();
+        return RESULT_ERROR;
+    }
+
+    thread *request_thr = NULL;
+    int result = wait_and_execute_command(&errmsg, &request_thr);
+    if (result == RESULT_ERROR) {
+        udi_log("failed to handle command after thread create");
+        udi_abort();
+    }
+
+    release_other_threads();
+
+    return result;
+}
+
+int pthread_create(pthread_t *thread,
+                   const pthread_attr_t *attr,
+                   void *(*start_routine)(void *),
+                   void *arg)
+{
+    udi_log("thread %a creating a new thread", get_user_thread_id());
+
+    int block_result = block_other_threads();
+    if (block_result < 0) {
+        udi_log("failed to block other threads");
+        udi_abort();
+        return ENOMEM;
+    }
+
+    struct wrapped_thread_context *context =
+        (struct wrapped_thread_context *)udi_malloc(sizeof(struct wrapped_thread_context));
+    context->start_routine = start_routine;
+    context->arg = arg;
+    context->creator_tid = get_user_thread_id();
+
+    int control_pipe[2];
+    if ( init_control_pipe(control_pipe) != 0 ) {
+        return ENOMEM;
+    }
+
+    int create_result = real_pthread_create(thread, attr, wrapped_start_routine, context);
+    if (create_result == 0) {
+        int handshake_result = handshake_with_thread();
+        if (handshake_result != RESULT_SUCCESS) {
+            return ENOMEM;
+        }
+    } else {
+        if (get_multithread_capable()) {
+            close(control_pipe[0]);
+            close(control_pipe[1]);
+        }
+    }
+    return create_result;
+}
+
+int get_num_threads() {
+    return num_threads;
+}
+
 void destroy_thread(thread *thr) {
 
     thread *iter = threads;
@@ -248,42 +529,9 @@ void destroy_thread(thread *thr) {
     close(iter->control_write);
     close(iter->control_read);
 
+    udi_free(iter->event_state.context_data);
     udi_free(iter);
     num_threads--;
-}
-
-/**
- * @param tid the thread id
- *
- * @return the thread or NULL if none could be found
- */
-static
-thread *find_thread(uint64_t tid) {
-    thread *thr = threads;
-    while (thr != NULL) {
-        if (thr->id == tid) break;
-        thr = thr->next_thread;
-    }
-
-    return thr;
-}
-
-/**
- * @return the head of the thread list
- */
-thread *get_thread_list() {
-    return threads;
-}
-
-/**
- * @return the next thread in the thread list or NULL if the `thr` is the last
- */
-thread *get_next_thread(thread *thr) {
-    return thr->next_thread;
-}
-
-int is_thread_dead(thread *thr) {
-    return thr->dead;
 }
 
 udi_thread_state_e get_thread_state(thread *thr) {
@@ -322,9 +570,6 @@ void set_single_step_breakpoint(thread *thr, breakpoint *bp) {
     thr->single_step_bp = bp;
 }
 
-/**
- * @return the current thread
- */
 thread *get_current_thread() {
     uint64_t tid = get_user_thread_id();
 
@@ -337,129 +582,49 @@ thread *get_current_thread() {
     return thr;
 }
 
-/**
- * Creates the initial thread
- *
- * @return the created thread or null if there was an error
- */
 thread *create_initial_thread() {
-
-    thread *thr = create_thread(get_user_thread_id());
-
-    // the initial thread is already alive
-    thr->alive = 1;
-    return thr;
+    return create_thread(get_user_thread_id());
 }
 
-/**
- * Handle the thread create event
- *
- * @param context the context
- * @param errmsg the error message populated on error
- * @param errmsg_size the maximum size of the error message
- */
-static
-int handle_thread_create(const ucontext_t *context, udi_errmsg *errmsg) {
+static pthread_mutex_t log_lock;
 
-    int result;
-    uint64_t tid;
-    do {
-        tid = initialize_thread(errmsg);
-        if ( tid == 0 ) {
-            result = RESULT_ERROR;
-            break;
+int pthread_mutexattr_init(pthread_mutexattr_t *attr) UDI_WEAK;
+int pthread_mutexattr_settype(pthread_mutexattr_t *attr, int type) UDI_WEAK;
+int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr) UDI_WEAK;
+int pthread_mutex_lock(pthread_mutex_t *mutex) UDI_WEAK;
+int pthread_mutex_unlock(pthread_mutex_t *mutex) UDI_WEAK;
+
+void init_thread_support() {
+    if ( pthread_mutex_init && pthread_mutexattr_init ) {
+        pthread_mutexattr_t attr;
+        if ( pthread_mutexattr_init(&attr) != 0) {
+            abort();
         }
 
-        udi_printf("thread create event for 0x%"PRIx64"\n", tid);
-
-        thread *thr = create_thread(tid);
-        if (thr == NULL) {
-            result = RESULT_ERROR;
-            break;
+        if ( pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE) != 0 ) {
+            abort();
         }
 
-        thread *creator_thr = get_current_thread();
-        if ( creator_thr == NULL ) {
-            result = RESULT_ERROR;
-            break;
+        if ( pthread_mutex_init(&log_lock, &attr) != 0 ) {
+            abort();
         }
-
-        if ( thread_create_callback(thr, errmsg) != 0 ) {
-            result = RESULT_ERROR;
-            break;
-        }
-
-        result = handle_thread_create_event(creator_thr->id, tid, errmsg);
-        if (result != RESULT_SUCCESS) {
-            break;
-        }
-
-        result = thread_create_handshake(thr, errmsg);
-    }while(0);
-
-    if ( result != RESULT_SUCCESS ) {
-        udi_printf("failed to report thread create of 0x%"PRIx64"\n", tid);
     }
-
-    return result;
 }
 
-/**
- * Handle the thread death event
- *
- * @param context the context
- * @param errmsg the error message populated on error
- */
-static
-int handle_thread_death(const ucontext_t *context, udi_errmsg *errmsg) {
-
-    int result;
-    uint64_t tid;
-    do {
-        tid = finalize_thread(errmsg);
-        if (tid == 0) {
-            result = RESULT_ERROR;
-            break;
+void udi_log_lock() {
+    if ( pthread_mutex_lock ) {
+        int lock_result = pthread_mutex_lock(&log_lock);
+        if ( lock_result != 0 ) {
+            abort();
         }
-
-        udi_printf("thread death event for 0x%"PRIx64"\n", tid);
-
-        thread *thr = find_thread(tid);
-        if (thr == NULL) {
-            result = RESULT_ERROR;
-            break;
-        }
-
-        if ( thread_death_callback(thr, errmsg) != 0 ) {
-            result = RESULT_ERROR;
-            break;
-        }
-
-        result = handle_thread_death_event(tid, errmsg);
-    }while(0);
-
-    if ( result != RESULT_SUCCESS ) {
-        udi_printf("failed to report thread death of 0x%"PRIx64"\n", tid);
     }
-
-    return result;
 }
 
-int handle_thread_event_breakpoint(breakpoint *bp,
-                                   const ucontext_t *context,
-                                   udi_errmsg *errmsg)
-{
-    if (bp == thread_create_bp) {
-        return handle_thread_create(context, errmsg);
+void udi_log_unlock() {
+    if ( pthread_mutex_unlock ) {
+        int lock_result = pthread_mutex_unlock(&log_lock);
+        if ( lock_result != 0 ) {
+            abort();
+        }
     }
-
-    if (bp == thread_death_bp) {
-        return handle_thread_death(context, errmsg);
-    }
-
-    snprintf(errmsg->msg,
-             errmsg->size,
-             "failed to handle unknown thread event at 0x%"PRIx64,
-             bp->address);
-    return RESULT_SUCCESS;
 }

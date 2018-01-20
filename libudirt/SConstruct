@@ -9,7 +9,6 @@ import os
 sys.path.append(os.path.abspath('udibuild'))
 import udibuild
 
-
 vars = Variables(['.udirt.config'])
 vars.Add("UDIS86_INC", "Include directory for udis86 library")
 vars.Add("UDIS86_LIB", "Library directory for udis86 library")
@@ -31,12 +30,12 @@ if topenv['CC'] == 'gcc':
         topenv.Append(CFLAGS = "-O2")
         topenv.Append(CXXFLAGS = "-O2")
 
+    if udibuild.IsDarwin():
+        topenv.Append(LINKFLAGS = "-flat_namespace -undefined dynamic_lookup")
+
 else:
     print 'Unknown compiler'
     quit()
-
-# configuring based on the environment
-conf = Configure(topenv)
 
 if "UDIS86_INC" in topenv:
     topenv.Append(CPPPATH=[topenv["UDIS86_INC"]])
@@ -58,26 +57,28 @@ if udibuild.IsUnix():
 else:
     topenv.Append(CPPDEFINES=['WINDOWS'])
 
-if udibuild.IsLittleEndian():
-    topenv.Append(CPPDEFINES=['LITTLE_ENDIAN'])
-else:
-    topenv.Append(CPPDEFINES=['BIG_ENDIAN'])
-
 if udibuild.IsLinux():
     topenv.Append(CPPDEFINES=['LINUX'])
 
-if udibuild.IsX86():
-    if not conf.CheckLibWithHeader('udis86', 'udis86.h', 'c'):
-        print 'Did not find libudis86'
+if udibuild.IsDarwin():
+    topenv.Append(CPPDEFINES=['DARWIN'])
+
+if 'configure' in COMMAND_LINE_TARGETS:
+    conf = Configure(topenv)
+
+    if udibuild.IsX86():
+        if not conf.CheckLibWithHeader('udis86', 'udis86.h', 'c'):
+            print 'Did not find libudis86'
+            Exit(1)
+
+    if not conf.CheckLibWithHeader('cbor', 'cbor.h', 'c'):
+        print('Did not find libcbor')
         Exit(1)
 
-if not conf.CheckLibWithHeader('cbor', 'cbor.h', 'c'):
-    print('Did not find libcbor')
-    Exit(1)
+    topenv = conf.Finish()
 
-topenv = conf.Finish()
-
-vars.Save('.udirt.config', topenv)
+    vars.Save('.udirt.config', topenv)
+    Exit(0)
 
 Export('topenv')
 

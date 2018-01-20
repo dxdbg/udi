@@ -6,7 +6,7 @@ receiving responses and events using a pseudo-filesystem for transport.
 ## Platforms ##
 
 - linux/x86_64
-- OS X/x86_64 (planned)
+- OS X/x86_64
 - Windows/x86_64 (planned)
 
 ## Usage ##

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017, UDI Contributors
+ * Copyright (c) 2011-2018, UDI Contributors
  * All rights reserved.
  * 
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -12,7 +12,7 @@
 #ifndef _UDI_RT_H
 #define _UDI_RT_H 1
 
-#include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 
 #include "udi.h"
@@ -46,7 +46,9 @@ extern const unsigned int DS_LEN;
 extern char *UDI_ROOT_DIR;
 
 // General platform-specific functions
-void udi_abort(const char *file, unsigned int line);
+void udi_abort_file_line(const char *file, unsigned int line);
+#define udi_abort() udi_abort_file_line(__FILE__, __LINE__)
+
 int read_from(udirt_fd fd, uint8_t *dst, size_t length);
 int write_to(udirt_fd fd, const uint8_t *src, size_t length);
 
@@ -84,12 +86,43 @@ typedef struct thread_struct thread;
 typedef struct breakpoint_struct breakpoint;
 
 uint64_t get_user_thread_id();
+
+void init_thread_support();
+
+/**
+ * @return The number of threads in this process
+ */
 int get_num_threads();
+
+/**
+ * Determine if the debuggee is multithread capable (i.e., linked against the threading library)
+ *
+ * @return non-zero if the debuggee is multithread capable
+ */
 int get_multithread_capable();
+
+/**
+ * Determine if the debuggee is multithreaded
+ *
+ * @return non-zero if the debuggee is multithread capable
+ */
 int get_multithreaded();
+
+/**
+ * @return the head of the thread list
+ */
 thread *get_thread_list();
+
+/**
+ * @return the next thread in the thread list or NULL if the `thr` is the last
+ */
 thread *get_next_thread(thread *thr);
+
+/**
+ * @return the current thread
+ */
 thread *get_current_thread();
+
 int is_thread_dead(thread *thr);
 udi_thread_state_e get_thread_state(thread *thr);
 void set_thread_state(thread *thr, udi_thread_state_e state);
@@ -101,6 +134,14 @@ void set_single_step(thread *thr, int single_step);
 breakpoint *get_single_step_breakpoint(thread *thr);
 void set_single_step_breakpoint(thread *thr, breakpoint *bp);
 
+/**
+ * Called before the process is continued after a thread death event was published
+ *
+ * @param thr the thread structure for the dead thread
+ * @param errmsg the error message
+ *
+ * @return 0 on success; non-zero on failure
+ */
 int thread_death_handshake(thread *thr, udi_errmsg *errmsg);
 
 // request handling
@@ -154,18 +195,63 @@ uint64_t get_ctf_successor(uint64_t pc, udi_errmsg *errmsg, const void *context)
 
 // register interface //
 
-int get_register(udi_arch_e arch,
-                 udi_register_e reg,
+/**
+ * Validates that the specified register is valid for the debuggee
+ *
+ * @param reg the register
+ * @param errmsg error message (populated on error)
+ *
+ * @param 0 on success; non-zero otherwise
+ */
+int validate_register(udi_register_e reg, udi_errmsg *errmsg);
+
+/**
+ * Gets the specified register, with validation
+ *
+ * @param reg the register to retrieve
+ * @param errmsg the error message (populated on error)
+ * @param value the output parameter for the register value
+ * @param context the context (from which the register is retrieved)
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int get_register(udi_register_e reg,
                  udi_errmsg *errmsg,
                  uint64_t *value,
                  const void *context);
-int set_register(udi_arch_e arch,
-                 udi_register_e reg,
+
+/**
+ * Sets the specified register, with validation
+ *
+ * @param reg the register to retrieve
+ * @param errmsg the error message (populated on error)
+ * @param value the output parameter for the register value
+ * @param context the context (from which the register is retrieved)
+ *
+ * @return 0 on success; non-zero on failure
+ */
+int set_register(udi_register_e reg,
                  udi_errmsg *errmsg,
                  uint64_t value,
                  void *context);
-int is_gp_register(udi_arch_e arch, udi_register_e reg);
-int is_fp_register(udi_arch_e arch, udi_register_e reg);
+
+/**
+ * Check if the specified register is a general-purpose register
+ *
+ * @param reg the register
+ *
+ * @return 0 if the register is not a general purpose register; non-zero otherwise
+ */
+int is_gp_register(udi_register_e reg);
+
+/**
+ * Check if the specified register is a floating-point register
+ *
+ * @param reg the register
+ *
+ * return 0 if the register is not a floating-point register; non-zero otherwise
+ */
+int is_fp_register(udi_register_e reg);
 
 /**
  * Given the context, gets the pc
@@ -272,21 +358,56 @@ int handle_exit_event(uint64_t tid, int32_t status, udi_errmsg *errmsg);
 
 int handle_fork_event(uint64_t tid, uint32_t pid, udi_errmsg *errmsg);
 
-// logging
-#define udi_printf(format, ...) \
+/**
+ * Signal handler safe formatted output for debugging RT library execution.
+ *
+ * The format string uses the following syntax to describe the formatted output:
+ *
+ * % starts a placeholder. The single character following a % defines the input type and the
+ * output type.
+ *
+ * || placeholder || input type || output ||
+ * |  %a | 64-bit integer | hex representation of integer preceded by 0x |
+ * |  %s | pointer to character string | string representation |
+ * |  %e | 32-bit integer | string representation of errno |
+ * |  %d | 32-bit integer | decimal representation of integer |
+ * |  %b | byte | hex representation of byte |
+ * |  %l | size_t | decimal representation of size_t |
+ * |  %x | 64-bit integer | hex representation of integer |
+ *
+ * @param format the format
+ * @param file the file (__FILE__)
+ * @param line the line (__LINE__)
+ */
+void udi_log_formatted(const char *format, const char *file, int line, ...);
+
+void udi_log_formatted_noprefix(const char *format, ...);
+
+udirt_fd udi_log_fd();
+
+void udi_formatted_str(char *str, size_t size, const char *format, ...);
+
+void udi_log_lock();
+void udi_log_unlock();
+
+#define udi_set_errmsg(errmsg, ...) udi_formatted_str((errmsg)->msg, (errmsg)->size, ## __VA_ARGS__)
+
+#define udi_log(format, ...) \
     do {\
         if( udi_debug_on ) {\
-            fprintf(stderr, "%s[%d]: " format, __FILE__, __LINE__,\
-                    ## __VA_ARGS__);\
+            udi_log_formatted(format, __FILE__, __LINE__, ## __VA_ARGS__);\
         }\
     }while(0)
 
-#define udi_printf_noprefix(format, ...) \
+#define udi_log_noprefix(format, ...) \
     do {\
         if ( udi_debug_on ) {\
-            fprintf(stderr, format, ## __VA_ARGS__);\
+            udi_log_formatted_noprefix(format, ## __VA_ARGS__);\
         }\
     }while(0)
+
+#define udi_log_debug(format, ...) \
+    udi_log_formatted(format, __FILE__, __LINE__, ## __VA_ARGS__)
 
 #ifdef __cplusplus
 } // extern C

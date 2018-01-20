@@ -29,7 +29,7 @@ pub fn rt_lib_path() -> Option<String> {
     path.push("libudirt");
     path.push("build");
     path.push("src");
-    path.push("libudirt.so");
+    path.push(sys::get_rt_lib_name());
 
     Some(path.to_str().unwrap().to_owned())
 }
@@ -135,4 +135,18 @@ pub fn assert_thr_eq(lhs: &Arc<Mutex<Thread>>, rhs: &Arc<Mutex<Thread>>) {
     let lhs_tid = lhs.lock().expect("Failed to unlock lhs thread").get_tid();
     let rhs_tid = rhs.lock().expect("Failed to unlock rhs thread").get_tid();
     assert_eq!(lhs_tid, rhs_tid);
+}
+
+#[cfg(target_os = "linux")]
+mod sys {
+    pub fn get_rt_lib_name() -> &'static str {
+        "libudirt.so"
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod sys {
+    pub fn get_rt_lib_name() -> &'static str {
+        "libudirt.dylib"
+    }
 }

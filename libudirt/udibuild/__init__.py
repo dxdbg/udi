@@ -7,6 +7,7 @@ import os
 
 def IsUnix():
     if platform.system() == 'Linux' or\
+       platform.system() == 'Darwin' or\
        platform.system() == 'FreeBSD':
         return True
     else:
@@ -22,12 +23,25 @@ def IsLinux():
     else:
         return False
 
+def IsDarwin():
+    if platform.system() == 'Darwin':
+        return True
+    else:
+        return False
+
 def IsX86():
     if platform.machine() == 'i386' or\
        platform.machine() == 'i686' or\
        platform.machine() == 'AMD64' or\
        platform.machine() == 'x86_64':
            return True
+    else:
+        return False
+
+def IsX86_64():
+    if platform.machine() == 'AMD64' or\
+       platform.machine() == 'x86_64':
+        return True
     else:
         return False
 

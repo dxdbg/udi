@@ -95,7 +95,7 @@ fn thread_test() -> Result<()> {
                 thread_breaks_received += 1;
                 e.thread.lock().unwrap().suspend().expect("Failed to suspend worker thread");
             },
-            _ => panic!(format!("Unexpected event {:?}", e))
+            _ => panic!(format!("Unexpected event {:?}", e.data))
         }
 
         term_received && thread_breaks_received == NUM_THREADS
@@ -116,7 +116,7 @@ fn thread_test() -> Result<()> {
             EventData::ThreadDeath => {
                 thread_deaths_received += 1;
             },
-            _ => panic!(format!("Unexpected event {:?}", e))
+            _ => panic!(format!("Unexpected event {:?}", e.data))
         }
 
         thread_deaths_received == NUM_THREADS

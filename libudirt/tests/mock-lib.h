@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017, UDI Contributors
+ * Copyright (c) 2011-2018, UDI Contributors
  * All rights reserved.
  * 
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -26,6 +26,8 @@ struct mock_data {
 
 void add_read_data(const uint8_t *data, size_t len);
 const struct mock_data *get_written_data();
+void mock_data_to_buffer(const struct mock_data *data, char *buf, size_t len);
+void reset_mock_data();
 void cleanup_mock_lib();
 
 #endif

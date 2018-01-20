@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2015, UDI Contributors
+ * Copyright (c) 2011-2018, UDI Contributors
  * All rights reserved.
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -19,7 +19,180 @@
 #include "udirt.h"
 #include "udirt-posix.h"
 #include "udirt-x86.h"
-#include "udirt-posix-x86.h"
+
+#ifndef REG_GS
+#define REG_GS -1
+#endif
+static int X86_GS_OFFSET = REG_GS;
+
+#ifndef REG_FS
+#define REG_FS -1
+#endif
+static int X86_FS_OFFSET = REG_FS;
+
+#ifndef REG_ES
+#define REG_ES -1
+#endif
+static int X86_ES_OFFSET = REG_ES;
+
+#ifndef REG_DS
+#define REG_DS -1
+#endif
+static int X86_DS_OFFSET = REG_DS;
+
+#ifndef REG_EDI
+#define REG_EDI -1
+#endif
+static int X86_EDI_OFFSET = REG_EDI;
+
+#ifndef REG_ESI
+#define REG_ESI -1
+#endif
+static int X86_ESI_OFFSET = REG_ESI;
+
+#ifndef REG_EBP
+#define REG_EBP -1
+#endif
+static int X86_EBP_OFFSET = REG_EBP;
+
+#ifndef REG_ESP
+#define REG_ESP -1
+#endif
+static int X86_ESP_OFFSET = REG_ESP;
+
+#ifndef REG_EBX
+#define REG_EBX -1
+#endif
+static int X86_EBX_OFFSET = REG_EBX;
+
+#ifndef REG_EDX
+#define REG_EDX -1
+#endif
+static int X86_EDX_OFFSET = REG_EDX;
+
+#ifndef REG_ECX
+#define REG_ECX -1
+#endif
+static int X86_ECX_OFFSET = REG_ECX;
+
+#ifndef REG_EAX
+#define REG_EAX -1
+#endif
+static int X86_EAX_OFFSET = REG_EAX;
+
+#ifndef REG_CS
+#define REG_CS -1
+#endif
+static int X86_CS_OFFSET = REG_CS;
+
+#ifndef REG_SS
+#define REG_SS -1
+#endif
+static int X86_SS_OFFSET = REG_SS;
+
+#ifndef REG_EIP
+#define REG_EIP -1
+#endif
+static int X86_EIP_OFFSET = REG_EIP;
+
+#ifndef REG_EFL
+#define REG_EFL -1
+#endif
+static int X86_FLAGS_OFFSET = REG_EFL;
+
+// x86_64
+
+#ifndef REG_R8
+#define REG_R8 -1
+#endif
+static int X86_64_R8_OFFSET = REG_R8;
+
+#ifndef REG_R9
+#define REG_R9 -1
+#endif
+static int X86_64_R9_OFFSET = REG_R9;
+
+#ifndef REG_R10
+#define REG_R10 -1
+#endif
+static int X86_64_R10_OFFSET = REG_R10;
+
+#ifndef REG_R11
+#define REG_R11 -1
+#endif
+static int X86_64_R11_OFFSET = REG_R11;
+
+#ifndef REG_R12
+#define REG_R12 -1
+#endif
+static int X86_64_R12_OFFSET = REG_R12;
+
+#ifndef REG_R13
+#define REG_R13 -1
+#endif
+static int X86_64_R13_OFFSET = REG_R13;
+
+#ifndef REG_R14
+#define REG_R14 -1
+#endif
+static int X86_64_R14_OFFSET = REG_R14;
+
+#ifndef REG_R15
+#define REG_R15 -1
+#endif
+static int X86_64_R15_OFFSET = REG_R15;
+
+#ifndef REG_RDI
+#define REG_RDI -1
+#endif
+static int X86_64_RDI_OFFSET = REG_RDI;
+
+#ifndef REG_RSI
+#define REG_RSI -1
+#endif
+static int X86_64_RSI_OFFSET = REG_RSI;
+
+#ifndef REG_RBP
+#define REG_RBP -1
+#endif
+static int X86_64_RBP_OFFSET = REG_RBP;
+
+#ifndef REG_RBX
+#define REG_RBX -1
+#endif
+static int X86_64_RBX_OFFSET = REG_RBX;
+
+#ifndef REG_RDX
+#define REG_RDX -1
+#endif
+static int X86_64_RDX_OFFSET = REG_RDX;
+
+#ifndef REG_RAX
+#define REG_RAX -1
+#endif
+static int X86_64_RAX_OFFSET = REG_RAX;
+
+#ifndef REG_RCX
+#define REG_RCX -1
+#endif
+static int X86_64_RCX_OFFSET = REG_RCX;
+
+#ifndef REG_RSP
+#define REG_RSP -1
+#endif
+static int X86_64_RSP_OFFSET = REG_RSP;
+
+#ifndef REG_RIP
+#define REG_RIP -1
+#endif
+static int X86_64_RIP_OFFSET = REG_RIP;
+
+#ifndef REG_CSGSFS
+#define REG_CSGSFS -1
+#endif
+static int X86_64_CSGSFS_OFFSET = REG_CSGSFS;
+
+static int X86_64_FLAGS_OFFSET = REG_EFL;
 
 void rewind_pc(void *in_context) {
     ucontext_t *context = (ucontext_t *)in_context;
@@ -31,12 +204,15 @@ void rewind_pc(void *in_context) {
     }
 }
 
-/**
- * Given the context, sets the pc to the supplied value
- *
- * @param context the context containing the current PC value
- * @param pc the new pc value
- */
+int allocate_context_data(void **context_data) {
+    *context_data = NULL;
+    return 0;
+}
+
+void copy_context(const ucontext_t *src, signal_state *dst) {
+    dst->context = *src;
+}
+
 void set_pc(ucontext_t *context, unsigned long pc) {
     if (__WORDSIZE == 64) {
         context->uc_mcontext.gregs[X86_64_RIP_OFFSET] = pc;
@@ -55,13 +231,6 @@ uint64_t get_pc(const void *input) {
     return context->uc_mcontext.gregs[X86_EIP_OFFSET];
 }
 
-/**
- * Given the context, gets the flags register
- *
- * @param context the context containing the flags register
- *
- * @return the flags register in the context
- */
 unsigned long get_flags(const void *context) {
     const ucontext_t *u_context = (const ucontext_t *)context;
 
@@ -72,13 +241,6 @@ unsigned long get_flags(const void *context) {
     return u_context->uc_mcontext.gregs[X86_FLAGS_OFFSET];
 }
 
-/**
- * Given the context, calculates the address at which a trap occurred at.
- *
- * @param context the context containing the current PC value
- *
- * @return the computed address
- */
 uint64_t get_trap_address(const ucontext_t *context) {
     if (__WORDSIZE == 64) {
         return (uint64_t)context->uc_mcontext.gregs[X86_64_RIP_OFFSET] - 1;
@@ -100,9 +262,9 @@ int get_exit_argument(const ucontext_t *context,
         // The exit argument is the first parameter on the stack
 
         // Get the stack pointer
-        unsigned long sp;
+        uint64_t sp;
 
-        sp = (unsigned long)context->uc_mcontext.gregs[X86_ESP_OFFSET];
+        sp = (uint64_t)context->uc_mcontext.gregs[X86_ESP_OFFSET];
 
         int word_length = sizeof(unsigned long);
 
@@ -111,13 +273,12 @@ int get_exit_argument(const ucontext_t *context,
 
         int read_result = read_memory(status, (const void *)sp, sizeof(int), errmsg);
         if ( read_result != 0 ) {
-            udi_printf("failed to retrieve exit status off of the stack at 0x%lx\n",
-                       sp);
-            snprintf(errmsg->msg,
-                     errmsg->size,
-                     "failed to retrieve exit status off of the stack at 0x%lx: %s",
-                     sp,
-                     get_mem_errstr());
+            udi_log("failed to retrieve exit status off of the stack at %a",
+                    sp);
+            udi_set_errmsg(errmsg,
+                           "failed to retrieve exit status off of the stack at %a: %s",
+                           sp,
+                           get_mem_errstr());
             result = RESULT_ERROR;
         }
         result = RESULT_SUCCESS;
@@ -230,66 +391,20 @@ int get_reg_context_offset(ud_type_t reg) {
     }
 }
 
-/**
- * @param reg the register
- *
- * @return 0 if it isn't accessible; non-zero if it is
- */
 int is_accessible_register(ud_type_t reg) {
     return get_reg_context_offset(reg) != -1;
 }
 
-/**
- * Gets the specified register from the context
- *
- * @param reg the register to retrieve
- * @param context the context
- *
- * @return the value from the register
- */
 unsigned long get_register_ud_type(ud_type_t reg, const void *context) {
     const ucontext_t *u_context = (const ucontext_t *)context;
 
     int offset = get_reg_context_offset(reg);
 
     if ( offset == -1 ) {
-        udi_abort(__FILE__, __LINE__);
+        udi_abort();
     }
 
     return u_context->uc_mcontext.gregs[offset];
-}
-
-/**
- * Validates that the specified register is valid for the specified architecture
- *
- * @param arch the architecture
- * @param reg the register
- * @param errmsg error message (populated on error)
- *
- * @param 0 on success; non-zero otherwise
- */
-int validate_register(udi_arch_e arch, udi_register_e reg, udi_errmsg *errmsg) {
-
-    int result = 0;
-    switch (arch) {
-        case UDI_ARCH_X86:
-            if (reg <= UDI_X86_MIN || reg >= UDI_X86_MAX) {
-                result = -1;
-            }
-            break;
-        case UDI_ARCH_X86_64:
-            if (reg <= UDI_X86_64_MIN || reg >= UDI_X86_64_MAX) {
-                result = -1;
-            }
-            break;
-    }
-
-    if (result != 0) {
-        snprintf(errmsg->msg, errmsg->size, "invalid register %s for architecture %s",
-                register_str(reg), arch_str(arch));
-    }
-
-    return result;
 }
 
 #define REG_CASE(name) case UDI_##name: return name##_OFFSET
@@ -430,50 +545,14 @@ int get_fp_register(udi_register_e reg,
     return -1;
 }
 
-/**
- * Check if the specified register is a general-purpose register
- *
- * @param arch the architecture
- * @param reg the register
- *
- * @return 0 if the register is not a general purpose register; non-zero otherwise
- */
-int is_gp_register(udi_arch_e arch, udi_register_e reg) {
-    return get_udi_reg_context_offset(reg) >= 0;
-}
-
-/**
- * Check if the specified register is a floating-point register
- *
- * @param arch the architecture
- * @param reg the register
- *
- * return 0 if the register is not a floating-point register; non-zero otherwise
- */
-int is_fp_register(udi_arch_e arch, udi_register_e reg) {
-    return get_udi_reg_context_offset(reg) == -1;
-}
-
-/**
- * Gets the specified register, with validation
- *
- * @param arch the architecture (used for validation)
- * @param reg the register to retrieve
- * @param errmsg the error message (populated on error)
- * @param value the output parameter for the register value
- * @param context the context (from which the register is retrieved)
- *
- * @return 0 on success; non-zero on failure
- */
-int get_register(udi_arch_e arch,
-                 udi_register_e reg,
+int get_register(udi_register_e reg,
                  udi_errmsg *errmsg,
                  uint64_t *value,
                  const void *context)
 {
     const ucontext_t *u_context = (const ucontext_t *)context;
 
-    if (validate_register(arch, reg, errmsg)) {
+    if (validate_register(reg, errmsg)) {
         return -1;
     }
 
@@ -487,33 +566,21 @@ int get_register(udi_arch_e arch,
     }
 
     if (offset < -1) {
-        snprintf(errmsg->msg, errmsg->size, "invalid register %d", reg);
+        udi_set_errmsg(errmsg, "invalid register %d", reg);
         return -1;
     }
 
     return 0;
 }
 
-/**
- * Sets the specified register, with validation
- *
- * @param arch the architecture (used for validation)
- * @param reg the register to retrieve
- * @param errmsg the error message (populated on error)
- * @param value the output parameter for the register value
- * @param context the context (from which the register is retrieved)
- *
- * @return 0 on success; non-zero on failure
- */
-int set_register(udi_arch_e arch,
-                 udi_register_e reg,
+int set_register(udi_register_e reg,
                  udi_errmsg *errmsg,
                  uint64_t value,
                  void *context)
 {
     ucontext_t *u_context = (ucontext_t *)context;
 
-    if (validate_register(arch, reg, errmsg)) {
+    if (validate_register(reg, errmsg)) {
         return -1;
     }
 
@@ -525,10 +592,9 @@ int set_register(udi_arch_e arch,
     }
 
     if (offset < -1) {
-        snprintf(errmsg->msg, errmsg->size, "invalid register %d", reg);
+        udi_set_errmsg(errmsg, "invalid register %d", reg);
         return -1;
     }
 
     return 0;
 }
-

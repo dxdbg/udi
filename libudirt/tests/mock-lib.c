@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017, UDI Contributors
+ * Copyright (c) 2011-2018, UDI Contributors
  * All rights reserved.
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -36,7 +36,12 @@ void save_data(struct mock_data **global, const uint8_t *data, size_t len) {
     if (*global == NULL) {
         *global = saved;
     }else{
-        (*global)->next = saved;
+        struct mock_data *end = *global;
+        while (end->next != NULL) {
+            end = end->next;
+        }
+
+        end->next = saved;
     }
 }
 
@@ -53,6 +58,26 @@ const struct mock_data *get_written_data() {
     return write_data;
 }
 
+void mock_data_to_buffer(const struct mock_data *data, char *buf, size_t len) {
+
+    const struct mock_data *iter = data;
+
+    size_t idx = 0;
+    while (iter != NULL && idx < len) {
+        size_t copy_len;
+        if (idx + iter->len > len-1) {
+            copy_len = ((len-1) - idx) + 1;
+        } else {
+            copy_len = iter->len;
+        }
+
+        memcpy(buf + idx, iter->data, copy_len);
+
+        idx += copy_len;
+        iter = iter->next;
+    }
+}
+
 static
 void free_mock_data(struct mock_data *data) {
 
@@ -63,6 +88,11 @@ void free_mock_data(struct mock_data *data) {
         free(cur->data);
         free(cur);
     }
+}
+
+void reset_mock_data() {
+    free_mock_data(write_data);
+    write_data = NULL;
 }
 
 void cleanup_mock_lib() {
@@ -88,5 +118,9 @@ int read_from(udirt_fd fd, uint8_t *dst, size_t length) {
 int write_to(udirt_fd fd, const uint8_t *src, size_t length) {
     save_data(&write_data, src, length);
     return 0;
+}
+
+udirt_fd udi_log_fd() {
+    return -1;
 }
 

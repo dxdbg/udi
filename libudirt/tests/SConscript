@@ -12,22 +12,34 @@ bin_env.Append(CPPPATH = ['#/src'])
 bin_env.Append(LIBPATH = ['#/build/src'])
 bin_env.Append(RPATH = [Dir('#/build/src').abspath])
 
-read_test_req_srcs = [
-    'read-test-req.c',
-    'mock-lib.c'
-]
 
 libs = [ 'udirt', 'cbor' ]
 
 if udibuild.IsX86():
     libs.append('udis86')
 
+mock_lib_obj = bin_env.Object('mock-lib.c')
+
+read_test_req_srcs = [
+    'read-test-req.c',
+    mock_lib_obj
+]
+
 read_test_req_bin = bin_env.Program('read-test-req', read_test_req_srcs, LIBS=libs)
 bin_env.Depends(read_test_req_bin, '#/src/udirt-msg.c')
 bin_env.Depends(read_test_req_bin, '#/src/udirt-malloc.c')
 
+udi_log_srcs = [
+    'udi-log.c',
+    mock_lib_obj
+]
+
+udi_log_bin = bin_env.Program('udi-log', udi_log_srcs, LIBS=libs)
+bin_env.Depends(udi_log_bin, '#/src/udirt.c')
+
 tests = [
-    read_test_req_bin
+    read_test_req_bin,
+    udi_log_bin
 ]
 
 for test in tests:

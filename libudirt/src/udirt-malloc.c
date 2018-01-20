@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2015, UDI Contributors
+ * Copyright (c) 2011-2018, UDI Contributors
  * All rights reserved.
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -7,10 +7,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include "udirt.h"
-
 // Configure dlmalloc
-
 #define USE_LOCKS 0
 #define MMAP_PROT            (PROT_READ|PROT_WRITE|PROT_EXEC)
 #define HAVE_MORECORE 0
@@ -18,6 +15,8 @@
 #define USE_DL_PREFIX 1
 
 #include "dlmalloc.c"
+
+#include "udirt.h"
 
 /**
  * Internal UDI RT heap free

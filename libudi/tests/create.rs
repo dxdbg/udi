@@ -38,8 +38,6 @@ fn create_test() -> Result<()> {
     {
         let mut process = proc_ref.lock()?;
 
-        assert!(!process.is_multithread_capable());
-
         thr_ref = process.get_initial_thread();
 
         process.continue_process()?;

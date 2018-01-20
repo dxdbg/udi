@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 const NATIVE_FILE_TESTS_URL: &'static str =
-    "https://github.com/dxdbg/native-file-tests/releases/download/v0.1.3/native-file-tests-v0.1.3.zip";
+    "https://github.com/dxdbg/native-file-tests/releases/download/v0.1.4/native-file-tests-v0.1.4.zip";
 
 fn main() {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -34,5 +34,8 @@ fn main() {
                             .expect("Failed to download native file tests zip");
     }
 
-    native_file_tests::setup(&manifest_path, &out_path, &local_zip);
+    native_file_tests::setup(&manifest_path,
+                             &out_path,
+                             &local_zip,
+                             &env::var("CARGO_CFG_TARGET_OS").unwrap());
 }

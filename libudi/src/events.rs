@@ -33,25 +33,54 @@ pub struct Event {
 
 pub fn wait_for_events(procs: &Vec<Arc<Mutex<Process>>>) -> Result<Vec<Event>> {
 
+    let mut output: Vec<Event> = vec![];
+
+    for proc_ref in procs {
+
+        let terminating;
+        {
+            let process = proc_ref.lock()?;
+            terminating = process.terminating && process.running;
+        }
+
+        if terminating {
+            // To work around an issue on macos with kqueue and fifos, if the process is
+            // terminating, wait for the process to terminate, closing the event pipe.
+            let event = handle_read_event(&proc_ref)?;
+            match event.data {
+                EventData::ProcessCleanup => {
+                    output.push(event);
+                },
+                _ => {
+                    let msg = format!("Unexpected event {:?} for terminating process", event);
+                    return Err(Error::from_kind(ErrorKind::Library(msg)));
+                }
+            };
+        }
+    }
+
     let poll = Poll::new()?;
     let mut event_procs = HashMap::new();
     for proc_ref in procs {
 
         let mut process = proc_ref.lock()?;
 
-        let token = Token(process.pid as usize);
-        {
-            let file_context = process.get_file_context()?;
+        if !process.terminating && process.running {
+            let token = Token(process.pid as usize);
+            {
+                let file_context = process.get_file_context()?;
 
-            let event_source = sys::EventSource::new(&file_context.events_file);
+                let event_source = sys::EventSource::new(&file_context.events_file);
 
-            poll.register(&event_source, token, Ready::readable(), PollOpt::edge())?;
+                let ready = sys::add_platform_ready_flags(Ready::readable());
+
+                poll.register(&event_source, token, ready, PollOpt::level())?;
+            }
+
+            event_procs.insert(token, proc_ref.clone());
         }
-
-        event_procs.insert(token, proc_ref.clone());
     }
 
-    let mut output: Vec<Event> = vec![];
     while output.len() == 0 {
 
         let mut events = Events::with_capacity(procs.len());
@@ -165,6 +194,10 @@ mod sys {
     pub fn is_event_source_failed(ready: Ready) -> bool {
         let unix_ready = UnixReady::from(ready);
         unix_ready.is_hup() || unix_ready.is_error()
+    }
+
+    pub fn add_platform_ready_flags(ready: Ready) -> Ready {
+        ready | UnixReady::hup() | UnixReady::error()
     }
 
     pub struct EventSource {

@@ -11,3 +11,4 @@ A list of possible enhancements/bugfixes
 - add file to UDI interface to allow multiple agents to cooperate via file locking
 - handle case where user creates breakpoint at exit function
 - implement debuggee-side conditional breakpoints
+- support for position-independent executables

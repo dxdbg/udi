@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2015, UDI Contributors
+ * Copyright (c) 2011-2018, UDI Contributors
  * All rights reserved.
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -7,7 +7,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-// OS related handling (syscalls and signals)
+// OS related handling (syscalls, signals, library loading)
 
 // This header needs to be included first because it sets feature macros
 #include "udirt-platform.h"
@@ -20,6 +20,11 @@ void (*signal(int signum, void (*handler)(int)) )(int) __asm__ ("" "signal");
 #include <inttypes.h>
 #include <errno.h>
 #include <stdlib.h>
+
+// exported constants //
+
+// library wrapping
+void *UDI_RTLD_NEXT = RTLD_NEXT;
 
 // Signal handling
 int signals[] = {
@@ -37,7 +42,11 @@ int signals[] = {
     SIGPIPE,
     SIGALRM,
     SIGTERM,
+#if defined(SIGSTKFLT)
     SIGSTKFLT,
+#else
+    0,
+#endif
     SIGCHLD,
     SIGCONT,
     SIGTSTP,
@@ -50,13 +59,24 @@ int signals[] = {
     SIGPROF,
     SIGWINCH,
     SIGIO,
+#if defined(SIGPWR)
     SIGPWR,
+#else
+    0,
+#endif
     SIGSYS
 };
 
-struct sigaction app_actions[NUM_SIGNALS];
-int signal_map[MAX_SIGNAL_NUM]; // Used to map signals to their application action
-struct sigaction default_lib_action;
+// This is the number of elements in the signals array
+#define NUM_SIGNALS 29
+
+struct app_sigaction {
+    int signal;
+    struct sigaction action;
+};
+
+static struct app_sigaction app_actions[NUM_SIGNALS];
+static struct sigaction default_lib_action;
 
 int exiting = 0;
 
@@ -89,7 +109,7 @@ int locate_wrapper_functions(udi_errmsg *errmsg) {
         real_sigaction = (sigaction_type) dlsym(UDI_RTLD_NEXT, "sigaction");
         errmsg_tmp = dlerror();
         if (errmsg_tmp != NULL) {
-            udi_printf("symbol lookup error: %s\n", errmsg_tmp);
+            udi_log("symbol lookup error: %s", errmsg_tmp);
             strncpy(errmsg->msg, errmsg_tmp, errmsg->size-1);
             errnum = -1;
             break;
@@ -98,7 +118,7 @@ int locate_wrapper_functions(udi_errmsg *errmsg) {
         real_fork = (fork_type) dlsym(UDI_RTLD_NEXT, "fork");
         errmsg_tmp = dlerror();
         if (errmsg_tmp != NULL) {
-            udi_printf("symbol lookup error: %s\n", errmsg_tmp);
+            udi_log("symbol lookup error: %s", errmsg_tmp);
             strncpy(errmsg->msg, errmsg_tmp, errmsg->size-1);
             errnum = -1;
             break;
@@ -107,7 +127,7 @@ int locate_wrapper_functions(udi_errmsg *errmsg) {
         real_execve = (execve_type) dlsym(UDI_RTLD_NEXT, "execve");
         errmsg_tmp = dlerror();
         if (errmsg_tmp != NULL) {
-            udi_printf("symbol lookup error: %s\n", errmsg_tmp);
+            udi_log("symbol lookup error: %s", errmsg_tmp);
             strncpy(errmsg->msg, errmsg_tmp, errmsg->size-1);
             errnum = -1;
             break;
@@ -116,7 +136,7 @@ int locate_wrapper_functions(udi_errmsg *errmsg) {
         real_signal = (signal_type) dlsym(UDI_RTLD_NEXT, "signal");
         errmsg_tmp = dlerror();
         if (errmsg_tmp != NULL) {
-            udi_printf("symbol lookup error: %s\n", errmsg_tmp);
+            udi_log("symbol lookup error: %s", errmsg_tmp);
             strncpy(errmsg->msg, errmsg_tmp, errmsg->size-1);
             errnum = -1;
             break;
@@ -142,7 +162,7 @@ int install_event_breakpoints(udi_errmsg *errmsg) {
         // directly and do not pass through the PLT
         exit_bp = create_breakpoint((uint64_t)exit);
         if ( exit_bp == NULL ) {
-            udi_printf("%s\n", "failed to create exit breakpoint");
+            udi_log("failed to create exit breakpoint");
             errnum = -1;
             break;
         }
@@ -150,15 +170,10 @@ int install_event_breakpoints(udi_errmsg *errmsg) {
         errnum = install_breakpoint(exit_bp, errmsg);
 
         if ( errnum != 0 ) {
-            udi_printf("%s\n", "failed to install exit breakpoint");
+            udi_log("failed to install exit breakpoint");
             errnum = -1;
             break;
         }
-
-        if (get_multithread_capable()) {
-            errnum = install_thread_event_breakpoints(errmsg);
-        }
-
     }while(0);
 
     return errnum;
@@ -182,11 +197,11 @@ int handle_exit_breakpoint(const ucontext_t *context, udi_errmsg *errmsg) {
         return result;
     }
 
-    udi_printf("exit entered with status %d\n", status);
+    udi_log("exit entered with status %d", status);
     exiting = 1;
     result = handle_exit_event(get_user_thread_id(), status, errmsg);
     if ( result != RESULT_SUCCESS ) {
-        udi_printf("failed to report exit status of %d\n", status);
+        udi_log("failed to report exit status of %d", status);
     }
     return result;
 }
@@ -204,16 +219,16 @@ pid_t fork() {
     }else{
         uint64_t thread_id = get_user_thread_id();
 
-        udi_printf(">>> fork entry for 0x%"PRIx64"/%u\n",
-                   get_user_thread_id(),
-                   get_kernel_thread_id());
+        udi_log(">>> fork entry for %a/%a",
+                get_user_thread_id(),
+                get_kernel_thread_id());
 
         // Need to continue waiting until this thread owns the control of the process
         int block_result = 1;
         while (block_result > 0) {
             block_result = block_other_threads();
             if ( block_result == -1 ) {
-                udi_printf("%s\n", "failed to block other threads");
+                udi_log("failed to block other threads");
                 errno = EAGAIN;
                 return -1;
             }
@@ -225,7 +240,7 @@ pid_t fork() {
 
         int result = handle_fork_event(thread_id, child, &errmsg);
         if (result != RESULT_SUCCESS) {
-            udi_printf("failed to report fork event: %s\n", errmsg.msg);
+            udi_log("failed to report fork event: %s", errmsg.msg);
             errno = EAGAIN;
             return -1;
         }
@@ -233,14 +248,14 @@ pid_t fork() {
         thread *thr = NULL;
         result = wait_and_execute_command(&errmsg, &thr);
         if (result == RESULT_ERROR) {
-            udi_printf("failed to execute command after fork: %s\n", errmsg.msg);
+            udi_log("failed to execute command after fork: %s", errmsg.msg);
             errno = EAGAIN;
             return -1;
         }
 
         int release_result = release_other_threads();
         if ( release_result != 0 ) {
-            udi_printf("%s\n", "failed to release other threads");
+            udi_log("failed to release other threads");
             errno = EAGAIN;
             return -1;
         }
@@ -271,8 +286,10 @@ int execve(const char *filename, char *const argv[],
  * by the library.
  */
 int sigaction(int signum, const struct sigaction *act,
-        struct sigaction *oldact)
+              struct sigaction *oldact)
 {
+    udi_log("wrapped call to sigaction for signal %d", signum);
+
     // Block signals while doing this to avoid a race where a signal is delivered
     // while validating the arguments
     sigset_t full_set, orig_set;
@@ -292,13 +309,25 @@ int sigaction(int signum, const struct sigaction *act,
         if ( result != 0 ) break;
 
         // Store new application action for future use
-        int signal_index = signal_map[(signum % MAX_SIGNAL_NUM)];
-        if ( oldact != NULL ) {
-            *oldact = app_actions[signal_index];
+
+        int found = 0;
+        int i;
+        for (i = 0; i < NUM_SIGNALS; ++i) {
+            if (app_actions[i].signal == signum) {
+                found = 1;
+                if ( oldact != NULL ) {
+                    *oldact = app_actions[i].action;
+                }
+
+                if ( act != NULL ) {
+                    app_actions[i].action = *act;
+                }
+            }
         }
 
-        if ( act != NULL ) {
-            app_actions[signal_index] = *act;
+        if ( !found ) {
+            udi_log("failed to intercept call to sigaction for %d", signum);
+            return EINVAL;
         }
     }while(0);
 
@@ -331,7 +360,7 @@ int is_event_breakpoint(breakpoint *bp) {
         return 1;
     }
 
-    return is_thread_event_breakpoint(bp);
+    return 0;
 }
 
 int handle_event_breakpoint(breakpoint *bp, const void *in_context, udi_errmsg *errmsg) {
@@ -342,8 +371,7 @@ int handle_event_breakpoint(breakpoint *bp, const void *in_context, udi_errmsg *
         return handle_exit_breakpoint(context, errmsg);
     }
 
-
-    return handle_thread_event_breakpoint(bp, context, errmsg);
+    return RESULT_ERROR;
 }
 
 
@@ -352,33 +380,40 @@ int handle_event_breakpoint(breakpoint *bp, const void *in_context, udi_errmsg *
  *
  * See manpage for SA_SIGINFO function.
  */
-void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context) {
-    int signal_index = signal_map[(signal % MAX_SIGNAL_NUM)];
+void app_signal_handler(int signum, siginfo_t *siginfo, void *v_context) {
 
-    if ( (void *)app_actions[signal_index].sa_sigaction == (void *)SIG_IGN ) {
-        udi_printf("Signal %d ignored, not passing to application\n", signal);
+    struct app_sigaction *app_action = NULL;
+    for (int i = 0; i < NUM_SIGNALS; ++i) {
+        if (app_actions[i].signal == signum) {
+            app_action = &app_actions[i];
+        }
+    }
+
+    if (app_action == NULL) {
+        udi_log("Signal %d does not have an app action", signum);
         return;
     }
 
-    if ( (void *)app_actions[signal_index].sa_sigaction == (void *)SIG_DFL ) {
+    if ( (void *)app_action->action.sa_sigaction == (void *)SIG_IGN ) {
+        udi_log("Signal %d ignored, not passing to application", signum);
+        return;
+    }
+
+    if ( (void *)app_actions->action.sa_sigaction == (void *)SIG_DFL ) {
         // TODO need to emulate the default action
         return;
     }
 
     sigset_t cur_set;
-
-    if ( setsigmask(SIG_SETMASK, &app_actions[signal_index].sa_mask, 
-            &cur_set) != 0 )
+    if ( setsigmask(SIG_SETMASK, &app_actions->action.sa_mask, &cur_set) != 0 )
     {
-        udi_printf("failed to adjust blocked signals for application handler: %s\n",
-                strerror(errno));
+        udi_log("failed to adjust blocked signals for application handler: %e", errno);
     }
 
-    app_actions[signal_index].sa_sigaction(signal, siginfo, v_context);
+    app_actions->action.sa_sigaction(signum, siginfo, v_context);
 
     if ( setsigmask(SIG_SETMASK, &cur_set, NULL) != 0 ) {
-        udi_printf("failed to reset blocked signals after application handler: %s\n",
-                strerror(errno));
+        udi_log("failed to reset blocked signals after application handler: %e", errno);
     }
 }
 
@@ -388,7 +423,12 @@ void app_signal_handler(int signal, siginfo_t *siginfo, void *v_context) {
  * @return 0 on success; non-zero on failure
  */
 int setup_signal_handlers() {
-    int errnum = 0;
+
+    // Sanity check
+    if ( (sizeof(signals) / sizeof(int)) != NUM_SIGNALS ) {
+        udi_log("ASSERT FAIL: signals array length != NUM_SIGNALS");
+        return -1;
+    }
 
     // Define the default sigaction for the library
     memset(&default_lib_action, 0, sizeof(struct sigaction));
@@ -396,27 +436,43 @@ int setup_signal_handlers() {
     sigfillset(&(default_lib_action.sa_mask));
     default_lib_action.sa_flags = SA_SIGINFO | SA_NODEFER;
 
-    // initialize application sigactions and signal map
+    // initialize application sigactions
     int i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
-        memset(&app_actions[i], 0, sizeof(struct sigaction));
-        app_actions[i].sa_handler = SIG_DFL;
-
-        signal_map[(signals[i] % MAX_SIGNAL_NUM)] = i;
+        memset(&app_actions[i], 0, sizeof(struct app_sigaction));
+        app_actions[i].signal = signals[i];
+        app_actions[i].action.sa_handler = SIG_DFL;
     }
 
-    // Sanity check
-    if ( (sizeof(signals) / sizeof(int)) != NUM_SIGNALS ) {
-        udi_printf("%s\n", "ASSERT FAIL: signals array length != NUM_SIGNALS");
-        return -1;
-    }
-
+    int errnum = 0;
     for(i = 0; i < NUM_SIGNALS; ++i) {
-        if ( real_sigaction(signals[i], &default_lib_action, &app_actions[i]) != 0 ) {
-            errnum = errno;
-            break;
+        int signum = signals[i];
+        if (signum != 0) {
+            if ( real_sigaction(signum, &default_lib_action, &(app_actions[i].action)) != 0 ) {
+                udi_log("failed to register handler for %d", signals[i]);
+                errnum = errno;
+                break;
+            }
         }
     }
 
     return errnum;
+}
+
+int uninstall_signal_handlers() {
+    int i;
+    for(i = 0; i < NUM_SIGNALS; ++i) {
+        if ( signals[i] == 0 ) continue;
+
+        if ( signals[i] == SIGPIPE && pipe_write_failure ) continue;
+
+        if ( real_sigaction(signals[i], &(app_actions[i].action), NULL) != 0 ) {
+            udi_log("failed to reset signal handler for %d: %e",
+                    signals[i],
+                    errno);
+            return errno;
+        }
+    }
+
+    return 0;
 }
