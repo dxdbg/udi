@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 const NATIVE_FILE_TESTS_URL: &'static str =
-    "https://github.com/udidb/native-file-tests/releases/download/v0.1.1/native-file-tests-0.1.1.zip";
+    "https://github.com/dxdbg/native-file-tests/releases/download/v0.1.3/native-file-tests-v0.1.3.zip";
 
 fn main() {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());

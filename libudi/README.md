@@ -19,6 +19,6 @@ This library can be built using stable Rust (1.22).
 
 ## Testing ##
 
-`cargo test` will pull down a release from [native-file-tests](https://github.com/udidb/native-file-tests) and
+`cargo test` will pull down a release from [native-file-tests](https://github.com/dxdbg/native-file-tests) and
 launch binaries from that distribution as debuggees.
 
