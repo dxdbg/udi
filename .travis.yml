@@ -5,6 +5,8 @@
 notifcations:
   email: false
 
+language: rust
+
 os:
   - linux
   - osx
@@ -24,7 +26,7 @@ before_install:
 install:
   - cd ..
   - git clone https://github.com/dxdbg/native-file-tests.git
-  - cd java-binding
+  - cd native-file-tests/java-binding
   - mvn clean install
   - cd $TRAVIS_BUILD_DIR
 
