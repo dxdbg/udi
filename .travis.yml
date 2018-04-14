@@ -1,0 +1,39 @@
+#
+# travis-ci integration for udi
+#
+
+notifcations:
+  email: false
+
+os:
+  - linux
+  - osx
+
+dist: trusty
+sudo: false
+
+rust:
+  - 1.25.0
+
+jdk:
+  - oraclejdk8
+
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install scons; fi
+
+install:
+  - cd ..
+  - git clone https://github.com/dxdbg/native-file-tests.git
+  - cd java-binding
+  - mvn clean install
+  - cd $TRAVIS_BUILD_DIR
+
+script:
+  - cd libudirt
+  - scons all_tests
+  - cd ../libudi
+  - cargo test --verbose
+  - cd ../libudi-c
+  - cargo test --verbose
+  - cd ../libudi-java
+  - mvn clean verify

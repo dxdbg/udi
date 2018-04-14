@@ -15,7 +15,7 @@ This library has not yet been published to crates.io, but is planned.
 
 ## Building ##
 
-This library can be built using stable Rust (1.22).
+This library can be built using Rust 1.25+.
 
 ## Testing ##
 

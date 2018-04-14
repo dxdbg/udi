@@ -24,7 +24,7 @@
     <properties>
         <native.file.tests.basePath>${project.parent.basedir}/../libudi/native-file-tests</native.file.tests.basePath>
         <udi.native.lib.searchPath>${project.parent.basedir}/../libudi-c/target/debug</udi.native.lib.searchPath>
-        <udi.native.rtlib.path>${project.parent.basedir}/../libudirt/build/src/libudirt.so</udi.native.rtlib.path>
+        <udi.native.rtlib.path>${project.parent.basedir}/../libudirt/build/src/libudirt.</udi.native.rtlib.path>
     </properties>
 
     <dependencies>

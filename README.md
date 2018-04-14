@@ -1,4 +1,7 @@
-# Userland Debugger Interface #
+Userland Debugger Interface
+===========================
+
+[![Build Status](https://travis-ci.org/dxdbg/udi.svg?branch=master)](https://travis-ci.org/dxdbg/udi)
 
 The Userland Debugger Interface (UDI) intends to provide a full-featured
 debugger interface for native applications, implemented completely in userland

@@ -55,13 +55,27 @@ public abstract class BaseApiUt {
         config = new UdiProcessConfig();
         config.setRootDir(Paths.get(ROOT_DIR, "test-udi"));
         if (RT_LIB_PATH != null) {
-            config.setRtLibPath(Paths.get(RT_LIB_PATH));
+            config.setRtLibPath(Paths.get(RT_LIB_PATH + getDynamicLibSuffix()));
         }
 
         String basePath = System.getProperty(NATIVE_FILE_TEST_PATH);
         assertNotNull(NATIVE_FILE_TEST_PATH + " must be set.", basePath);
 
         nativeFileTestsInfo = new NativeFileTestsInfo(Paths.get(basePath));
+    }
+
+    private String getDynamicLibSuffix() {
+        String osName = System.getProperty("os.name");
+
+        if (osName.equalsIgnoreCase("Linux")) {
+            return "so";
+        }
+
+        if (osName.contains("Mac")) {
+            return "dylib";
+        }
+
+        throw new IllegalStateException("Unsupported OS " + osName);
     }
 
     /**
