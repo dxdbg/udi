@@ -41,9 +41,9 @@ install:
   - scons configure CBOR_INC=$UDI_DEPS/include CBOR_LIB=$UDI_DEPS/lib UDIS86_INC=$UDI_DEPS/include UDIS86_LIB=$UDI_DEPS/lib
   - scons all_tests
   - cd ../libudi
-  - cargo test
+  - cargo build && cargo test
   - cd ../libudi-c
-  - cargo test
+  - cargo build && cargo test
   - cd ../libudi-java
   - mvn clean verify
 
