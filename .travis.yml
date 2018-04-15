@@ -36,6 +36,7 @@ install:
   - cd $TRAVIS_BUILD_DIR/..
   - git clone --depth=1 https://github.com/PJK/libcbor.git && cd libcbor
   - cmake -DCBOR_CUSTOM_ALLOC=ON -DCMAKE_INSTALL_PREFIX=$UDI_DEPS . && make && make install
+  - rm -f $UDI_DEPS/libcbor.*dylib
   - cd $TRAVIS_BUILD_DIR
   - cd libudirt
   - scons configure CBOR_INC=$UDI_DEPS/include CBOR_LIB=$UDI_DEPS/lib UDIS86_INC=$UDI_DEPS/include UDIS86_LIB=$UDI_DEPS/lib
