@@ -32,6 +32,7 @@ if topenv['CC'] == 'gcc':
 
     if udibuild.IsDarwin():
         topenv.Append(LINKFLAGS = "-flat_namespace -undefined dynamic_lookup")
+        topenv.Append(CFLAGS = "-Wno-deprecated-declarations")
 
 else:
     print 'Unknown compiler'
