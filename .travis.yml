@@ -32,7 +32,7 @@ install:
   - mvn clean install
   - cd $TRAVIS_BUILD_DIR/..
   - git clone --depth=1 https://github.com/vmt/udis86.git && cd udis86
-  - ./configure --prefix=$UDI_DEPS && make install
+  - ./autogen.sh && ./configure --prefix=$UDI_DEPS && make install
   - cd $TRAVIS_BUILD_DIR/..
   - git clone --depth=1 https://github.com/PJK/libcbor.git && cd libcbor
   - cmake -DCMAKE_INSTALL_PREFIX=$UDI_DEPS . && make install
