@@ -11,6 +11,10 @@ os:
   - linux
   - osx
 
+env:
+  global:
+    - NFT_VERSION=v0.1.6
+
 dist: trusty
 sudo: false
 
@@ -29,7 +33,7 @@ install:
   - cd ..
   - git clone --depth=1 https://github.com/dxdbg/native-file-tests.git
   - cd native-file-tests/java-binding
-  - mvn clean install
+  - mvn clean install -DskipTests
   - cd $TRAVIS_BUILD_DIR/..
   - git clone --depth=1 https://github.com/vmt/udis86.git && cd udis86
   - ./autogen.sh && ./configure --prefix=$UDI_DEPS && make install
@@ -42,6 +46,10 @@ install:
   - scons configure CBOR_INC=$UDI_DEPS/include CBOR_LIB=$UDI_DEPS/lib UDIS86_INC=$UDI_DEPS/include UDIS86_LIB=$UDI_DEPS/lib
   - scons all_tests
   - cd ../libudi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export NFT_PLATFORM_NAME="macos"; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export NFT_PLATFORM_NAME="linux"; fi
+  - curl -sSfL -o native-file-tests.zip https://github.com/dxdbg/native-file-tests/releases/download/$NFT_VERSION/native-file-tests-$NFT_PLATFORM_NAME-$NFT_VERSION.zip
+  - unzip -j native-file-tests.zip -d native-file-tests
   - cargo build && cargo test
   - cd ../libudi-c
   - cargo build && cargo test

@@ -12,30 +12,18 @@ extern crate native_file_tests;
 
 use std::env;
 use std::path::PathBuf;
-use std::process::Command;
-
-const NATIVE_FILE_TESTS_URL: &'static str =
-    "https://github.com/dxdbg/native-file-tests/releases/download/v0.1.4/native-file-tests-v0.1.4.zip";
 
 fn main() {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let manifest_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
 
-    let local_zip = manifest_path.join("native-file-tests.zip");
+    let nft_path = manifest_path.join("native-file-tests");
 
-    if !local_zip.exists() {
-        Command::new("curl").arg("-sSfL")
-                            .arg("-o")
-                            .arg(local_zip.to_str().unwrap())
-                            .arg(NATIVE_FILE_TESTS_URL)
-                            .spawn()
-                            .expect("Failed to start download of native file tests zip")
-                            .wait()
-                            .expect("Failed to download native file tests zip");
+    if !nft_path.exists() {
+        panic!("native-file-tests distribution unavailable");
     }
 
-    native_file_tests::setup(&manifest_path,
+    native_file_tests::setup(&nft_path,
                              &out_path,
-                             &local_zip,
                              &env::var("CARGO_CFG_TARGET_OS").unwrap());
 }

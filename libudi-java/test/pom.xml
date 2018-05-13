@@ -42,7 +42,7 @@
         <dependency>
             <groupId>net.libudi</groupId>
             <artifactId>native-file-tests</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>0.1.0-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
         <!-- list all implementations under test here -->
