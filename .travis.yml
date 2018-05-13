@@ -20,7 +20,10 @@ sudo: false
 
 rust:
   - 1.25.0
-cache: cargo
+cache:
+  - $HOME/.cargo/registry
+  - $TRAVIS_BUILD_DIR/target
+  - $HOME/.m2
 
 jdk:
   - oraclejdk8
