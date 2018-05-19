@@ -1,0 +1,7 @@
+.udirt.config
+build
+.sconsign.dblite
+__init__.pyc
+.sconf_temp
+config.log
+

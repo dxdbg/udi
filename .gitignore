@@ -1,11 +1,3 @@
+# repository-wide ignores
 *.swp
-.sconsign.dblite
-__init__.pyc
-.sconf_temp
-config.log
 *.iml
-target/
-libudirt/build
-libudirt/.udirt.config
-native-file-tests.zip
-native-file-tests
