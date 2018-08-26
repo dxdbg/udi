@@ -22,3 +22,29 @@ This library can be built using Rust 1.25+.
 `cargo test` will pull down a release from [native-file-tests](https://github.com/dxdbg/native-file-tests) and
 launch binaries from that distribution as debuggees.
 
+## Implementation Notes
+
+### Runtime Library Loading
+
+#### Debugger creates debuggee
+
+##### linux
+
+The runtime library path is specified in the LD\_PRELOAD environment variable
+when creating the debuggee.
+
+##### macos
+
+The runtime library path is specified in the DYLD\_INSERT\_LIBRARIES
+environment variable. DYLD\_FORCE\_FLAT\_NAMESPACE is also set to support
+hooking functions provided by system runtime libraries (e.g., pthreads).
+
+##### windows
+
+When creating the debuggee, it is created in a suspended state, using the
+CREATE\_SUSPENDED process creation flag. A remote thread is created in the
+process, with an entry point of the `LoadLibrary` function and the argument to
+the thread set to the path to the runtime library. The execution of this remote
+thread then loads the runtime library into the debuggee. The debugger then
+resumes the main thread which triggers initialization of the runtime
+library via it's DllMain function.
