@@ -45,11 +45,11 @@ typedef int udirt_fd;
 
 #endif /* DARWIN */
 
-#else /* UNIX */
+#else /* UNIX / WINDOWS */
 
-#error Unsupported platform
+typedef void * udirt_fd;
 
-#endif /* UNIX */
+#endif /* WINDOWS */
 
 #ifdef __cplusplus
 } // extern C

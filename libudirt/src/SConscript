@@ -37,6 +37,8 @@ if udibuild.IsDarwin():
         sources.append('udirt-darwin-x86-64.c')
 
 lib_env.SharedLibrary('udirt', sources, LIBS=libs)
-lib_env.StaticLibrary('udirt', sources)
+
+if udibuild.IsUnix():
+    lib_env.StaticLibrary('udirt', sources)
 
 # vim: ft=python

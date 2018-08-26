@@ -14,29 +14,33 @@ vars.Add("UDIS86_INC", "Include directory for udis86 library")
 vars.Add("UDIS86_LIB", "Library directory for udis86 library")
 vars.Add("CBOR_INC", "Include directory cbor library")
 vars.Add("CBOR_LIB", "Library directory cbor library")
+vars.Add("MSVC_USE_SCRIPT", "MSVC_USE_SCRIPT value to pass to the SCons environment")
+vars.Add("MSVC_VERSION", "MSVC_VERSION value to pass to the SCons environment")
+vars.Add("OPT", "Set to True to enable optimization", False)
 
-topenv = Environment(variables = vars)
+topenv = Environment(variables = vars, ENV = { 'PATH' : os.environ['PATH'] })
 
 Help(vars.GenerateHelpText(topenv))
+
+if not udibuild.IsUnix():
+    topenv['CC'] = 'clang-cl'
 
 if topenv['CC'] == 'gcc':
     # C compiler flags
     topenv.Append(CFLAGS = "-Wall -Werror -fPIC -std=gnu99 -g")
 
-    # C++ compiler flags
-    topenv.Append(CXXFLAGS = "-Wall -Werror -g -fPIC")
-
-    if 'ENABLE_OPT' in os.environ:
+    if "OPT" in topenv and topenv["OPT"]:
         topenv.Append(CFLAGS = "-O2")
-        topenv.Append(CXXFLAGS = "-O2")
 
     if udibuild.IsDarwin():
         topenv.Append(LINKFLAGS = "-flat_namespace -undefined dynamic_lookup")
         topenv.Append(CFLAGS = "-Wno-deprecated-declarations")
 
-else:
-    print 'Unknown compiler'
-    quit()
+elif topenv['CC'] == 'clang-cl' or topenv['CC'] == 'cl':
+    topenv.Append(CFLAGS = "/W4 /WX /TP")
+
+    if "OPT" in topenv and topenv["OPT"]:
+        topenv.Append(CFLAGS = "/O2")
 
 if "UDIS86_INC" in topenv:
     topenv.Append(CPPPATH=[topenv["UDIS86_INC"]])
