@@ -25,6 +25,10 @@ Help(vars.GenerateHelpText(topenv))
 if not udibuild.IsUnix():
     topenv['CC'] = 'clang-cl'
 
+    topenv['LIBPREFIX'] = ''
+    topenv['LIBSUFFIX'] = '.lib'
+
+
 if topenv['CC'] == 'gcc':
     # C compiler flags
     topenv.Append(CFLAGS = "-Wall -Werror -fPIC -std=gnu99 -g")
@@ -37,7 +41,7 @@ if topenv['CC'] == 'gcc':
         topenv.Append(CFLAGS = "-Wno-deprecated-declarations")
 
 elif topenv['CC'] == 'clang-cl' or topenv['CC'] == 'cl':
-    topenv.Append(CFLAGS = "/W4 /WX /TP")
+    topenv.Append(CFLAGS = "/W4 /WX /MD")
 
     if "OPT" in topenv and topenv["OPT"]:
         topenv.Append(CFLAGS = "/O2")
@@ -68,6 +72,12 @@ if udibuild.IsLinux():
 if udibuild.IsDarwin():
     topenv.Append(CPPDEFINES=['DARWIN'])
 
+if udibuild.IsX86():
+    if udibuild.IsX86_64():
+        topenv.Append(CPPDEFINES=['__WORDSIZE=64'])
+    else:
+        topenv.Append(CPPDEFINES=['__WORDSIZE=32'])
+
 if 'configure' in COMMAND_LINE_TARGETS:
     conf = Configure(topenv)
 
@@ -89,8 +99,10 @@ Export('topenv')
 
 # subdirectories
 topenv.SConscript('#/src/SConscript', variant_dir='#/build/src', duplicate=False)
-topenv.SConscript('#/tests/SConscript', variant_dir='#/build/tests', duplicate=False)
-topenv.SConscript('#/util/SConscript', variant_dir='#/build/util', duplicate=False)
+
+if udibuild.IsUnix():
+    topenv.SConscript('#/tests/SConscript', variant_dir='#/build/tests', duplicate=False)
+    topenv.SConscript('#/util/SConscript', variant_dir='#/build/util', duplicate=False)
 
 # default target
 topenv.Default('src', 'tests', 'util')

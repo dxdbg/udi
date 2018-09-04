@@ -1530,3 +1530,13 @@ int write_to(udirt_fd fd, const uint8_t *src, size_t length) {
 udirt_fd udi_log_fd() {
     return STDERR_FILENO;
 }
+
+void udi_log_error(format_cb cb, void *ctx, int error) {
+    char buf[64];
+    memset(buf, 0, 64);
+
+    strerror_r(error, buf, 64);
+
+    udi_log_string(cb, ctx, buf);
+}
+

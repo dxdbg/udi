@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "udirt-platform.h"
+#include "udirt.h"
 
 #include "mock-lib.h"
 
@@ -101,6 +102,7 @@ void cleanup_mock_lib() {
 }
 
 int read_from(udirt_fd fd, uint8_t *dst, size_t length) {
+    USE(fd);
     if (read_data == NULL) {
         abort();
     }
@@ -116,11 +118,7 @@ int read_from(udirt_fd fd, uint8_t *dst, size_t length) {
 }
 
 int write_to(udirt_fd fd, const uint8_t *src, size_t length) {
+    USE(fd);
     save_data(&write_data, src, length);
     return 0;
 }
-
-udirt_fd udi_log_fd() {
-    return -1;
-}
-

@@ -45,7 +45,7 @@ void field2_callback(void *ctx, cbor_data data, size_t len) {
     complete_item(ctx);
 }
 
-int main(int argc, char *argv[]) {
+int main() {
     struct msg_item fields[2];
     struct msg_config config;
 
@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
     udi_free(buffer);
     cbor_decref(&root);
 
-    int result = read_request_data(1, &config, &req, &errmsg);
+    int result = read_request_data(TEST_FD, &config, &req, &errmsg);
     test_assert(RESULT_SUCCESS == result);
     test_assert(req.field1 == 13);
     test_assert(strcmp(req.field2, "test string") == 0);

@@ -271,7 +271,7 @@ int get_exit_argument(const ucontext_t *context,
         // skip return address
         sp += word_length;
 
-        int read_result = read_memory(status, (const void *)sp, sizeof(int), errmsg);
+        int read_result = read_memory(status, (const uint8_t *)sp, sizeof(int), errmsg);
         if ( read_result != 0 ) {
             udi_log("failed to retrieve exit status off of the stack at %a",
                     sp);

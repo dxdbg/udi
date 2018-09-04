@@ -29,7 +29,7 @@ static const unsigned char BREAKPOINT_INSN = 0xcc;
 int write_breakpoint_instruction(breakpoint *bp, udi_errmsg *errmsg) {
     if ( bp->in_memory ) return 0;
 
-    int result = read_memory(bp->saved_bytes, (void *)(unsigned long)bp->address, 
+    int result = read_memory(bp->saved_bytes, (const uint8_t *)(size_t)bp->address,
             sizeof(BREAKPOINT_INSN), errmsg);
     if( result != 0 ) {
         udi_log("failed to save original bytes at %a",
@@ -37,8 +37,9 @@ int write_breakpoint_instruction(breakpoint *bp, udi_errmsg *errmsg) {
         return result;
     }
 
-    result = write_memory((void *)(unsigned long)bp->address, &BREAKPOINT_INSN, 
-            sizeof(BREAKPOINT_INSN), errmsg);
+    result = write_memory((void *)(uintptr_t)bp->address,
+                          &BREAKPOINT_INSN,
+                          sizeof(BREAKPOINT_INSN), errmsg);
     if ( result != 0 ) {
         udi_log("failed to install breakpoint at %a",
                 bp->address);
@@ -58,8 +59,9 @@ int write_breakpoint_instruction(breakpoint *bp, udi_errmsg *errmsg) {
 int write_saved_bytes(breakpoint *bp, udi_errmsg *errmsg) {
     if ( !bp->in_memory ) return 0;
 
-    int result = write_memory((void *)(unsigned long)bp->address, bp->saved_bytes, 
-            sizeof(BREAKPOINT_INSN), errmsg);
+    int result = write_memory((void *)(uintptr_t)bp->address,
+                              bp->saved_bytes,
+                              sizeof(BREAKPOINT_INSN), errmsg);
 
     if ( result != 0 ) {
         udi_log("failed to remove breakpoint at %a", bp->address);
@@ -220,6 +222,9 @@ unsigned long compute_target(ud_mnemonic_code_t mnemonic,
                              unsigned long effective_pc,
                              const void *context)
 {
+    USE(mnemonic);
+    USE(pc);
+
     switch(op->type) {
         case UD_OP_REG:
             return get_register_ud_type(op->base, context);
@@ -337,14 +342,14 @@ uint64_t get_ctf_successor(uint64_t pc, udi_errmsg *errmsg, const void *context)
             break;
         case UD_Iret:
         {
-            unsigned long stack_ptr;
+            uintptr_t stack_ptr;
             if (__WORDSIZE == 64) {
                 stack_ptr = get_register_ud_type(UD_R_RSP, context);
             }else{
                 stack_ptr = get_register_ud_type(UD_R_ESP, context);
             }
 
-            if ( read_memory(&successor, (const void *)stack_ptr, sizeof(unsigned long),
+            if ( read_memory((uint8_t *)&successor, (const uint8_t *)stack_ptr, sizeof(unsigned long),
                         errmsg) ) return 0;
 
             return successor;

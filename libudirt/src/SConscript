@@ -18,6 +18,11 @@ if udibuild.IsUnix():
     sources.append('udirt-posix.c')
     sources.append('udirt-posix-pthreads.c')
     sources.append('udirt-posix-sys.c')
+else:
+    sources.append('udirt-win.c')
+
+    if udibuild.IsX86():
+        sources.append('udirt-win-x86.c')
 
 if udibuild.IsX86():
     sources.append('udirt-x86.c')

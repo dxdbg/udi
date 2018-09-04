@@ -20,6 +20,8 @@ extern "C" {
 
 typedef int udirt_fd;
 
+#define EXPORT_FUNCTION(x)
+
 #if defined(LINUX)
 
 #define UDI_CONSTRUCTOR __attribute__((constructor))
@@ -48,6 +50,8 @@ typedef int udirt_fd;
 #else /* UNIX / WINDOWS */
 
 typedef void * udirt_fd;
+
+#define EXPORT_FUNCTION(x) __pragma(comment(linker, "/EXPORT:" #x))
 
 #endif /* WINDOWS */
 

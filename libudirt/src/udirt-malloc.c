@@ -14,7 +14,12 @@
 #define DLMALLOC_EXPORT
 #define USE_DL_PREFIX 1
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnull-pointer-arithmetic"
+
 #include "dlmalloc.c"
+
+#pragma clang diagnostic pop
 
 #include "udirt.h"
 

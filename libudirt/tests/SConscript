@@ -20,6 +20,12 @@ if udibuild.IsX86():
 
 mock_lib_obj = bin_env.Object('mock-lib.c')
 
+mock_lib_obj_sys = None
+if udibuild.IsUnix():
+    mock_lib_obj_sys = bin_env.Object('mock-lib-unix.c')
+else:
+    mock_lib_obj_sys = bin_env.Object('mock-lib-win.c')
+
 read_test_req_srcs = [
     'read-test-req.c',
     mock_lib_obj

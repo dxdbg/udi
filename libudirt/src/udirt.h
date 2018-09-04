@@ -23,6 +23,7 @@ extern "C" {
 #endif
 
 // Macros //
+#define USE(x) ((void)x)
 #define member_sizeof(s,m) ( sizeof( ((s *)0)->m ) )
 
 // global variables //
@@ -166,7 +167,7 @@ int perform_init_handshake(udirt_fd req_fd,
                            udi_errmsg *errmsg);
 
 // reading and writing debuggee memory
-void *get_mem_access_addr();
+const uint8_t *get_mem_access_addr();
 size_t get_mem_access_size();
 
 unsigned long abort_mem_access();
@@ -175,8 +176,8 @@ int is_performing_mem_access();
 void *pre_mem_access_hook();
 int post_mem_access_hook(void *hook_arg);
 
-int read_memory(void *dest, const void *src, size_t num_bytes, udi_errmsg *errmsg);
-int write_memory(void *dest, const void *src, size_t num_bytes, udi_errmsg *errmsg);
+int read_memory(uint8_t *dest, const uint8_t *src, size_t num_bytes, udi_errmsg *errmsg);
+int write_memory(uint8_t *dest, const uint8_t *src, size_t num_bytes, udi_errmsg *errmsg);
 
 const char *get_mem_errstr();
 
@@ -357,6 +358,15 @@ int handle_error_event(uint64_t tid, udi_errmsg *errmsg);
 int handle_exit_event(uint64_t tid, int32_t status, udi_errmsg *errmsg);
 
 int handle_fork_event(uint64_t tid, uint32_t pid, udi_errmsg *errmsg);
+
+// log functions
+
+typedef void (*format_cb)(void *ctx, const void *data, size_t len);
+
+void udi_log_string(format_cb cb, void *ctx, const char *string);
+
+// platform specific
+void udi_log_error(format_cb cb, void *ctx, int error);
 
 /**
  * Signal handler safe formatted output for debugging RT library execution.

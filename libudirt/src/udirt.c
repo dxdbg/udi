@@ -11,7 +11,6 @@
 
 #include <stdarg.h>
 #include <string.h>
-#include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 
@@ -38,7 +37,7 @@ int udi_debug_on = 0;
 int udi_enabled = 0;
 
 // read / write handling
-static void *mem_access_addr = NULL;
+static const uint8_t *mem_access_addr = NULL;
 static size_t mem_access_size = 0;
 
 static int aborting_mem_access = 0;
@@ -46,7 +45,7 @@ static int performing_mem_access = 0;
 
 static void *mem_abort_label = NULL;
 
-void *get_mem_access_addr() {
+const uint8_t *get_mem_access_addr() {
     return mem_access_addr;
 }
 
@@ -77,19 +76,16 @@ int is_performing_mem_access() {
  * @see memcpy
  */
 static
-int abortable_memcpy(void *dest, const void *src, size_t n) {
+int abortable_memcpy(uint8_t *dest, const uint8_t *src, size_t n) {
     // This should stop the compiler from messing with the label
     static void *abort_label_addr = &&abort_label;
 
     mem_abort_label = abort_label_addr;
 
     // Hopefully when compiled with optimization, this code will be vectorized if possible
-    unsigned char *uc_dest = (unsigned char *)dest;
-    const unsigned char *uc_src = (const unsigned char *)src;
 
-    size_t i = 0;
-    for (i = 0; i < n; ++i) {
-        uc_dest[i] = uc_src[i];
+    for (size_t i = 0; i < n; ++i) {
+        dest[i] = src[i];
     }
 
 abort_label:
@@ -113,12 +109,14 @@ abort_label:
  * @return 0 on success; non-zero otherwise
  */
 static
-int udi_memcpy(void *dest, const void *src, size_t num_bytes, udi_errmsg *errmsg) {
+int udi_memcpy(uint8_t *dest, const uint8_t *src, size_t num_bytes, udi_errmsg *errmsg) {
+
     int mem_result = 0;
 
     void *pre_access_result = pre_mem_access_hook();
 
     if ( pre_access_result == NULL ) {
+        udi_set_errmsg(errmsg, "pre memory access hook failed");
         return -1;
     }
 
@@ -127,6 +125,7 @@ int udi_memcpy(void *dest, const void *src, size_t num_bytes, udi_errmsg *errmsg
     performing_mem_access = 0;
 
     if ( post_mem_access_hook(pre_access_result) ) {
+        udi_set_errmsg(errmsg, "post memory access hook failed");
         return -1;
     }
 
@@ -144,7 +143,7 @@ int udi_memcpy(void *dest, const void *src, size_t num_bytes, udi_errmsg *errmsg
  *
  * @return 0, success; non-zero otherwise
  */
-int read_memory(void *dest, const void *src, size_t num_bytes, udi_errmsg *errmsg) {
+int read_memory(uint8_t *dest, const uint8_t *src, size_t num_bytes, udi_errmsg *errmsg) {
     mem_access_addr = (void *)src;
     mem_access_size = num_bytes;
 
@@ -160,7 +159,7 @@ int read_memory(void *dest, const void *src, size_t num_bytes, udi_errmsg *errms
  * @param num_bytes the number of bytes to write
  * @param errmsg the error message set by this function
  */
-int write_memory(void *dest, const void *src, size_t num_bytes, udi_errmsg *errmsg) {
+int write_memory(uint8_t *dest, const uint8_t *src, size_t num_bytes, udi_errmsg *errmsg) {
     mem_access_addr = dest;
     mem_access_size = num_bytes;
 
@@ -187,7 +186,7 @@ breakpoint *create_breakpoint(uint64_t breakpoint_addr) {
     breakpoint *new_breakpoint = (breakpoint *)udi_malloc(sizeof(breakpoint));
 
     if ( new_breakpoint == NULL ) {
-        udi_log("failed to allocate memory for breakpoint: %e", errno);
+        udi_log("failed to allocate memory for breakpoint");
         return NULL;
     }
 
@@ -512,7 +511,9 @@ typedef void (*format_cb)(void *ctx, const void *data, size_t len);
 
 static
 void write_log(void *ctx, const void *data, size_t len) {
-    write_to(udi_log_fd(), data, len);
+    USE(ctx);
+
+    write_to(udi_log_fd(), (const uint8_t *)data, len);
 }
 
 static
@@ -577,20 +578,9 @@ void udi_log_address(format_cb cb, void *ctx, uint64_t address) {
     udi_log_64bit(cb, ctx, address);
 }
 
-static
 void udi_log_string(format_cb cb, void *ctx, const char *string) {
     size_t len = strlen(string);
     cb(ctx, string, len);
-}
-
-static
-void udi_log_error(format_cb cb, void *ctx, int error) {
-    char buf[64];
-    memset(buf, 0, 64);
-
-    strerror_r(error, buf, 64);
-
-    udi_log_string(cb, ctx, buf);
 }
 
 static

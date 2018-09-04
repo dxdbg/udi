@@ -30,4 +30,6 @@ void mock_data_to_buffer(const struct mock_data *data, char *buf, size_t len);
 void reset_mock_data();
 void cleanup_mock_lib();
 
+extern const udirt_fd TEST_FD;
+
 #endif

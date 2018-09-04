@@ -13,7 +13,6 @@
  * @file udirt-msg.c
  */
 
-#include <errno.h>
 #include <string.h>
 #include <inttypes.h>
 
@@ -33,7 +32,7 @@ struct msg_item {
 };
 
 struct msg_config {
-    int num_items;
+    size_t num_items;
     const struct msg_item *items;
 };
 
@@ -90,7 +89,7 @@ int read_cbor_items(udirt_fd fd,
         if (result > 0) {
             udi_set_errmsg(errmsg,
                            "failed to read CBOR data: %e",
-                           errno);
+                           result);
             break;
         }
 
@@ -99,7 +98,7 @@ int read_cbor_items(udirt_fd fd,
             size_t length = buflen - buf_idx;
 
             udi_log_noprefix("IN ");
-            for (int i = 0; i < length; ++i) {
+            for (size_t i = 0; i < length; ++i) {
                 udi_log_noprefix(" %b ", dst[i]);
             }
             udi_log_noprefix("\n");
@@ -143,7 +142,7 @@ int read_cbor_items(udirt_fd fd,
 struct req_data_state {
     const struct msg_config *config;
     const struct msg_item *current_item;
-    int item_count;
+    size_t item_count;
 
     int error;
     udi_errmsg *errmsg;
@@ -214,6 +213,8 @@ void N##_callback(void *ctx, T value) { \
 \
 static \
 void N##_invalid_callback(void *ctx, T value) { \
+    USE(value); \
+\
     set_invalid_error(ctx, #N); \
 }
 
@@ -242,6 +243,9 @@ void N##_callback(void *ctx, cbor_data data, size_t len) { \
 \
 static \
 void N##_invalid_callback(void *ctx, cbor_data data, size_t len) { \
+    USE(data); \
+    USE(len); \
+    \
     set_invalid_error(ctx, #N); \
 }
 
@@ -256,6 +260,8 @@ void N##_callback(void *ctx, size_t len) { \
 \
 static \
 void N##_invalid_callback(void *ctx, size_t len) { \
+    USE(len); \
+    \
     set_invalid_error(ctx, #N); \
 }
 
@@ -394,7 +400,7 @@ void request_data_string(void *ctx, cbor_data data, size_t len) {
     if (data_state->current_item != NULL) {
         string_callback(ctx, data, len);
     }else{
-        for (int i = 0; i < data_state->config->num_items; ++i) {
+        for (size_t i = 0; i < data_state->config->num_items; ++i) {
             struct msg_item *item = (struct msg_item *)&(data_state->config->items[i]);
             if (strncmp((const char *)data, item->key, len) == 0) {
                 data_state->current_item = item;
@@ -471,13 +477,13 @@ int write_cbor_item(udirt_fd fd,
         udi_set_errmsg(errmsg,
                        "failed to write %s: %e",
                        name,
-                       errno);
+                       result);
         return RESULT_ERROR;
     }
 
     if (udi_debug_on) {
         udi_log_noprefix("OUT ");
-        for (int i = 0; i < length; ++i) {
+        for (size_t i = 0; i < length; ++i) {
             udi_log_noprefix(" %b ", buffer[i]);
         }
         udi_log_noprefix("\n");
@@ -683,7 +689,7 @@ int read_handler(udirt_fd req_fd, udirt_fd resp_fd, udi_errmsg *errmsg) {
         return result;
     }
 
-    void *memory_read = udi_malloc(data.len);
+    uint8_t *memory_read = udi_malloc(data.len);
     if ( memory_read == NULL ) {
         udi_set_errmsg(errmsg,
                        "failed to allocate memory");
@@ -691,7 +697,7 @@ int read_handler(udirt_fd req_fd, udirt_fd resp_fd, udi_errmsg *errmsg) {
     }
 
     // Perform the read operation
-    int read_result = read_memory(memory_read, (void *)data.addr, data.len, errmsg);
+    int read_result = read_memory(memory_read, (const uint8_t *)data.addr, data.len, errmsg);
     if ( read_result != 0 ) {
         udi_free(memory_read);
 
@@ -776,7 +782,7 @@ int write_handler(udirt_fd req_fd, udirt_fd resp_fd, udi_errmsg *errmsg) {
     }
 
     // Perform the write operation
-    int write_result = write_memory((void *)(unsigned long)req.addr,
+    int write_result = write_memory((uint8_t *)(uintptr_t)req.addr,
                                     req.data,
                                     req.len,
                                     errmsg);
@@ -795,6 +801,8 @@ int write_handler(udirt_fd req_fd, udirt_fd resp_fd, udi_errmsg *errmsg) {
 
 static
 int state_handler(udirt_fd req_fd, udirt_fd resp_fd, udi_errmsg *errmsg) {
+
+    USE(req_fd);
 
     int num_threads = get_num_threads();
 
@@ -993,6 +1001,9 @@ int breakpoint_delete_handler(udirt_fd req_fd, udirt_fd resp_fd, udi_errmsg *err
 
 static
 int invalid_handler(udirt_fd req_fd, udirt_fd resp_fd, udi_errmsg *errmsg) {
+    USE(req_fd);
+    USE(resp_fd);
+
     udi_set_errmsg(errmsg, "invalid request for process");
     return RESULT_ERROR;
 }
@@ -1332,6 +1343,7 @@ int write_register_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_e
 
 static
 int thr_state_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_errmsg *errmsg) {
+    USE(req_fd);
 
     cbor_item_t *map = cbor_new_definite_map(2);
 
@@ -1350,6 +1362,8 @@ int thr_state_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_errmsg
 
 static
 int next_instr_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_errmsg *errmsg) {
+
+    USE(req_fd);
 
     if (!is_thread_context_valid(thr)) {
         udi_set_errmsg(errmsg, "register context unavailable");
@@ -1380,6 +1394,9 @@ int next_instr_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_errms
 
 static
 int thr_suspend_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_errmsg *errmsg) {
+
+    USE(req_fd);
+
     udi_log("suspended thread %a", get_thread_id(thr));
     set_thread_state(thr, UDI_TS_SUSPENDED);
 
@@ -1388,6 +1405,9 @@ int thr_suspend_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_errm
 
 static
 int thr_resume_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_errmsg *errmsg) {
+
+    USE(req_fd);
+
     udi_log("resume thread %a", get_thread_id(thr));
     set_thread_state(thr, UDI_TS_RUNNING);
 
@@ -1456,6 +1476,11 @@ int single_step_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_errm
 }
 
 int thr_invalid_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_errmsg *errmsg) {
+
+    USE(req_fd);
+    USE(resp_fd);
+    USE(thr);
+
     udi_set_errmsg(errmsg, "invalid request for thread");
     return RESULT_ERROR;
 }
