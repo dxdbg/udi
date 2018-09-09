@@ -8,6 +8,7 @@
  */
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "udirt.h"
 
@@ -234,4 +235,32 @@ uint64_t get_pc(const void *context)
     USE(context);
 
     return 0;
+}
+
+BOOL WINAPI DllMain(HINSTANCE *dll, DWORD reason, LPVOID reserved)
+{
+    USE(dll);
+    USE(reserved);
+
+    HANDLE thread = GetCurrentThread();
+    DWORD tid = GetThreadId(thread);
+
+    switch (reason) {
+        case DLL_PROCESS_ATTACH:
+            fprintf(stderr, "library attached (tid = %08lx)\n", tid);
+            break;
+        case DLL_PROCESS_DETACH:
+            fprintf(stderr, "library detached (tid = %08lx)\n", tid);
+            break;
+        case DLL_THREAD_ATTACH:
+            fprintf(stderr, "thread attached (tid = %08lx)\n", tid);
+            break;
+        case DLL_THREAD_DETACH:
+            fprintf(stderr, "thread detached (tid = %08lx)\n", tid);
+            break;
+        default:
+            break;
+    }
+
+    return TRUE;
 }
