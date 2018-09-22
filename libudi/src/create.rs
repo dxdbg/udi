@@ -308,21 +308,170 @@ fn create_environment(envp: &Vec<String>,
 
 #[cfg(target_os = "linux")]
 mod sys {
-    pub fn get_dyn_linker_var_name() -> &'static str {
-        "LD_PRELOAD"
+    pub fn get_dyn_linker_var_name() -> Option<&'static str> {
+        Some("LD_PRELOAD")
     }
 
     pub fn modify_env(_env: &mut Vec<(String, String)>) {
+    }
+
+    pub fn spawn(mut cmd: ::std::process::Command) -> Result<::std::process::Child> {
+        cmd.spawn()
     }
 }
 
 #[cfg(target_os = "macos")]
 mod sys {
-    pub fn get_dyn_linker_var_name() -> &'static str {
-        "DYLD_INSERT_LIBRARIES"
+    pub fn get_dyn_linker_var_name() -> Option<&'static str> {
+        Some("DYLD_INSERT_LIBRARIES")
     }
 
     pub fn modify_env(env: &mut Vec<(String, String)>) {
         env.push(("DYLD_FORCE_FLAT_NAMESPACE".to_owned(), "1".to_owned()));
+    }
+
+    pub fn spawn(mut cmd: ::std::process::Command) -> Result<::std::process::Child> {
+        cmd.spawn()
+    }
+}
+
+#[cfg(windows)]
+mod sys {
+    extern crate winapi;
+
+    use ::std::ptr::null_mut;
+    use ::std::ffi::CString;
+
+    use ::std::os::windows::process::CommandExt;
+    use ::std::os::windows::io::AsRawHandle;
+
+    use create::sys::winapi::um::memoryapi::{
+        VirtualAllocEx,
+        WriteProcessMemory
+    };
+    use create::sys::winapi::um::libloaderapi::{
+        GetProcAddress,
+        GetModuleHandleA
+    };
+    use create::sys::winapi::um::errhandlingapi::{
+        GetLastError
+    };
+    use create::sys::winapi::um::winnt::{
+        PAGE_READWRITE,
+        MEM_COMMIT
+    };
+    use create::sys::winapi::um::winbase::{
+        INFINITE,
+        WAIT_FAILED
+    };
+    use create::sys::winapi::um::processthreadsapi::{
+        CreateRemoteThread,
+        GetExitCodeThread
+    };
+    use create::sys::winapi::um::synchapi::{
+        WaitForSingleObject
+    };
+    use create::sys::winapi::um::handleapi::{
+        INVALID_HANDLE_VALUE,
+        CloseHandle
+    };
+
+    use create::sys::winapi::ctypes::c_void;
+
+    pub fn get_dyn_linker_var_name() -> Option<&'static str> {
+        None
+    }
+
+    pub fn modify_env(env: &mut Vec<(String, String)>) {
+
+    }
+
+    pub fn spawn(mut cmd: ::std::process::Command,
+                 rt_lib_path: &str) -> Result<::std::process::Child>
+    {
+        let child = cmd.creation_flags(4).spawn();
+
+        load_dll(child, rt_lib_path)?;
+
+        Ok(child)
+    }
+
+    fn load_dll(child: &::std::process::Child, rt_lib_path: &str) -> Result<()> {
+        unsafe {
+            let handle = child.as_raw_handle() as *mut c_void;
+
+            let dll_path_vec: Vec<u8> = dll_path.into();
+            let dll_path_len = dll_path_vec.len();
+
+            let dll_path_str = CString::new(dll_path_vec).unwrap();
+
+            let addr = VirtualAllocEx(handle,
+                                      null_mut(),
+                                      dll_path_len + 1,
+                                      MEM_COMMIT,
+                                      PAGE_READWRITE);
+
+            if addr == null_mut() {
+                return to_library_error("Failed to allocate memory");
+
+            }
+
+            let write_result = WriteProcessMemory(handle,
+                                                  addr,
+                                                  dll_path_str.as_ptr() as *const c_void,
+                                                  dll_path_len,
+                                                  null_mut());
+
+            if write_result == 0 {
+                return to_library_error("Failed to write process memory");
+            }
+
+            let kernel32_str = CString::new("kernel32.dll").unwrap();
+            let kernel32_handle = GetModuleHandleA(kernel32_str.as_ptr());
+            if kernel32_handle == INVALID_HANDLE_VALUE {
+                return to_library_error("Failed to get handle to kernel32.dll");
+            }
+
+            let load_library_str = CString::new("LoadLibraryA").unwrap();
+            let load_library_address_result = GetProcAddress(kernel32_handle, load_library_str.as_ptr());
+            let load_library_address: unsafe extern "system" fn(*mut c_void) -> u32 =
+                ::std::mem::transmute(load_library_address_result as *const c_void);
+
+            let thread = CreateRemoteThread(handle,
+                                            null_mut(),
+                                            0,
+                                            Some(load_library_address),
+                                            addr,
+                                            0,
+                                            null_mut());
+            if thread == INVALID_HANDLE_VALUE {
+                return to_library_error("Failed to launch thread");
+            }
+
+            let wait_result = WaitForSingleObject(thread, INFINITE);
+            if wait_result == WAIT_FAILED {
+                return to_library_error("Failed to wait for thread to complete");
+            }
+
+            let mut exit_code: u32 = 0;
+            let library_handle = &mut exit_code as *mut u32;
+
+            let get_exit_code_result = GetExitCodeThread(thread, exit_code_ptr);
+            if get_exit_code_result == 0 {
+                return to_library_error("Failed to get exit code for thread");
+            }
+
+            if library_handle == null_mut() {
+                return to_library_error("Failed to LoadLibrary");
+            }
+
+            CloseHandle(thread);
+        }
+
+        Ok(())
+    }
+
+    unsafe fn to_library_error(msg: &str) -> Result<()> {
+        return Err(super::ErrorKind::Library(format!("{}: {}", msg, GetLastError())));
     }
 }
