@@ -2,3 +2,4 @@ Cargo.lock
 target/
 native-file-tests
 native-file-tests.zip
+native-file-tests-*.zip
