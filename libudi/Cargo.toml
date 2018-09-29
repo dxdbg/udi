@@ -9,7 +9,7 @@ by sending requests, receiving responses and events using a pseudo-filesystem fo
 homepage = "https://github.com/dxdbg/udi"
 repository = "https://github.com/dxdbg/udi.git"
 license = "MPL-2.0"
-exclude = [ "*.iml", "native-file-tests", "native-file-tests-*.zip" ]
+exclude = [ "*.iml" ]
 
 [dependencies]
 

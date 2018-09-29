@@ -19,11 +19,9 @@ fn main() {
 
     let nft_path = manifest_path.join("native-file-tests");
 
-    if !nft_path.exists() {
-        panic!("native-file-tests distribution unavailable");
+    if nft_path.exists() {
+        native_file_tests::setup(&nft_path,
+                                 &out_path,
+                                 &env::var("CARGO_CFG_TARGET_OS").unwrap());
     }
-
-    native_file_tests::setup(&nft_path,
-                             &out_path,
-                             &env::var("CARGO_CFG_TARGET_OS").unwrap());
 }
