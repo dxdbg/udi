@@ -4,7 +4,7 @@ version = "0.0.1"
 authors = ["Dan McNulty <dkmcnulty@gmail.com>"]
 build = "build.rs"
 description = """"
-This library implements the debugger side of the UDI protocol
+This experimental library implements the debugger side of the UDI protocol
 by sending requests, receiving responses and events using a pseudo-filesystem for transport."""
 homepage = "https://github.com/dxdbg/udi"
 repository = "https://github.com/dxdbg/udi.git"
@@ -26,3 +26,7 @@ derive-error-chain = "0.11.0"
 native-file-tests = "0.1.0"
 
 [badges]
+
+appveyor = { repository = "mcnulty/native-file-tests" }
+travis-ci = { repository = "dxdbg/native-file-tests" }
+maintenance = { status = "experimental" }
