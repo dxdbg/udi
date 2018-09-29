@@ -3,6 +3,13 @@ name = "udi"
 version = "0.0.1"
 authors = ["Dan McNulty <dkmcnulty@gmail.com>"]
 build = "build.rs"
+description = """"
+This library implements the debugger side of the UDI protocol
+by sending requests, receiving responses and events using a pseudo-filesystem for transport."""
+homepage = "https://github.com/dxdbg/udi"
+repository = "https://github.com/dxdbg/udi"
+license = "MPL-2.0"
+exclude = [ "*.iml" ]
 
 [dependencies]
 
@@ -16,4 +23,6 @@ error-chain = "0.11.x"
 derive-error-chain = "0.11.0"
 
 [build-dependencies]
-native-file-tests = { path = "../../native-file-tests/rust-binding" }
+native-file-tests = "0.1.0"
+
+[badges]
