@@ -7,7 +7,7 @@ description = """"
 This library implements the debugger side of the UDI protocol
 by sending requests, receiving responses and events using a pseudo-filesystem for transport."""
 homepage = "https://github.com/dxdbg/udi"
-repository = "https://github.com/dxdbg/udi"
+repository = "https://github.com/dxdbg/udi.git"
 license = "MPL-2.0"
 exclude = [ "*.iml" ]
 
