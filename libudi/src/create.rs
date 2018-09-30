@@ -61,11 +61,11 @@ pub fn create_process(executable: &str,
 
     let root_dir = create_root_udi_filesystem(&base_root_dir)?;
 
-    let mut child = launch_process(executable,
-                                   argv,
-                                   envp,
-                                   &root_dir,
-                                   &rt_lib_path)?;
+    let mut child = sys::launch_process(executable,
+                                        argv,
+                                        envp,
+                                        &root_dir,
+                                        &rt_lib_path)?;
     let pid = child.id();
 
     let mut root_dir_buf = PathBuf::from(&root_dir);
@@ -76,7 +76,7 @@ pub fn create_process(executable: &str,
     Ok(Arc::new(Mutex::new(process)))
 }
 
-fn initialize_process(child: &mut ::std::process::Child, root_dir: String)
+fn initialize_process(child: &mut sys::UdiChild, root_dir: String)
     -> Result<Process> {
 
     let pid = child.id();
@@ -97,14 +97,7 @@ fn initialize_process(child: &mut ::std::process::Child, root_dir: String)
     // TODO use notify crate for this
     let mut event_file_exists = false;
     while !event_file_exists {
-        match child.try_wait()? {
-            Some(status) => {
-                let msg = format!("Process failed to initialize, exited with status: {}", status);
-                return Err(ErrorKind::Library(msg).into());
-            },
-            None => {
-            }
-        };
+        child.try_wait()?;
 
         match fs::metadata(event_path) {
             Ok(_) => {
@@ -199,34 +192,6 @@ pub fn initialize_thread(process: &mut Process, tid: u64) -> Result<()> {
     Ok(())
 }
 
-/// Launch the UDI-controlled process
-fn launch_process(executable: &str,
-                  argv: &Vec<String>,
-                  envp: &Vec<String>,
-                  root_dir: &str,
-                  rt_lib_path: &str) -> Result<::std::process::Child> {
-
-    let mut command = ::std::process::Command::new(executable);
-
-    let env = create_environment(envp,
-                                 root_dir,
-                                 rt_lib_path);
-
-    for entry in env {
-        command.env(entry.0, entry.1);
-    }
-
-    for entry in argv {
-        command.arg(entry);
-    }
-
-    let child = command.spawn()?;
-
-    Ok(child)
-}
-
-
-
 /// Creates the root UDI filesystem for the user
 fn create_root_udi_filesystem(root_dir: &String) -> Result<String> {
     mkdir_ignore_exists(Path::new(root_dir))?;
@@ -257,81 +222,121 @@ fn mkdir_ignore_exists(dir: &Path) -> Result<()> {
     }
 }
 
-/// Adds the UDI RT library into the appropriate dynamic linker environment variable.
-/// The variable is created at the end of the array if it does not already exist. Adds the
-/// UDI_ROOT_DIR_ENV environment variable to the end of the array after the dynamic
-/// linker environment variable. This environment variable is replaced if it already exists.
-fn create_environment(envp: &Vec<String>,
-                      root_dir: &str,
-                      rt_lib_path: &str) -> Vec<(String, String)> {
-    let mut output;
-    if envp.len() == 0 {
-        output = vec![];
-    } else {
-        output = envp.iter().map(|s| {
-            let mut field_iter = s.split("=");
-            field_iter.next()
-                .map(|k| (k.to_owned(),
-                          field_iter.fold(String::new(), |mut l, r| {
-                              l.push_str(r);
-                              l
-                          })))
-                .unwrap_or((s.clone(), String::new()))
-        }).collect::<Vec<_>>();
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+mod sys {
+
+    pub struct UdiChild {
+        child: ::std::process::Child
     }
 
-    let var_name = sys::get_dyn_linker_var_name();
+    impl UdiChild {
 
-    // Update dynamic linker variable to include the runtime library
-    let mut updated_var = false;
-    for item in &mut output {
-        let k = &item.0;
-        let v = &mut item.1;
+        pub fn id(&self) -> u32 {
+            self.child.id()
+        }
 
-        if k == var_name {
-            v.push_str(":");
-            v.push_str(rt_lib_path);
-            updated_var = true;
+        pub fn try_wait(&mut self) -> super::Result<()> {
+            match self.child.try_wait()? {
+                Some(status) => {
+                    let msg = format!("Process failed to initialize, exited with status: {}", status);
+                    Err(super::ErrorKind::Library(msg).into())
+                },
+                None => Ok(())
+            }
         }
     }
 
-    if !updated_var {
-        output.push((var_name.to_owned(), rt_lib_path.to_owned()));
+    pub fn launch_process(executable: &str,
+                          argv: &Vec<String>,
+                          envp: &Vec<String>,
+                          root_dir: &str,
+                          rt_lib_path: &str) -> super::Result<UdiChild> {
+
+        let mut command = ::std::process::Command::new(executable);
+
+        let env = create_environment(envp,
+                                     root_dir,
+                                     rt_lib_path);
+
+        for entry in env {
+            command.env(entry.0, entry.1);
+        }
+
+        for entry in argv {
+            command.arg(entry);
+        }
+
+        let child = command.spawn()?;
+
+        Ok(UdiChild{child})
     }
 
-    output.push((UDI_ROOT_DIR_ENV.to_owned(), root_dir.to_owned()));
+    /// Adds the UDI RT library into the appropriate dynamic linker environment variable.
+    /// The variable is created at the end of the array if it does not already exist. Adds the
+    /// UDI_ROOT_DIR_ENV environment variable to the end of the array after the dynamic
+    /// linker environment variable. This environment variable is replaced if it already exists.
+    fn create_environment(envp: &Vec<String>,
+                          root_dir: &str,
+                          rt_lib_path: &str) -> Vec<(String, String)> {
+        let mut output;
+        if envp.len() == 0 {
+            output = vec![];
+        } else {
+            output = envp.iter().map(|s| {
+                let mut field_iter = s.split("=");
+                field_iter.next()
+                    .map(|k| (k.to_owned(),
+                              field_iter.fold(String::new(), |mut l, r| {
+                                  l.push_str(r);
+                                  l
+                              })))
+                    .unwrap_or((s.clone(), String::new()))
+            }).collect::<Vec<_>>();
+        }
 
-    sys::modify_env(&mut output);
+        let var_name = get_dyn_linker_var_name();
 
-    output
-}
+        // Update dynamic linker variable to include the runtime library
+        let mut updated_var = false;
+        for mut item in &mut output {
+            let k = &item.0;
+            let v = &mut item.1;
 
-#[cfg(target_os = "linux")]
-mod sys {
-    pub fn get_dyn_linker_var_name() -> Option<&'static str> {
-        Some("LD_PRELOAD")
+            if k == var_name {
+                v.push_str(":");
+                v.push_str(rt_lib_path);
+                updated_var = true;
+            }
+        }
+
+        if !updated_var {
+            output.push((var_name.to_owned(), rt_lib_path.to_owned()));
+        }
+
+        output.push((super::UDI_ROOT_DIR_ENV.to_owned(), root_dir.to_owned()));
+
+        modify_env(&mut output);
+
+        output
     }
 
-    pub fn modify_env(_env: &mut Vec<(String, String)>) {
+    #[cfg(target_os = "linux")]
+    fn get_dyn_linker_var_name() -> &'static str {
+        "LD_PRELOAD"
     }
 
-    pub fn spawn(mut cmd: ::std::process::Command) -> Result<::std::process::Child> {
-        cmd.spawn()
-    }
-}
-
-#[cfg(target_os = "macos")]
-mod sys {
-    pub fn get_dyn_linker_var_name() -> Option<&'static str> {
-        Some("DYLD_INSERT_LIBRARIES")
+    #[cfg(target_os = "macos")]
+    fn get_dyn_linker_var_name() -> &'static str {
+        "DYLD_INSERT_LIBRARIES"
     }
 
-    pub fn modify_env(env: &mut Vec<(String, String)>) {
+    #[cfg(target_os = "linux")]
+    fn modify_env(_env: &mut Vec<(String, String)>) {
+    }
+
+    #[cfg(target_os = "macos")]
+    fn modify_env(env: &mut Vec<(String, String)>) {
         env.push(("DYLD_FORCE_FLAT_NAMESPACE".to_owned(), "1".to_owned()));
-    }
-
-    pub fn spawn(mut cmd: ::std::process::Command) -> Result<::std::process::Child> {
-        cmd.spawn()
     }
 }
 
@@ -341,6 +346,8 @@ mod sys {
 
     use ::std::ptr::null_mut;
     use ::std::ffi::CString;
+    use ::std::mem::zeroed;
+    use ::std::mem::size_of;
 
     use ::std::os::windows::process::CommandExt;
     use ::std::os::windows::io::AsRawHandle;
@@ -361,114 +368,253 @@ mod sys {
         MEM_COMMIT
     };
     use create::sys::winapi::um::winbase::{
+        CREATE_SUSPENDED,
         INFINITE,
         WAIT_FAILED
     };
     use create::sys::winapi::um::processthreadsapi::{
+        PROCESS_INFORMATION,
+        LPPROCESS_INFORMATION,
+        STARTUPINFOA,
+        LPSTARTUPINFOA,
         CreateRemoteThread,
-        GetExitCodeThread
+        GetExitCodeThread,
+        GetProcessId,
+        ResumeThread
     };
     use create::sys::winapi::um::synchapi::{
         WaitForSingleObject
     };
     use create::sys::winapi::um::handleapi::{
+        HANDLE,
         INVALID_HANDLE_VALUE,
         CloseHandle
+    };
+    use create::sys::winapi::shared::minwindef::{
+        FALSE,
+        TRUE,
+        BOOL
     };
 
     use create::sys::winapi::ctypes::c_void;
 
-    pub fn get_dyn_linker_var_name() -> Option<&'static str> {
-        None
+    pub struct UdiChild {
+        proc_info: PROCESS_INFORMATION
     }
 
-    pub fn modify_env(env: &mut Vec<(String, String)>) {
+    impl UdiChild {
 
+        pub fn id(&self) -> u32 {
+            self.proc_info.dwProcessId
+        }
+
+        pub fn try_wait(&mut self) -> super::Result<()> {
+            unsafe {
+                let wait_result = WaitForSingleObject(self.proc_info.hProcess, 0);
+                if wait_result == WAIT_FAILED {
+                    return to_library_error("Failed to wait for process");
+                }
+            }
+
+            Ok(())
+        }
     }
 
-    pub fn spawn(mut cmd: ::std::process::Command,
-                 rt_lib_path: &str) -> Result<::std::process::Child>
-    {
-        let child = cmd.creation_flags(4).spawn();
-
-        load_dll(child, rt_lib_path)?;
-
-        Ok(child)
+    impl Drop for UdiChild {
+        fn drop(&mut self) {
+            unsafe {
+                CloseHandle(self.proc_info.hThread);
+                CloseHandle(self.proc_info.hProcess);
+            }
+        }
     }
 
-    fn load_dll(child: &::std::process::Child, rt_lib_path: &str) -> Result<()> {
-        unsafe {
-            let handle = child.as_raw_handle() as *mut c_void;
+    pub fn launch_process(executable: &str,
+                          argv: &Vec<String>,
+                          envp: &Vec<String>,
+                          root_dir: &str,
+                          rt_lib_path: &str) -> super::Result<UdiChild> {
 
-            let dll_path_vec: Vec<u8> = dll_path.into();
-            let dll_path_len = dll_path_vec.len();
+        let proc_info = unsafe {
 
-            let dll_path_str = CString::new(dll_path_vec).unwrap();
+            let proc_info = create_win_process(executable, argv, envp, root_dir)?;
+
+            let library_handle_value = apply_remote_function(proc_info.hProcess,
+                                                             "KERNEL32.DLL",
+                                                             "LoadLibraryA",
+                                                             Ok(rt_lib_path))?;
+            let library_handle: HANDLE = ::std::mem::transmute(library_handle_value);
+
+            if library_handle == INVALID_HANDLE_VALUE {
+                let library_load_exit_code = apply_remote_function(proc_info.hProcess,
+                                                                   "KERNEL32.DLL",
+                                                                   "GetLastError",
+                                                                   None)?;
+                return Err(super::ErrorKind::Library(format!("Failed to load library {}: {}",
+                                                             rt_lib_path,
+                                                             library_load_exit_code)));
+            }
+
+            let resume_result = ResumeThread(proc_info.hThread);
+            if resume_result == -1 {
+                return to_library_error("Failed to resume thread");
+            }
+
+            proc_info
+        };
+
+        Ok(UdiChild{ proc_info })
+    }
+
+    unsafe fn create_win_process(executable: &str,
+                                 argv: &Vec<String>,
+                                 envp: &Vec<String>,
+                                 root_dir: &str) -> super::Result<PROCESS_INFORMATION> {
+
+        let mut proc_info: PROCESS_INFORMATION = zeroed();
+        let mut startup_info: STARTUPINFOA = zeroed();
+
+        startup_info.cb = size_of::<STARTUPINFOA>();
+
+        let exec_path_str = CString::new(executable)?;
+
+        // TODO
+        // - use CreateProcessW, converting to wide strings
+        // - implement handling for argv, envp
+        let create_result = CreateProcessA(exec_path_str.as_ptr(),
+                                           null_mut(),
+                                           null_mut(),
+                                           null_mut(),
+                                           FALSE,
+                                           CREATE_SUSPENDED,
+                                           null_mut(),
+                                           null_mut(),
+                                           &startup_info as LPSTARTUPINFOA,
+                                           &proc_info as LPPROCESS_INFORMATION);
+        if create_result == FALSE {
+            return to_library_error("Failed to create process");
+        }
+
+        Ok(proc_info)
+    }
+
+    struct RemoteMemory {
+        handle: HANDLE,
+        addr: *const c_void,
+        len: usize
+    }
+
+    impl RemoteMemory {
+        pub unsafe fn new(handle: HANDLE, data: &[u8]) -> super::Result<RemoteMemory> {
+            let len = data.len();
 
             let addr = VirtualAllocEx(handle,
                                       null_mut(),
-                                      dll_path_len + 1,
+                                      len,
                                       MEM_COMMIT,
                                       PAGE_READWRITE);
 
             if addr == null_mut() {
                 return to_library_error("Failed to allocate memory");
-
             }
 
             let write_result = WriteProcessMemory(handle,
                                                   addr,
-                                                  dll_path_str.as_ptr() as *const c_void,
-                                                  dll_path_len,
+                                                  data.as_ptr() as *const c_void,
+                                                  len,
                                                   null_mut());
 
-            if write_result == 0 {
+            if write_result == FALSE {
+                VirtualFreeEx(handle, addr, parameter_len, MEM_RELEASE);
                 return to_library_error("Failed to write process memory");
             }
 
-            let kernel32_str = CString::new("kernel32.dll").unwrap();
-            let kernel32_handle = GetModuleHandleA(kernel32_str.as_ptr());
-            if kernel32_handle == INVALID_HANDLE_VALUE {
-                return to_library_error("Failed to get handle to kernel32.dll");
+            RemoteMemory{
+                handle,
+                addr,
+                len
             }
-
-            let load_library_str = CString::new("LoadLibraryA").unwrap();
-            let load_library_address_result = GetProcAddress(kernel32_handle, load_library_str.as_ptr());
-            let load_library_address: unsafe extern "system" fn(*mut c_void) -> u32 =
-                ::std::mem::transmute(load_library_address_result as *const c_void);
-
-            let thread = CreateRemoteThread(handle,
-                                            null_mut(),
-                                            0,
-                                            Some(load_library_address),
-                                            addr,
-                                            0,
-                                            null_mut());
-            if thread == INVALID_HANDLE_VALUE {
-                return to_library_error("Failed to launch thread");
-            }
-
-            let wait_result = WaitForSingleObject(thread, INFINITE);
-            if wait_result == WAIT_FAILED {
-                return to_library_error("Failed to wait for thread to complete");
-            }
-
-            let mut exit_code: u32 = 0;
-            let library_handle = &mut exit_code as *mut u32;
-
-            let get_exit_code_result = GetExitCodeThread(thread, exit_code_ptr);
-            if get_exit_code_result == 0 {
-                return to_library_error("Failed to get exit code for thread");
-            }
-
-            if library_handle == null_mut() {
-                return to_library_error("Failed to LoadLibrary");
-            }
-
-            CloseHandle(thread);
         }
 
-        Ok(())
+        pub fn empty() -> RemoteMemory {
+            RemoteMemory{
+                handle: INVALID_HANDLE_VALUE,
+                addr: null_mut(),
+                len: 0
+            }
+        }
+
+        pub fn addr(&self) -> *const c_void {
+            self.addr
+        }
+    }
+
+    impl Drop for RemoteMemory {
+        fn drop(&mut self) {
+            if handle != INVALID_HANDLE_VALUE {
+                VirtualAllocEx(self.handle,
+                               self.addr,
+                               self.len,
+                               MEM_RELEASE);
+            }
+        }
+    }
+
+    unsafe fn apply_remote_function(handle: HANDLE,
+                                    module: &str,
+                                    function_name: &str,
+                                    parameter: Option<&str>) -> super::Result<u32> {
+
+        let module_str = CString::new(module)?;
+        let module_handle = GetModuleHandleA(module_str.as_ptr());
+        if module_handle == INVALID_HANDLE_VALUE {
+            return to_library_error(&format!("Failed to get handle to {}", module));
+        }
+
+        let function_name_str = CString::new(function_name)?;
+        let function_address_result = GetProcAddress(module_handle,
+                                                     function_name_str.as_ptr());
+        let function_ptr: unsafe extern "system" fn(*mut c_void) -> u32 =
+            ::std::mem::transmute(function_address_result as *const c_void);
+
+        let remote_parameter = match parameter {
+            Ok(p) => {
+                let parameter_str = CString::new(p)?;
+
+                RemoteMemory::new(handle, parameter_str.as_bytes_with_nul())?
+            },
+            None => RemoteMemory::empty()
+        };
+
+        let thread = CreateRemoteThread(handle,
+                                        null_mut(),
+                                        0,
+                                        Some(function_ptr),
+                                        remote_parameter.addr(),
+                                        0,
+                                        null_mut());
+        if thread == INVALID_HANDLE_VALUE {
+            return to_library_error("Failed to launch thread");
+        }
+
+        let wait_result = WaitForSingleObject(thread, INFINITE);
+        if wait_result == WAIT_FAILED {
+            CloseHandle(thread);
+            return to_library_error("Failed to wait for thread to complete");
+        }
+
+        let mut exit_code: u32 = 0;
+        let exit_code_ptr = &mut exit_code as *mut u32;
+
+        let get_exit_code_result = GetExitCodeThread(thread, exit_code_ptr);
+        if get_exit_code_result == FALSE {
+            CloseHandle(thread);
+            return to_library_error("Failed to get exit code for thread");
+        }
+
+        CloseHandle(thread);
+
+        Ok(exit_code)
     }
 
     unsafe fn to_library_error(msg: &str) -> Result<()> {
