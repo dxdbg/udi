@@ -2,7 +2,6 @@
 name = "udi"
 version = "0.0.1"
 authors = ["Dan McNulty <dkmcnulty@gmail.com>"]
-build = "build.rs"
 description = """"
 This experimental library implements the debugger side of the UDI protocol
 by sending requests, receiving responses and events using a pseudo-filesystem for transport."""
@@ -12,8 +11,6 @@ license = "MPL-2.0"
 exclude = [ "*.iml" ]
 
 [dependencies]
-
-users = "0.5.2"
 serde =  "1.0"
 serde_derive = "1.0"
 serde_cbor = "0.6"
@@ -33,8 +30,12 @@ winapi = { version = "0.3", features = [
     "minwinbase"
     ] }
 
-[build-dependencies]
-native-file-tests = "0.1.0"
+[target.'cfg(unix)'.dependencies]
+users = "0.5.2"
+
+[dev-dependencies]
+native-file-tests = { path = "../../native-file-tests/rust-binding" }
+lazy_static = "1.1.0"
 
 [badges]
 

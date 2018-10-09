@@ -10,6 +10,9 @@
 
 extern crate udi;
 
+#[macro_use]
+extern crate lazy_static;
+
 mod native_file_tests;
 mod utils;
 
@@ -29,7 +32,11 @@ fn thread() {
 
 fn thread_test() -> Result<()> {
 
-    let binary_path = native_file_tests::WORKERTHREADS_EXEC_PATH;
+    let metadata = native_file_tests::get_test_metadata();
+    let binary_path = metadata.workerthreads_path().to_str().unwrap();
+    let thread_break_addr = metadata.thread_break_addr();
+    let start_notification_addr = metadata.start_notification_addr();
+    let term_notification_addr = metadata.term_notification_addr();
 
     let config = udi::ProcessConfig::new(None, utils::rt_lib_path());
     let envp = Vec::new();
@@ -46,12 +53,12 @@ fn thread_test() -> Result<()> {
 
         thr_ref = process.get_initial_thread();
 
-        process.create_breakpoint(native_file_tests::THREAD_BREAK_FUNC)?;
-        process.install_breakpoint(native_file_tests::THREAD_BREAK_FUNC)?;
-        process.create_breakpoint(native_file_tests::START_NOTIFICATION_FUNC)?;
-        process.install_breakpoint(native_file_tests::START_NOTIFICATION_FUNC)?;
-        process.create_breakpoint(native_file_tests::TERM_NOTIFICATION_FUNC)?;
-        process.install_breakpoint(native_file_tests::TERM_NOTIFICATION_FUNC)?;
+        process.create_breakpoint(thread_break_addr)?;
+        process.install_breakpoint(thread_break_addr)?;
+        process.create_breakpoint(start_notification_addr)?;
+        process.install_breakpoint(start_notification_addr)?;
+        process.create_breakpoint(term_notification_addr)?;
+        process.install_breakpoint(term_notification_addr)?;
     }
 
     utils::validate_thread_state(&proc_ref, ThreadState::Running);
@@ -65,9 +72,13 @@ fn thread_test() -> Result<()> {
     // Wait for worker threads to be created
     utils::handle_proc_events(&proc_ref, |e| {
         match e.data {
-            EventData::Breakpoint{ addr: native_file_tests::START_NOTIFICATION_FUNC } => {
-                start_received = true;
-                e.thread.lock().unwrap().suspend().expect("Failed to suspend main thread");
+            EventData::Breakpoint{ addr } => {
+                if addr == start_notification_addr {
+                    start_received = true;
+                    e.thread.lock().unwrap().suspend().expect("Failed to suspend main thread");
+                } else {
+                    panic!(format!("Received unexpected breakpoint event {:?}", e.data))
+                }
             },
             EventData::ThreadCreate{ .. } => {
                 threads_created += 1;
@@ -87,13 +98,16 @@ fn thread_test() -> Result<()> {
 
     utils::handle_proc_events(&proc_ref, |e| {
         match e.data {
-            EventData::Breakpoint{ addr: native_file_tests::TERM_NOTIFICATION_FUNC } => {
-                term_received = true;
-                e.thread.lock().unwrap().suspend().expect("Failed to suspend main thread");
-            },
-            EventData::Breakpoint{ addr: native_file_tests::THREAD_BREAK_FUNC } => {
-                thread_breaks_received += 1;
-                e.thread.lock().unwrap().suspend().expect("Failed to suspend worker thread");
+            EventData::Breakpoint{ addr } => {
+                if addr == term_notification_addr {
+                    term_received = true;
+                    e.thread.lock().unwrap().suspend().expect("Failed to suspend main thread");
+                } else if addr == thread_break_addr {
+                    thread_breaks_received += 1;
+                    e.thread.lock().unwrap().suspend().expect("Failed to suspend worker thread");
+                } else {
+                    panic!(format!("Unexpected breakpoint event {:?}", e.data));
+                }
             },
             _ => panic!(format!("Unexpected event {:?}", e.data))
         }

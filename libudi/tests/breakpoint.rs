@@ -10,6 +10,9 @@
 
 extern crate udi;
 
+#[macro_use]
+extern crate lazy_static;
+
 mod native_file_tests;
 mod utils;
 
@@ -25,13 +28,14 @@ fn breakpoint() {
 
 fn breakpoint_test() -> Result<()> {
 
-    let addr = native_file_tests::SIMPLE_FUNCTION1;
+    let addr = native_file_tests::get_test_metadata().simple_function1_addr();
+    let exec_path = native_file_tests::get_test_metadata().simple_path().to_str().unwrap();
 
     let config = udi::ProcessConfig::new(None, utils::rt_lib_path());
     let argv = Vec::new();
     let envp = Vec::new();
 
-    let proc_ref = udi::create_process(native_file_tests::SIMPLE_EXEC_PATH,
+    let proc_ref = udi::create_process(exec_path,
                                        &argv,
                                        &envp,
                                        &config)?;

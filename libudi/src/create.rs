@@ -8,8 +8,6 @@
 //
 #![deny(warnings)]
 
-extern crate users;
-
 use std::string::String;
 use std::sync::{Mutex, Arc};
 use std::path::{PathBuf, Path};
@@ -196,8 +194,7 @@ pub fn initialize_thread(process: &mut Process, tid: u64) -> Result<()> {
 fn create_root_udi_filesystem(root_dir: &String) -> Result<String> {
     mkdir_ignore_exists(Path::new(root_dir))?;
 
-    let user = users::get_current_username()
-        .ok_or(Error::from_kind(ErrorKind::Library("Failed to retrieve username".to_owned())))?;
+    let user = sys::get_current_username()?;
 
     let mut user_dir_path = PathBuf::from(root_dir);
     user_dir_path.push(user);
@@ -224,6 +221,7 @@ fn mkdir_ignore_exists(dir: &Path) -> Result<()> {
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod sys {
+    extern crate users;
 
     pub struct UdiChild {
         child: ::std::process::Child
@@ -242,6 +240,16 @@ mod sys {
                     Err(super::ErrorKind::Library(msg).into())
                 },
                 None => Ok(())
+            }
+        }
+    }
+
+    pub fn get_current_username() -> super::Result<String> {
+
+        match users::get_current_username() {
+            Some(user) => Ok(user),
+            None => {
+                Err(super::ErrorKind::Library("Failed to retrieve username".to_owned()).into())
             }
         }
     }
@@ -349,11 +357,9 @@ mod sys {
     use ::std::mem::zeroed;
     use ::std::mem::size_of;
 
-    use ::std::os::windows::process::CommandExt;
-    use ::std::os::windows::io::AsRawHandle;
-
     use create::sys::winapi::um::memoryapi::{
         VirtualAllocEx,
+        VirtualFreeEx,
         WriteProcessMemory
     };
     use create::sys::winapi::um::libloaderapi::{
@@ -364,8 +370,10 @@ mod sys {
         GetLastError
     };
     use create::sys::winapi::um::winnt::{
+        HANDLE,
         PAGE_READWRITE,
-        MEM_COMMIT
+        MEM_COMMIT,
+        MEM_RELEASE
     };
     use create::sys::winapi::um::winbase::{
         CREATE_SUSPENDED,
@@ -379,21 +387,18 @@ mod sys {
         LPSTARTUPINFOA,
         CreateRemoteThread,
         GetExitCodeThread,
-        GetProcessId,
-        ResumeThread
+        ResumeThread,
+        CreateProcessA
     };
     use create::sys::winapi::um::synchapi::{
         WaitForSingleObject
     };
     use create::sys::winapi::um::handleapi::{
-        HANDLE,
         INVALID_HANDLE_VALUE,
         CloseHandle
     };
     use create::sys::winapi::shared::minwindef::{
-        FALSE,
-        TRUE,
-        BOOL
+        FALSE
     };
 
     use create::sys::winapi::ctypes::c_void;
@@ -429,6 +434,10 @@ mod sys {
         }
     }
 
+    pub fn get_current_username() -> super::Result<String> {
+        Ok("user".to_owned())
+    }
+
     pub fn launch_process(executable: &str,
                           argv: &Vec<String>,
                           envp: &Vec<String>,
@@ -442,22 +451,21 @@ mod sys {
             let library_handle_value = apply_remote_function(proc_info.hProcess,
                                                              "KERNEL32.DLL",
                                                              "LoadLibraryA",
-                                                             Ok(rt_lib_path))?;
-            let library_handle: HANDLE = ::std::mem::transmute(library_handle_value);
+                                                             Some(rt_lib_path))?;
 
-            if library_handle == INVALID_HANDLE_VALUE {
+            if library_handle_value == (-1i32 as u32) {
                 let library_load_exit_code = apply_remote_function(proc_info.hProcess,
                                                                    "KERNEL32.DLL",
                                                                    "GetLastError",
                                                                    None)?;
                 return Err(super::ErrorKind::Library(format!("Failed to load library {}: {}",
                                                              rt_lib_path,
-                                                             library_load_exit_code)));
+                                                             library_load_exit_code)).into());
             }
 
             let resume_result = ResumeThread(proc_info.hThread);
-            if resume_result == -1 {
-                return to_library_error("Failed to resume thread");
+            if resume_result == (-1i32 as u32) {
+                to_library_error("Failed to resume thread")?;
             }
 
             proc_info
@@ -467,16 +475,18 @@ mod sys {
     }
 
     unsafe fn create_win_process(executable: &str,
-                                 argv: &Vec<String>,
-                                 envp: &Vec<String>,
-                                 root_dir: &str) -> super::Result<PROCESS_INFORMATION> {
+                                 _argv: &Vec<String>,
+                                 _envp: &Vec<String>,
+                                 _root_dir: &str) -> super::Result<PROCESS_INFORMATION> {
 
         let mut proc_info: PROCESS_INFORMATION = zeroed();
         let mut startup_info: STARTUPINFOA = zeroed();
 
-        startup_info.cb = size_of::<STARTUPINFOA>();
+        startup_info.cb = size_of::<STARTUPINFOA>() as u32;
 
         let exec_path_str = CString::new(executable)?;
+
+        let _ = super::UDI_ROOT_DIR_ENV;
 
         // TODO
         // - use CreateProcessW, converting to wide strings
@@ -489,10 +499,10 @@ mod sys {
                                            CREATE_SUSPENDED,
                                            null_mut(),
                                            null_mut(),
-                                           &startup_info as LPSTARTUPINFOA,
-                                           &proc_info as LPPROCESS_INFORMATION);
+                                           &mut startup_info as LPSTARTUPINFOA,
+                                           &mut proc_info as LPPROCESS_INFORMATION);
         if create_result == FALSE {
-            return to_library_error("Failed to create process");
+            to_library_error("Failed to create process")?;
         }
 
         Ok(proc_info)
@@ -500,7 +510,7 @@ mod sys {
 
     struct RemoteMemory {
         handle: HANDLE,
-        addr: *const c_void,
+        addr: *mut c_void,
         len: usize
     }
 
@@ -515,7 +525,7 @@ mod sys {
                                       PAGE_READWRITE);
 
             if addr == null_mut() {
-                return to_library_error("Failed to allocate memory");
+                to_library_error("Failed to allocate memory")?;
             }
 
             let write_result = WriteProcessMemory(handle,
@@ -525,15 +535,15 @@ mod sys {
                                                   null_mut());
 
             if write_result == FALSE {
-                VirtualFreeEx(handle, addr, parameter_len, MEM_RELEASE);
-                return to_library_error("Failed to write process memory");
+                VirtualFreeEx(handle, addr, len, MEM_RELEASE);
+                to_library_error("Failed to write process memory")?;
             }
 
-            RemoteMemory{
+            Ok(RemoteMemory{
                 handle,
                 addr,
                 len
-            }
+            })
         }
 
         pub fn empty() -> RemoteMemory {
@@ -544,18 +554,20 @@ mod sys {
             }
         }
 
-        pub fn addr(&self) -> *const c_void {
+        pub fn addr(&self) -> *mut c_void {
             self.addr
         }
     }
 
     impl Drop for RemoteMemory {
         fn drop(&mut self) {
-            if handle != INVALID_HANDLE_VALUE {
-                VirtualAllocEx(self.handle,
-                               self.addr,
-                               self.len,
-                               MEM_RELEASE);
+            unsafe {
+                if self.handle != INVALID_HANDLE_VALUE {
+                    VirtualFreeEx(self.handle,
+                                  self.addr,
+                                  self.len,
+                                  MEM_RELEASE);
+                }
             }
         }
     }
@@ -567,8 +579,8 @@ mod sys {
 
         let module_str = CString::new(module)?;
         let module_handle = GetModuleHandleA(module_str.as_ptr());
-        if module_handle == INVALID_HANDLE_VALUE {
-            return to_library_error(&format!("Failed to get handle to {}", module));
+        if module_handle == null_mut() {
+            to_library_error(&format!("Failed to get handle to {}", module))?;
         }
 
         let function_name_str = CString::new(function_name)?;
@@ -578,7 +590,7 @@ mod sys {
             ::std::mem::transmute(function_address_result as *const c_void);
 
         let remote_parameter = match parameter {
-            Ok(p) => {
+            Some(p) => {
                 let parameter_str = CString::new(p)?;
 
                 RemoteMemory::new(handle, parameter_str.as_bytes_with_nul())?
@@ -594,13 +606,13 @@ mod sys {
                                         0,
                                         null_mut());
         if thread == INVALID_HANDLE_VALUE {
-            return to_library_error("Failed to launch thread");
+            to_library_error("Failed to launch thread")?;
         }
 
         let wait_result = WaitForSingleObject(thread, INFINITE);
         if wait_result == WAIT_FAILED {
             CloseHandle(thread);
-            return to_library_error("Failed to wait for thread to complete");
+            to_library_error("Failed to wait for thread to complete")?;
         }
 
         let mut exit_code: u32 = 0;
@@ -609,7 +621,7 @@ mod sys {
         let get_exit_code_result = GetExitCodeThread(thread, exit_code_ptr);
         if get_exit_code_result == FALSE {
             CloseHandle(thread);
-            return to_library_error("Failed to get exit code for thread");
+            to_library_error("Failed to get exit code for thread")?;
         }
 
         CloseHandle(thread);
@@ -617,7 +629,14 @@ mod sys {
         Ok(exit_code)
     }
 
-    unsafe fn to_library_error(msg: &str) -> Result<()> {
-        return Err(super::ErrorKind::Library(format!("{}: {}", msg, GetLastError())));
+    unsafe fn to_library_error(msg: &str) -> super::Result<()> {
+        return Err(super::ErrorKind::Library(format!("{}: {}", msg, GetLastError())).into());
+    }
+
+    impl<'a> From<::std::ffi::NulError> for super::Error {
+        fn from(err: ::std::ffi::NulError) -> super::Error {
+            let msg = format!("{}", err);
+            super::ErrorKind::Library(msg).into()
+        }
     }
 }

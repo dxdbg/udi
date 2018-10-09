@@ -150,3 +150,10 @@ mod sys {
         "libudirt.dylib"
     }
 }
+
+#[cfg(target_os = "windows")]
+mod sys {
+    pub fn get_rt_lib_name() -> &'static str {
+        "udirt.dll"
+    }
+}

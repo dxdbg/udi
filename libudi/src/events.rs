@@ -228,3 +228,48 @@ mod sys {
         }
     }
 }
+
+#[cfg(windows)]
+mod sys {
+    use std::fs;
+    use std::io;
+
+    use super::mio::{Ready, Poll, PollOpt, Token};
+    use super::mio::event::Evented;
+
+    pub fn is_event_source_failed(_ready: Ready) -> bool {
+        false
+    }
+
+    pub fn add_platform_ready_flags(ready: Ready) -> Ready {
+        ready
+    }
+
+    pub struct EventSource {
+    }
+
+    impl EventSource {
+        pub fn new(_file: &fs::File) -> EventSource {
+            EventSource{}
+        }
+    }
+
+    impl Evented for EventSource {
+        fn register(&self, _poll: &Poll, _token: Token, _interest: Ready, _opts: PollOpt)
+            -> io::Result<()>
+        {
+            Ok(())
+        }
+
+        fn reregister(&self, _poll: &Poll, _token: Token, _interest: Ready, _opts: PollOpt)
+            -> io::Result<()>
+        {
+            Ok(())
+        }
+
+        fn deregister(&self, _poll: &Poll) -> io::Result<()>
+        {
+            Ok(())
+        }
+    }
+}

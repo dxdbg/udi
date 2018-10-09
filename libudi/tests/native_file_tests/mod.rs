@@ -7,6 +7,21 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
 #![deny(warnings)]
-#![allow(dead_code)]
 
-include!(concat!(env!("OUT_DIR"), "/native_file_tests.rs"));
+extern crate native_file_tests;
+
+use std::path::PathBuf;
+
+lazy_static! {
+    static ref METADATA: native_file_tests::TestMetadata = {
+
+        let nft_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                               .join("native-file-tests");
+
+        native_file_tests::create_test_metadata(&nft_path, &::std::env::consts::OS)
+    };
+}
+
+pub fn get_test_metadata() -> &'static native_file_tests::TestMetadata {
+    &METADATA
+}

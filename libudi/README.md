@@ -19,8 +19,9 @@ This library can be built using Rust 1.25+.
 
 ## Testing ##
 
-`cargo test` will pull down a release from [native-file-tests](https://github.com/dxdbg/native-file-tests) and
-launch binaries from that distribution as debuggees.
+The integration tests expect that a release from [native-file-tests](https://github.com/dxdbg/native-file-tests) has
+been extracted as the directory `native-file-tests` in the cargo manifest directory. The tests will launch binaries
+from this distribution as debuggees.
 
 ## Implementation Notes
 

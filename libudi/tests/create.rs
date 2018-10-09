@@ -10,6 +10,9 @@
 
 extern crate udi;
 
+#[macro_use]
+extern crate lazy_static;
+
 mod native_file_tests;
 mod utils;
 
@@ -29,7 +32,9 @@ fn create_test() -> Result<()> {
     let argv = Vec::new();
     let envp = Vec::new();
 
-    let proc_ref = udi::create_process(native_file_tests::SIMPLE_EXEC_PATH,
+    let exec_path = native_file_tests::get_test_metadata().simple_path().to_str().unwrap();
+
+    let proc_ref = udi::create_process(exec_path,
                                        &argv,
                                        &envp,
                                        &config)?;
