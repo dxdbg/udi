@@ -2,7 +2,7 @@
 name = "udi"
 version = "0.0.1"
 authors = ["Dan McNulty <dkmcnulty@gmail.com>"]
-description = """"
+description = """
 This experimental library implements the debugger side of the UDI protocol
 by sending requests, receiving responses and events using a pseudo-filesystem for transport."""
 homepage = "https://github.com/dxdbg/udi"
@@ -34,8 +34,12 @@ winapi = { version = "0.3", features = [
 users = "0.5.2"
 
 [dev-dependencies]
-native-file-tests = { path = "../../native-file-tests/rust-binding" }
+native-file-tests = "0.1.0"
 lazy_static = "1.1.0"
+
+[patch.crates-io]
+native-file-tests = { path = "../../native-file-tests/rust-binding" }
+pdb = { git = "https://github.com/mcnulty/pdb.git", branch = "procedure-symbol" }
 
 [badges]
 
