@@ -24,7 +24,6 @@ use super::protocol;
 use super::protocol::request;
 use super::protocol::response;
 
-const DEFAULT_UDI_ROOT_DIR: &'static str = "/tmp/udi";
 const DEFAULT_UDI_RT_LIB_NAME: &'static str = "libudirt.so";
 const UDI_ROOT_DIR_ENV: &'static str = "UDI_ROOT_DIR";
 const REQUEST_FILE_NAME: &'static str = "request";
@@ -54,7 +53,8 @@ pub fn create_process(executable: &str,
                       envp: &Vec<String>,
                       config: &ProcessConfig) -> Result<Arc<Mutex<Process>>> {
 
-    let base_root_dir = config.root_dir.clone().unwrap_or(DEFAULT_UDI_ROOT_DIR.to_owned());
+    let base_root_dir = config.root_dir.clone().map_or(::std::env::temp_dir(),
+                                                       |d| Path::new(&d).to_owned());
     let rt_lib_path = config.rt_lib_path.clone().unwrap_or(DEFAULT_UDI_RT_LIB_NAME.to_owned());
 
     let root_dir = create_root_udi_filesystem(&base_root_dir)?;
@@ -191,12 +191,12 @@ pub fn initialize_thread(process: &mut Process, tid: u64) -> Result<()> {
 }
 
 /// Creates the root UDI filesystem for the user
-fn create_root_udi_filesystem(root_dir: &String) -> Result<String> {
-    mkdir_ignore_exists(Path::new(root_dir))?;
+fn create_root_udi_filesystem(root_dir: &Path) -> Result<String> {
+    mkdir_ignore_exists(root_dir)?;
 
     let user = sys::get_current_username()?;
 
-    let mut user_dir_path = PathBuf::from(root_dir);
+    let mut user_dir_path = root_dir.to_owned();
     user_dir_path.push(user);
 
     mkdir_ignore_exists(user_dir_path.as_path())?;
@@ -378,7 +378,8 @@ mod sys {
     use create::sys::winapi::um::winbase::{
         CREATE_SUSPENDED,
         INFINITE,
-        WAIT_FAILED
+        WAIT_FAILED,
+        WAIT_OBJECT_0
     };
     use create::sys::winapi::um::processthreadsapi::{
         PROCESS_INFORMATION,
@@ -387,6 +388,7 @@ mod sys {
         LPSTARTUPINFOA,
         CreateRemoteThread,
         GetExitCodeThread,
+        GetExitCodeProcess,
         ResumeThread,
         CreateProcessA
     };
@@ -399,6 +401,9 @@ mod sys {
     };
     use create::sys::winapi::shared::minwindef::{
         FALSE
+    };
+    use create::sys::winapi::shared::winerror::{
+        WAIT_TIMEOUT
     };
 
     use create::sys::winapi::ctypes::c_void;
@@ -416,12 +421,33 @@ mod sys {
         pub fn try_wait(&mut self) -> super::Result<()> {
             unsafe {
                 let wait_result = WaitForSingleObject(self.proc_info.hProcess, 0);
-                if wait_result == WAIT_FAILED {
-                    return to_library_error("Failed to wait for process");
+                if wait_result == WAIT_TIMEOUT {
+                    return Ok(());
                 }
-            }
+                if wait_result == WAIT_OBJECT_0 {
+                    let status = self.get_exit_code()?;
+                    let msg = format!("Process failed to initialize, exited with status: {}",
+                                      status);
+                    return Err(super::ErrorKind::Library(msg).into());
+                }
 
-            Ok(())
+                to_library_error("Failed to wait for process")
+            }
+        }
+
+        fn get_exit_code(&mut self) -> super::Result<u32> {
+            unsafe {
+                let mut exit_code: u32 = 0;
+                let exit_code_ptr = &mut exit_code as *mut u32;
+
+                let get_exit_code_result = GetExitCodeProcess(self.proc_info.hProcess,
+                                                              exit_code_ptr);
+                if get_exit_code_result == FALSE {
+                    to_library_error("Failed to exit code for process")?;
+                }
+
+                Ok(exit_code)
+            }
         }
     }
 
@@ -502,6 +528,7 @@ mod sys {
                                            &mut startup_info as LPSTARTUPINFOA,
                                            &mut proc_info as LPPROCESS_INFORMATION);
         if create_result == FALSE {
+            println!("{:?}", exec_path_str);
             to_library_error("Failed to create process")?;
         }
 
