@@ -7,8 +7,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-// UDI debuggee implementation common between all platforms
-
 #ifndef _UDI_RT_POSIX_H
 #define _UDI_RT_POSIX_H 1
 
@@ -26,6 +24,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+extern const char * const UDI_ROOT_DIR_ENV;
+extern const char * const DEFAULT_UDI_ROOT_DIR;
+extern const char * const UDI_DS;
+extern const unsigned int DS_LEN;
+
+extern char *UDI_ROOT_DIR;
 
 // syscall events
 typedef int (*sigaction_type)(int, const struct sigaction *, 

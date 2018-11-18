@@ -39,9 +39,11 @@ extern int testing_udirt(void) UDI_WEAK;
 const char * const UDI_DS = "/";
 const unsigned int DS_LEN = 1;
 const char * const DEFAULT_UDI_ROOT_DIR = "/tmp/udi";
+const char * const UDI_ROOT_DIR_ENV = "UDI_ROOT_DIR";
 static const unsigned int PID_STR_LEN = 10;
 
 // file paths
+char *UDI_ROOT_DIR;
 static char *basedir_name;
 static char *requestfile_name;
 static char *responsefile_name;

@@ -92,7 +92,6 @@ fn initialize_process(child: &mut sys::UdiChild, root_dir: String)
     let event_path = event_path_buf.as_path();
 
     // poll for change in root UDI filesystem
-    // TODO use notify crate for this
     let mut event_file_exists = false;
     while !event_file_exists {
         child.try_wait()?;

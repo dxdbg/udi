@@ -29,7 +29,6 @@ extern "C" {
 // global variables //
 
 // platform independent variables and constants
-extern const char * const UDI_ROOT_DIR_ENV;
 extern const char * const REQUEST_FILE_NAME;
 extern const char * const RESPONSE_FILE_NAME;
 extern const char * const EVENTS_FILE_NAME;
@@ -38,13 +37,6 @@ extern const uint64_t UDI_SINGLE_THREAD_ID;
 
 extern int udi_enabled;
 extern int udi_debug_on;
-
-// platform specific variables and constants
-extern const char * const DEFAULT_UDI_ROOT_DIR;
-extern const char * const UDI_DS;
-extern const unsigned int DS_LEN;
-
-extern char *UDI_ROOT_DIR;
 
 // General platform-specific functions
 void udi_abort_file_line(const char *file, unsigned int line);

@@ -21,7 +21,6 @@ enum { BREAKPOINT_HASH_SIZE = 256 };
 
 const uint64_t UDI_SINGLE_THREAD_ID = 0xC0FFEEABC;
 
-const char * const UDI_ROOT_DIR_ENV = "UDI_ROOT_DIR";
 const char * const REQUEST_FILE_NAME = "request";
 const char * const RESPONSE_FILE_NAME = "response";
 const char * const EVENTS_FILE_NAME = "events";
@@ -32,7 +31,6 @@ const int RESULT_ERROR = -1;
 const int RESULT_FAILURE = -2;
 
  // not enabled until initialization complete
-char *UDI_ROOT_DIR;
 int udi_debug_on = 0;
 int udi_enabled = 0;
 
