@@ -78,8 +78,9 @@ Cons of this approach:
 ## Debugger Interface Details ##
 
 The debugger interface will be constructed using named pipes (or some similar
-mechanism). These named pipes will be used to create a pseudo-filesystem. The UDI
-library creates the following file hierarchy:
+mechanism). These named pipes will be used to create a pseudo-filesystem.
+
+The UDI library creates the following file hierarchy on UNIX platforms:
 
     .../udi/<username>/<pid>/:
         request     All requests are written into this file
@@ -88,6 +89,17 @@ library creates the following file hierarchy:
         <tid>/:
            request     All thread-specific requests are written into this file
            response    Receive thread-specific response from requests
+
+On Windows platforms, the following conventions are used for named pipes:
+
+    \\.\pipe\udi-<username>-<pid>-request
+    \\.\pipe\udi-<username>-<pid>-response
+    \\.\pipe\udi-<username>-<pid>-events
+    \\.\pipe\udi-<username>-<pid>-<tid>-request
+    \\.\pipe\udi-<username>-<pid>-<tid>-response
+
+These named pipes have the same semantics as the corresponding files in
+the UNIX file hierarchy.
 
 The data exchanged on these named pipes will utilize a CBOR protocol. See
 the [PROTOCOL.md](PROTOCOL.md) document for more info.

@@ -359,6 +359,7 @@ void udi_log_string(format_cb cb, void *ctx, const char *string);
 
 // platform specific
 void udi_log_error(format_cb cb, void *ctx, int error);
+void udi_log_integer(format_cb cb, void *ctx, int value);
 
 /**
  * Signal handler safe formatted output for debugging RT library execution.

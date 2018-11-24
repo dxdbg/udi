@@ -514,7 +514,6 @@ void write_log(void *ctx, const void *data, size_t len) {
     write_to(udi_log_fd(), (const uint8_t *)data, len);
 }
 
-static
 void udi_log_integer(format_cb cb, void *ctx, int value) {
     char buf[10];
     int sign;

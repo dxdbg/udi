@@ -28,7 +28,7 @@ struct thread_struct {
     udirt_fd response_handle;
     int single_step;
     breakpoint *single_step_bp;
-    CONTEXT *context;
+    CONTEXT context;
     struct thread_struct *next_thread;
 };
 
