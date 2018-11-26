@@ -58,7 +58,7 @@ pub struct Process {
     terminating: bool,
     user_data: Option<Box<UserData>>,
     threads: Vec<Arc<Mutex<Thread>>>,
-    root_dir: String
+    child: create::UdiChild
 }
 
 #[derive(Debug,Copy,Clone,PartialEq)]

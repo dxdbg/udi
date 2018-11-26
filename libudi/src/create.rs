@@ -10,7 +10,6 @@
 
 use std::string::String;
 use std::sync::{Mutex, Arc};
-use std::path::{PathBuf, Path};
 use std::io::{self,Write};
 use std::fs;
 
@@ -24,8 +23,8 @@ use super::protocol;
 use super::protocol::request;
 use super::protocol::response;
 
-const DEFAULT_UDI_RT_LIB_NAME: &'static str = "libudirt.so";
-const UDI_ROOT_DIR_ENV: &'static str = "UDI_ROOT_DIR";
+pub use self::sys::UdiChild;
+
 const REQUEST_FILE_NAME: &'static str = "request";
 const RESPONSE_FILE_NAME: &'static str = "response";
 const EVENTS_FILE_NAME: &'static str = "events";
@@ -53,50 +52,32 @@ pub fn create_process(executable: &str,
                       envp: &Vec<String>,
                       config: &ProcessConfig) -> Result<Arc<Mutex<Process>>> {
 
-    let base_root_dir = config.root_dir.clone().map_or(::std::env::temp_dir(),
-                                                       |d| Path::new(&d).to_owned());
-    let rt_lib_path = config.rt_lib_path.clone().unwrap_or(DEFAULT_UDI_RT_LIB_NAME.to_owned());
-
-    let root_dir = create_root_udi_filesystem(&base_root_dir)?;
-
-    let mut child = sys::launch_process(executable,
+    let child = sys::launch_process(executable,
                                         argv,
                                         envp,
-                                        &root_dir,
-                                        &rt_lib_path)?;
-    let pid = child.id();
+                                        config)?;
 
-    let mut root_dir_buf = PathBuf::from(&root_dir);
-    root_dir_buf.push(pid.to_string());
-
-    let process = initialize_process(&mut child, (*root_dir_buf.to_string_lossy()).to_owned())?;
+    let process = initialize_process(child)?;
 
     Ok(Arc::new(Mutex::new(process)))
 }
 
-fn initialize_process(child: &mut sys::UdiChild, root_dir: String)
-    -> Result<Process> {
+fn initialize_process(mut child: UdiChild) -> Result<Process> {
 
     let pid = child.id();
 
-    let mut request_path_buf = PathBuf::from(&root_dir);
-    request_path_buf.push(REQUEST_FILE_NAME);
-    let request_path = request_path_buf.as_path();
+    let request_path = child.request_path();
 
-    let mut response_path_buf = PathBuf::from(&root_dir);
-    response_path_buf.push(RESPONSE_FILE_NAME);
-    let response_path = response_path_buf.as_path();
+    let response_path = child.response_path();
 
-    let mut event_path_buf = PathBuf::from(&root_dir);
-    event_path_buf.push(EVENTS_FILE_NAME);
-    let event_path = event_path_buf.as_path();
+    let events_path = child.events_path();
 
     // poll for change in root UDI filesystem
     let mut event_file_exists = false;
     while !event_file_exists {
         child.try_wait()?;
 
-        match fs::metadata(event_path) {
+        match fs::metadata(&events_path) {
             Ok(_) => {
                 event_file_exists = true;
             },
@@ -117,15 +98,15 @@ fn initialize_process(child: &mut sys::UdiChild, root_dir: String)
     request_file.write_all(&protocol::request::serialize(&request::Init::new())?)?;
 
     let mut response_file = fs::File::open(response_path)?;
-    let events_file = fs::File::open(event_path)?;
+    let events_file = fs::File::open(events_path)?;
 
     let init: response::Init = protocol::response::read(&mut response_file)?;
 
     // Check compatibility with protocol version
     let version = determine_protocol(&init)?;
 
-    let mut process = Process {
-        pid: pid,
+    let mut process = Process{
+        pid,
         file_context: Some(ProcessFileContext{ request_file, response_file, events_file }),
         architecture: init.arch,
         protocol_version: version,
@@ -134,7 +115,7 @@ fn initialize_process(child: &mut sys::UdiChild, root_dir: String)
         terminating: false,
         user_data: None,
         threads: vec![],
-        root_dir: root_dir,
+        child
     };
 
     initialize_thread(&mut process, init.tid)?;
@@ -152,16 +133,11 @@ fn determine_protocol(init: &response::Init) -> Result<u32> {
 }
 
 /// Performs the init handshake for the new thread and adds it to the specified process
-pub fn initialize_thread(process: &mut Process, tid: u64) -> Result<()> {
-    let mut request_path_buf = PathBuf::from(&process.root_dir);
-    request_path_buf.push(format!("{:016x}", tid));
-    request_path_buf.push(REQUEST_FILE_NAME);
-    let request_path = request_path_buf.as_path();
+pub fn initialize_thread(process: &mut Process,
+                         tid: u64) -> Result<()> {
 
-    let mut response_path_buf = PathBuf::from(&process.root_dir);
-    response_path_buf.push(format!("{:016x}", tid));
-    response_path_buf.push(RESPONSE_FILE_NAME);
-    let response_path = response_path_buf.as_path();
+    let request_path = process.child.thr_request_path(tid);
+    let response_path = process.child.thr_response_path(tid);
 
     let mut request_file = fs::OpenOptions::new().read(false)
                                                  .create(false)
@@ -174,9 +150,9 @@ pub fn initialize_thread(process: &mut Process, tid: u64) -> Result<()> {
 
     protocol::response::read::<response::Init, _>(&mut response_file)?;
 
-    let thr = Thread {
+    let thr = Thread{
         initial: process.threads.len() == 0,
-        tid: tid,
+        tid,
         file_context: Some(ThreadFileContext{ request_file, response_file }),
         single_step: false,
         state: ThreadState::Running,
@@ -189,41 +165,30 @@ pub fn initialize_thread(process: &mut Process, tid: u64) -> Result<()> {
     Ok(())
 }
 
-/// Creates the root UDI filesystem for the user
-fn create_root_udi_filesystem(root_dir: &Path) -> Result<String> {
-    mkdir_ignore_exists(root_dir)?;
-
-    let user = sys::get_current_username()?;
-
-    let mut user_dir_path = root_dir.to_owned();
-    user_dir_path.push(user);
-
-    mkdir_ignore_exists(user_dir_path.as_path())?;
-
-    if let Some(user_dir_path_str) = user_dir_path.to_str() {
-        Ok(user_dir_path_str.to_owned())
-    } else {
-        Err(ErrorKind::Library("Invalid root UDI filesystem path".to_owned()).into())
-    }
-}
-
-/// Create the specified directory, ignoring the error if it already exists
-fn mkdir_ignore_exists(dir: &Path) -> Result<()> {
-    match fs::create_dir(dir) {
-        Ok(_) => Ok(()),
-        Err(e) => match e.kind() {
-            io::ErrorKind::AlreadyExists => Ok(()),
-            _ => Err(::std::convert::From::from(e))
-        }
-    }
-}
-
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod sys {
     extern crate users;
 
+    use ::std::path::PathBuf;
+
+    const UDI_ROOT_DIR_ENV: &'static str = "UDI_ROOT_DIR";
+    const DEFAULT_UDI_RT_LIB_NAME: &'static str = "libudirt.so";
+
     pub struct UdiChild {
-        child: ::std::process::Child
+        child: ::std::process::Child,
+        root_dir: PathBuf
+    }
+
+    impl ::std::fmt::Debug for UdiChild {
+        fn fmt(&self, f: & mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+            write!(f, "UdiChild {{ }}")
+        }
+    }
+
+    impl ::std::fmt::Display for UdiChild {
+        fn fmt(&self, f: & mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+            write!(f, "{{ }}")
+        }
     }
 
     impl UdiChild {
@@ -235,15 +200,48 @@ mod sys {
         pub fn try_wait(&mut self) -> super::Result<()> {
             match self.child.try_wait()? {
                 Some(status) => {
-                    let msg = format!("Process failed to initialize, exited with status: {}", status);
+                    let msg = format!("Process failed to initialize, exited with status: {}",
+                                      status);
                     Err(super::ErrorKind::Library(msg).into())
                 },
                 None => Ok(())
             }
         }
+
+        pub fn request_path(&self) -> PathBuf {
+            let mut request_path_buf = self.root_dir.clone();
+            request_path_buf.push(super::REQUEST_FILE_NAME);
+            request_path_buf
+        }
+
+        pub fn thr_request_path(&self, tid: u64) -> PathBuf {
+            let mut request_path_buf = self.root_dir.clone();
+            request_path_buf.push(format!("{:016x}", tid));
+            request_path_buf.push(super::REQUEST_FILE_NAME);
+            request_path_buf
+        }
+
+        pub fn response_path(&self) -> PathBuf {
+            let mut response_path_buf = self.root_dir.clone();
+            response_path_buf.push(super::RESPONSE_FILE_NAME);
+            response_path_buf
+        }
+
+        pub fn thr_response_path(&self, tid: u64) -> PathBuf {
+            let mut response_path_buf = self.root_dir.clone();
+            response_path_buf.push(format!("{:016x}", tid));
+            response_path_buf.push(super::RESPONSE_FILE_NAME);
+            response_path_buf
+        }
+
+        pub fn events_path(&self) -> PathBuf {
+            let mut events_path_buf = self.root_dir.clone();
+            events_path_buf.push(super::EVENTS_FILE_NAME);
+            events_path_buf
+        }
     }
 
-    pub fn get_current_username() -> super::Result<String> {
+    fn get_current_username() -> super::Result<String> {
 
         match users::get_current_username() {
             Some(user) => Ok(user),
@@ -256,14 +254,19 @@ mod sys {
     pub fn launch_process(executable: &str,
                           argv: &Vec<String>,
                           envp: &Vec<String>,
-                          root_dir: &str,
-                          rt_lib_path: &str) -> super::Result<UdiChild> {
+                          config: &super::ProcessConfig) -> super::Result<UdiChild> {
+
+        let rt_lib_path = config.rt_lib_path
+                                .clone()
+                                .unwrap_or(DEFAULT_UDI_RT_LIB_NAME.to_owned());
+
+        let root_dir = create_root_udi_filesystem(config)?;
 
         let mut command = ::std::process::Command::new(executable);
 
         let env = create_environment(envp,
-                                     root_dir,
-                                     rt_lib_path);
+                                     &root_dir,
+                                     &rt_lib_path);
 
         for entry in env {
             command.env(entry.0, entry.1);
@@ -275,7 +278,41 @@ mod sys {
 
         let child = command.spawn()?;
 
-        Ok(UdiChild{child})
+        let mut root_dir_buf = PathBuf::from(root_dir);
+        root_dir_buf.push(child.id().to_string());
+
+        Ok(UdiChild{child, root_dir: root_dir_buf})
+    }
+
+    fn create_root_udi_filesystem(config: &super::ProcessConfig) -> super::Result<String> {
+
+        let root_dir = config.root_dir.clone().map_or(::std::env::temp_dir(),
+                                                      |d| ::std::path::Path::new(&d).to_owned());
+
+        mkdir_ignore_exists(&root_dir)?;
+
+        let user = get_current_username()?;
+
+        let mut user_dir_path = root_dir.to_owned();
+        user_dir_path.push(user);
+
+        mkdir_ignore_exists(user_dir_path.as_path())?;
+
+        if let Some(user_dir_path_str) = user_dir_path.to_str() {
+            Ok(user_dir_path_str.to_owned())
+        } else {
+            Err(super::ErrorKind::Library("Invalid root UDI filesystem path".to_owned()).into())
+        }
+    }
+
+    fn mkdir_ignore_exists(dir: &::std::path::Path) -> super::Result<()> {
+        match ::std::fs::create_dir(dir) {
+            Ok(_) => Ok(()),
+            Err(e) => match e.kind() {
+                ::std::io::ErrorKind::AlreadyExists => Ok(()),
+                _ => Err(::std::convert::From::from(e))
+            }
+        }
     }
 
     /// Adds the UDI RT library into the appropriate dynamic linker environment variable.
@@ -320,7 +357,7 @@ mod sys {
             output.push((var_name.to_owned(), rt_lib_path.to_owned()));
         }
 
-        output.push((super::UDI_ROOT_DIR_ENV.to_owned(), root_dir.to_owned()));
+        output.push((UDI_ROOT_DIR_ENV.to_owned(), root_dir.to_owned()));
 
         modify_env(&mut output);
 
@@ -355,6 +392,7 @@ mod sys {
     use ::std::ffi::CString;
     use ::std::mem::zeroed;
     use ::std::mem::size_of;
+    use ::std::path::PathBuf;
 
     use create::sys::winapi::um::memoryapi::{
         VirtualAllocEx,
@@ -407,8 +445,23 @@ mod sys {
 
     use create::sys::winapi::ctypes::c_void;
 
+    const DEFAULT_UDI_RT_LIB_NAME: &'static str = "udirt.dll";
+    const PIPE_NAME_BASE: &'static str = "\\\\.\\pipe\\udi";
+
     pub struct UdiChild {
         proc_info: PROCESS_INFORMATION
+    }
+
+    impl ::std::fmt::Debug for UdiChild {
+        fn fmt(&self, f: & mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+            write!(f, "UdiChild {{ }}")
+        }
+    }
+
+    impl ::std::fmt::Display for UdiChild {
+        fn fmt(&self, f: & mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+            write!(f, "{{ }}")
+        }
     }
 
     impl UdiChild {
@@ -432,6 +485,48 @@ mod sys {
 
                 to_library_error("Failed to wait for process")
             }
+        }
+
+        pub fn request_path(&self) -> PathBuf {
+            let request_path = format!("{}-{}-{}",
+                                       PIPE_NAME_BASE,
+                                       self.id(),
+                                       super::REQUEST_FILE_NAME);
+            PathBuf::from(request_path)
+        }
+
+        pub fn thr_request_path(&self, tid: u64) -> PathBuf {
+            let request_path = format!("{}-{}-{}-{}",
+                                       PIPE_NAME_BASE,
+                                       self.id(),
+                                       tid,
+                                       super::REQUEST_FILE_NAME);
+            PathBuf::from(request_path)
+        }
+
+        pub fn response_path(&self) -> PathBuf {
+            let response_path = format!("{}-{}-{}",
+                                        PIPE_NAME_BASE,
+                                        self.id(),
+                                        super::RESPONSE_FILE_NAME);
+            PathBuf::from(response_path)
+        }
+
+        pub fn thr_response_path(&self, tid: u64) -> PathBuf {
+            let response_path = format!("{}-{}-{}-{}",
+                                        PIPE_NAME_BASE,
+                                        self.id(),
+                                        tid,
+                                        super::RESPONSE_FILE_NAME);
+            PathBuf::from(response_path)
+        }
+
+        pub fn events_path(&self) -> PathBuf {
+            let events_path = format!("{}-{}-{}",
+                                      PIPE_NAME_BASE,
+                                      self.id(),
+                                      super::EVENTS_FILE_NAME);
+            PathBuf::from(events_path)
         }
 
         fn get_exit_code(&mut self) -> super::Result<u32> {
@@ -459,24 +554,23 @@ mod sys {
         }
     }
 
-    pub fn get_current_username() -> super::Result<String> {
-        Ok("user".to_owned())
-    }
-
     pub fn launch_process(executable: &str,
                           argv: &Vec<String>,
                           envp: &Vec<String>,
-                          root_dir: &str,
-                          rt_lib_path: &str) -> super::Result<UdiChild> {
+                          config: &super::ProcessConfig) -> super::Result<UdiChild> {
+
+        let rt_lib_path = config.rt_lib_path
+            .clone()
+            .unwrap_or(DEFAULT_UDI_RT_LIB_NAME.to_owned());
 
         let proc_info = unsafe {
 
-            let proc_info = create_win_process(executable, argv, envp, root_dir)?;
+            let proc_info = create_win_process(executable, argv, envp)?;
 
             let library_handle_value = apply_remote_function(proc_info.hProcess,
                                                              "KERNEL32.DLL",
                                                              "LoadLibraryA",
-                                                             Some(rt_lib_path))?;
+                                                             Some(&rt_lib_path))?;
 
             if library_handle_value == (-1i32 as u32) {
                 let library_load_exit_code = apply_remote_function(proc_info.hProcess,
@@ -501,8 +595,7 @@ mod sys {
 
     unsafe fn create_win_process(executable: &str,
                                  _argv: &Vec<String>,
-                                 _envp: &Vec<String>,
-                                 _root_dir: &str) -> super::Result<PROCESS_INFORMATION> {
+                                 _envp: &Vec<String>) -> super::Result<PROCESS_INFORMATION> {
 
         let mut proc_info: PROCESS_INFORMATION = zeroed();
         let mut startup_info: STARTUPINFOA = zeroed();
@@ -510,8 +603,6 @@ mod sys {
         startup_info.cb = size_of::<STARTUPINFOA>() as u32;
 
         let exec_path_str = CString::new(executable)?;
-
-        let _ = super::UDI_ROOT_DIR_ENV;
 
         // TODO
         // - use CreateProcessW, converting to wide strings

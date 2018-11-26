@@ -41,7 +41,8 @@ if topenv['CC'] == 'gcc':
         topenv.Append(CFLAGS = "-Wno-deprecated-declarations")
 
 elif topenv['CC'] == 'clang-cl' or topenv['CC'] == 'cl':
-    topenv.Append(CFLAGS = "/W4 /WX /MD")
+    topenv.Append(CFLAGS = "/W4 /WX /MD /Zi")
+    topenv.Append(LINKFLAGS = "/incremental:no /opt:ref,icf /DEBUG")
 
     if "OPT" in topenv and topenv["OPT"]:
         topenv.Append(CFLAGS = "/O2")

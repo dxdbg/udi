@@ -340,13 +340,14 @@ static int create_udi_pipe(const char *pipe_name_suffix,
                            int input,
                            udi_errmsg *errmsg,
                            udirt_fd *output) {
-    char pipe_name[64];
-    memset(pipe_name, 0, 64);
+    char pipe_name[128];
+    memset(pipe_name, 0, 128);
 
-    udi_formatted_str(pipe_name, 64, "\\\\.\\pipe\\%s-%d-%s",
+    udi_formatted_str(pipe_name, 128, "\\\\.\\pipe\\%s-%d-%s",
                       PIPE_NAME_BASE,
                       GetCurrentProcessId(),
                       pipe_name_suffix);
+    udi_log("creating pipe %s", pipe_name);
 
     udirt_fd pipe = CreateNamedPipeA(pipe_name,
                                      input ? PIPE_ACCESS_INBOUND : PIPE_ACCESS_OUTBOUND,
