@@ -10,7 +10,7 @@
 
 use std::string::String;
 use std::sync::{Mutex, Arc};
-use std::io::{self,Write};
+use std::io::Write;
 use std::fs;
 
 use super::errors::*;
@@ -33,6 +33,11 @@ const EVENTS_FILE_NAME: &'static str = "events";
 pub struct ProcessConfig {
     root_dir: Option<String>,
     rt_lib_path: Option<String>
+}
+
+pub(crate) struct HandshakeData {
+    file_context: ProcessFileContext,
+    init: response::Init
 }
 
 impl ProcessConfig {
@@ -64,50 +69,15 @@ pub fn create_process(executable: &str,
 
 fn initialize_process(mut child: UdiChild) -> Result<Process> {
 
-    let pid = child.id();
+    let handshake_data = child.process_handshake()?;
+    let init = handshake_data.init;
 
-    let request_path = child.request_path();
-
-    let response_path = child.response_path();
-
-    let events_path = child.events_path();
-
-    // poll for change in root UDI filesystem
-    let mut event_file_exists = false;
-    while !event_file_exists {
-        child.try_wait()?;
-
-        match fs::metadata(&events_path) {
-            Ok(_) => {
-                event_file_exists = true;
-            },
-            Err(e) => match e.kind() {
-                io::ErrorKind::NotFound => {},
-                _ => return Err(::std::convert::From::from(e))
-            }
-        };
-    };
-
-    // order matters here because POSIX FIFOs block in open calls
-
-    let mut request_file = fs::OpenOptions::new().read(false)
-                                                 .create(false)
-                                                 .write(true)
-                                                 .open(request_path)?;
-
-    request_file.write_all(&protocol::request::serialize(&request::Init::new())?)?;
-
-    let mut response_file = fs::File::open(response_path)?;
-    let events_file = fs::File::open(events_path)?;
-
-    let init: response::Init = protocol::response::read(&mut response_file)?;
-
-    // Check compatibility with protocol version
     let version = determine_protocol(&init)?;
+    let pid = child.id();
 
     let mut process = Process{
         pid,
-        file_context: Some(ProcessFileContext{ request_file, response_file, events_file }),
+        file_context: Some(handshake_data.file_context),
         architecture: init.arch,
         protocol_version: version,
         multithread_capable: init.mt,
@@ -170,6 +140,12 @@ mod sys {
     extern crate users;
 
     use ::std::path::PathBuf;
+    use ::std::fs;
+    use ::std::io::{self,Write};
+    use super::request;
+    use super::response;
+    use super::protocol;
+    use super::ProcessFileContext;
 
     const UDI_ROOT_DIR_ENV: &'static str = "UDI_ROOT_DIR";
     const DEFAULT_UDI_RT_LIB_NAME: &'static str = "libudirt.so";
@@ -197,7 +173,7 @@ mod sys {
             self.child.id()
         }
 
-        pub fn try_wait(&mut self) -> super::Result<()> {
+        fn try_wait(&mut self) -> super::Result<()> {
             match self.child.try_wait()? {
                 Some(status) => {
                     let msg = format!("Process failed to initialize, exited with status: {}",
@@ -206,6 +182,47 @@ mod sys {
                 },
                 None => Ok(())
             }
+        }
+
+        pub(crate) fn process_handshake(&mut self) -> super::Result<super::HandshakeData> {
+
+            let request_path = self.request_path();
+            let response_path = self.response_path();
+            let events_path = self.events_path();
+
+            // poll for change in root UDI filesystem
+            let mut event_file_exists = false;
+            while !event_file_exists {
+                self.try_wait()?;
+
+                match fs::metadata(&events_path) {
+                    Ok(_) => {
+                        event_file_exists = true;
+                    },
+                    Err(e) => match e.kind() {
+                        io::ErrorKind::NotFound => {},
+                        _ => return Err(::std::convert::From::from(e))
+                    }
+                };
+            };
+
+            // order matters here because POSIX FIFOs block in open calls
+            let mut request_file = fs::OpenOptions::new().read(false)
+                .create(false)
+                .write(true)
+                .open(request_path)?;
+
+            request_file.write_all(&protocol::request::serialize(&request::Init::new())?)?;
+
+            let mut response_file = fs::File::open(response_path)?;
+            let events_file = fs::File::open(events_path)?;
+
+            let init: response::Init = protocol::response::read(&mut response_file)?;
+
+            Ok(super::HandshakeData{
+                file_context: ProcessFileContext{ request_file, response_file, events_file },
+                init
+            })
         }
 
         pub fn request_path(&self) -> PathBuf {
@@ -470,7 +487,7 @@ mod sys {
             self.proc_info.dwProcessId
         }
 
-        pub fn try_wait(&mut self) -> super::Result<()> {
+        fn try_wait(&mut self) -> super::Result<()> {
             unsafe {
                 let wait_result = WaitForSingleObject(self.proc_info.hProcess, 0);
                 if wait_result == WAIT_TIMEOUT {
@@ -485,6 +502,48 @@ mod sys {
 
                 to_library_error("Failed to wait for process")
             }
+        }
+
+        pub(crate) fn process_handshake(&mut self) -> super::Result<super::HandshakeData> {
+
+            // TODO here
+            let request_path = self.request_path();
+            let response_path = self.response_path();
+            let events_path = self.events_path();
+
+            // poll for change in root UDI filesystem
+            let mut event_file_exists = false;
+            while !event_file_exists {
+                self.try_wait()?;
+
+                match fs::metadata(&events_path) {
+                    Ok(_) => {
+                        event_file_exists = true;
+                    },
+                    Err(e) => match e.kind() {
+                        io::ErrorKind::NotFound => {},
+                        _ => return Err(::std::convert::From::from(e))
+                    }
+                };
+            };
+
+            // order matters here because POSIX FIFOs block in open calls
+            let mut request_file = fs::OpenOptions::new().read(false)
+                .create(false)
+                .write(true)
+                .open(request_path)?;
+
+            request_file.write_all(&protocol::request::serialize(&request::Init::new())?)?;
+
+            let mut response_file = fs::File::open(response_path)?;
+            let events_file = fs::File::open(events_path)?;
+
+            let init: response::Init = protocol::response::read(&mut response_file)?;
+
+            Ok(super::HandshakeData{
+                file_context: ProcessFileContext{ request_file, response_file, events_file },
+                init
+            })
         }
 
         pub fn request_path(&self) -> PathBuf {
