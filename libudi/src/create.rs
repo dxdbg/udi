@@ -410,6 +410,13 @@ mod sys {
     use ::std::mem::zeroed;
     use ::std::mem::size_of;
     use ::std::path::PathBuf;
+    use ::std::fs;
+    use ::std::io::Write;
+
+    use super::request;
+    use super::response;
+    use super::protocol;
+    use super::ProcessFileContext;
 
     use create::sys::winapi::um::memoryapi::{
         VirtualAllocEx,
@@ -433,7 +440,8 @@ mod sys {
         CREATE_SUSPENDED,
         INFINITE,
         WAIT_FAILED,
-        WAIT_OBJECT_0
+        WAIT_OBJECT_0,
+        WaitNamedPipeA
     };
     use create::sys::winapi::um::processthreadsapi::{
         PROCESS_INFORMATION,
@@ -504,39 +512,40 @@ mod sys {
             }
         }
 
+        fn get_exit_code(&mut self) -> super::Result<u32> {
+            unsafe {
+                let mut exit_code: u32 = 0;
+                let exit_code_ptr = &mut exit_code as *mut u32;
+
+                let get_exit_code_result = GetExitCodeProcess(self.proc_info.hProcess,
+                                                              exit_code_ptr);
+                if get_exit_code_result == FALSE {
+                    to_library_error("Failed to get exit code for process")?;
+                }
+
+                Ok(exit_code)
+            }
+        }
+
         pub(crate) fn process_handshake(&mut self) -> super::Result<super::HandshakeData> {
 
-            // TODO here
             let request_path = self.request_path();
             let response_path = self.response_path();
             let events_path = self.events_path();
 
-            // poll for change in root UDI filesystem
-            let mut event_file_exists = false;
-            while !event_file_exists {
-                self.try_wait()?;
-
-                match fs::metadata(&events_path) {
-                    Ok(_) => {
-                        event_file_exists = true;
-                    },
-                    Err(e) => match e.kind() {
-                        io::ErrorKind::NotFound => {},
-                        _ => return Err(::std::convert::From::from(e))
-                    }
-                };
-            };
-
-            // order matters here because POSIX FIFOs block in open calls
-            let mut request_file = fs::OpenOptions::new().read(false)
-                .create(false)
-                .write(true)
-                .open(request_path)?;
+            let mut request_file = self.wait_for_pipe(&request_path,
+                                                      fs::OpenOptions::new().read(false)
+                                                          .create(false)
+                                                          .write(true))?;
 
             request_file.write_all(&protocol::request::serialize(&request::Init::new())?)?;
 
             let mut response_file = fs::File::open(response_path)?;
-            let events_file = fs::File::open(events_path)?;
+
+            let events_file = self.wait_for_pipe(&events_path,
+                                                 fs::OpenOptions::new().read(true)
+                                                     .create(false)
+                                                     .write(false))?;
 
             let init: response::Init = protocol::response::read(&mut response_file)?;
 
@@ -546,12 +555,36 @@ mod sys {
             })
         }
 
-        pub fn request_path(&self) -> PathBuf {
-            let request_path = format!("{}-{}-{}",
-                                       PIPE_NAME_BASE,
-                                       self.id(),
-                                       super::REQUEST_FILE_NAME);
-            PathBuf::from(request_path)
+        fn wait_for_pipe(&mut self, path: &str, options: &mut fs::OpenOptions) -> super::Result<fs::File> {
+
+            unsafe {
+                let path_cstr = CString::new(path)?;
+
+                let mut pipe_exists = false;
+                while !pipe_exists {
+                    self.try_wait()?;
+
+                    let wait_result = WaitNamedPipeA(path_cstr.as_ptr(),
+                                                     0xffffffff);
+                    if wait_result == FALSE {
+                        let error = GetLastError();
+                        if error != 2 {
+                            to_library_error(&format!("Failed to wait for pipe {}", path))?;
+                        }
+                    } else {
+                        pipe_exists = true;
+                    }
+                }
+
+                Ok(options.open(path)?)
+            }
+        }
+
+        pub fn request_path(&self) -> String {
+            format!("{}-{}-{}",
+                    PIPE_NAME_BASE,
+                    self.id(),
+                    super::REQUEST_FILE_NAME)
         }
 
         pub fn thr_request_path(&self, tid: u64) -> PathBuf {
@@ -563,12 +596,11 @@ mod sys {
             PathBuf::from(request_path)
         }
 
-        pub fn response_path(&self) -> PathBuf {
-            let response_path = format!("{}-{}-{}",
-                                        PIPE_NAME_BASE,
-                                        self.id(),
-                                        super::RESPONSE_FILE_NAME);
-            PathBuf::from(response_path)
+        pub fn response_path(&self) -> String {
+            format!("{}-{}-{}",
+                    PIPE_NAME_BASE,
+                    self.id(),
+                    super::RESPONSE_FILE_NAME)
         }
 
         pub fn thr_response_path(&self, tid: u64) -> PathBuf {
@@ -580,27 +612,12 @@ mod sys {
             PathBuf::from(response_path)
         }
 
-        pub fn events_path(&self) -> PathBuf {
-            let events_path = format!("{}-{}-{}",
-                                      PIPE_NAME_BASE,
-                                      self.id(),
-                                      super::EVENTS_FILE_NAME);
-            PathBuf::from(events_path)
-        }
+        pub fn events_path(&self) -> String {
 
-        fn get_exit_code(&mut self) -> super::Result<u32> {
-            unsafe {
-                let mut exit_code: u32 = 0;
-                let exit_code_ptr = &mut exit_code as *mut u32;
-
-                let get_exit_code_result = GetExitCodeProcess(self.proc_info.hProcess,
-                                                              exit_code_ptr);
-                if get_exit_code_result == FALSE {
-                    to_library_error("Failed to exit code for process")?;
-                }
-
-                Ok(exit_code)
-            }
+            format!("{}-{}-{}",
+                    PIPE_NAME_BASE,
+                    self.id(),
+                    super::EVENTS_FILE_NAME)
         }
     }
 
@@ -664,7 +681,7 @@ mod sys {
         let exec_path_str = CString::new(executable)?;
 
         // TODO
-        // - use CreateProcessW, converting to wide strings
+        // - use CreateProcessW, using OsStrings
         // - implement handling for argv, envp
         let create_result = CreateProcessA(exec_path_str.as_ptr(),
                                            null_mut(),
@@ -677,7 +694,6 @@ mod sys {
                                            &mut startup_info as LPSTARTUPINFOA,
                                            &mut proc_info as LPPROCESS_INFORMATION);
         if create_result == FALSE {
-            println!("{:?}", exec_path_str);
             to_library_error("Failed to create process")?;
         }
 
