@@ -549,12 +549,19 @@ void enable_debug_logging() {
 }
 
 static
+void global_initialization() {
+    init_req_handling();
+}
+
+static
 void init_udirt() {
     udi_errmsg errmsg;
     errmsg.size = ERRMSG_SIZE;
     errmsg.msg[ERRMSG_SIZE-1] = '\0';
 
     enable_debug_logging();
+
+    global_initialization();
 
     int result;
     do {
