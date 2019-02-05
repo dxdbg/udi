@@ -109,14 +109,17 @@ pub fn initialize_thread(process: &mut Process,
     let request_path = process.child.thr_request_path(tid);
     let response_path = process.child.thr_response_path(tid);
 
-    let mut request_file = fs::OpenOptions::new().read(false)
-                                                 .create(false)
-                                                 .write(true)
-                                                 .open(request_path)?;
+    let mut request_file = process.child.open_pipe(&request_path,
+                                                   fs::OpenOptions::new().read(false)
+                                                                         .create(false)
+                                                                         .write(true))?;
 
     request_file.write_all(&protocol::request::serialize(&request::Init::new())?)?;
 
-    let mut response_file = fs::File::open(response_path)?;
+    let mut response_file = process.child.open_pipe(&response_path,
+                                                    fs::OpenOptions::new().read(true)
+                                                                          .create(false)
+                                                                          .write(false))?;
 
     protocol::response::read::<response::Init, _>(&mut response_file)?;
 
@@ -225,36 +228,42 @@ mod sys {
             })
         }
 
-        pub fn request_path(&self) -> PathBuf {
-            let mut request_path_buf = self.root_dir.clone();
-            request_path_buf.push(super::REQUEST_FILE_NAME);
-            request_path_buf
+        pub(crate) fn open_pipe(&mut self, path: &str, options: &mut fs::OpenOptions)
+            -> super::Result<fs::File> {
+
+            Ok(options.open(path)?)
         }
 
-        pub fn thr_request_path(&self, tid: u64) -> PathBuf {
+        pub fn request_path(&self) -> String {
+            let mut request_path_buf = self.root_dir.clone();
+            request_path_buf.push(super::REQUEST_FILE_NAME);
+            (*request_path_buf.to_string_lossy()).to_owned()
+        }
+
+        pub fn thr_request_path(&self, tid: u64) -> String {
             let mut request_path_buf = self.root_dir.clone();
             request_path_buf.push(format!("{:016x}", tid));
             request_path_buf.push(super::REQUEST_FILE_NAME);
-            request_path_buf
+            (*request_path_buf.to_string_lossy()).to_owned()
         }
 
-        pub fn response_path(&self) -> PathBuf {
+        pub fn response_path(&self) -> String {
             let mut response_path_buf = self.root_dir.clone();
             response_path_buf.push(super::RESPONSE_FILE_NAME);
-            response_path_buf
+            (*response_path_buf.to_string_lossy()).to_owned()
         }
 
-        pub fn thr_response_path(&self, tid: u64) -> PathBuf {
+        pub fn thr_response_path(&self, tid: u64) -> String {
             let mut response_path_buf = self.root_dir.clone();
             response_path_buf.push(format!("{:016x}", tid));
             response_path_buf.push(super::RESPONSE_FILE_NAME);
-            response_path_buf
+            (*response_path_buf.to_string_lossy()).to_owned()
         }
 
-        pub fn events_path(&self) -> PathBuf {
+        pub fn events_path(&self) -> String {
             let mut events_path_buf = self.root_dir.clone();
             events_path_buf.push(super::EVENTS_FILE_NAME);
-            events_path_buf
+            (*events_path_buf.to_string_lossy()).to_owned()
         }
     }
 
@@ -409,7 +418,6 @@ mod sys {
     use ::std::ffi::CString;
     use ::std::mem::zeroed;
     use ::std::mem::size_of;
-    use ::std::path::PathBuf;
     use ::std::fs;
     use ::std::io::Write;
 
@@ -533,8 +541,8 @@ mod sys {
             let response_path = self.response_path();
             let events_path = self.events_path();
 
-            let mut request_file = self.wait_for_pipe(&request_path,
-                                                      fs::OpenOptions::new().read(false)
+            let mut request_file = self.open_pipe(&request_path,
+                                                  fs::OpenOptions::new().read(false)
                                                           .create(false)
                                                           .write(true))?;
 
@@ -542,8 +550,8 @@ mod sys {
 
             let mut response_file = fs::File::open(response_path)?;
 
-            let events_file = self.wait_for_pipe(&events_path,
-                                                 fs::OpenOptions::new().read(true)
+            let events_file = self.open_pipe(&events_path,
+                                             fs::OpenOptions::new().read(true)
                                                      .create(false)
                                                      .write(false))?;
 
@@ -555,7 +563,8 @@ mod sys {
             })
         }
 
-        fn wait_for_pipe(&mut self, path: &str, options: &mut fs::OpenOptions) -> super::Result<fs::File> {
+        pub(crate) fn open_pipe(&mut self, path: &str, options: &mut fs::OpenOptions)
+            -> super::Result<fs::File> {
 
             unsafe {
                 let path_cstr = CString::new(path)?;
@@ -587,13 +596,12 @@ mod sys {
                     super::REQUEST_FILE_NAME)
         }
 
-        pub fn thr_request_path(&self, tid: u64) -> PathBuf {
-            let request_path = format!("{}-{}-{}-{}",
-                                       PIPE_NAME_BASE,
-                                       self.id(),
-                                       tid,
-                                       super::REQUEST_FILE_NAME);
-            PathBuf::from(request_path)
+        pub fn thr_request_path(&self, tid: u64) -> String {
+            format!("{}-{}-{:016x}-{}",
+                    PIPE_NAME_BASE,
+                    self.id(),
+                    tid,
+                    super::REQUEST_FILE_NAME)
         }
 
         pub fn response_path(&self) -> String {
@@ -603,17 +611,15 @@ mod sys {
                     super::RESPONSE_FILE_NAME)
         }
 
-        pub fn thr_response_path(&self, tid: u64) -> PathBuf {
-            let response_path = format!("{}-{}-{}-{}",
-                                        PIPE_NAME_BASE,
-                                        self.id(),
-                                        tid,
-                                        super::RESPONSE_FILE_NAME);
-            PathBuf::from(response_path)
+        pub fn thr_response_path(&self, tid: u64) -> String {
+            format!("{}-{}-{:016x}-{}",
+                    PIPE_NAME_BASE,
+                    self.id(),
+                    tid,
+                    super::RESPONSE_FILE_NAME)
         }
 
         pub fn events_path(&self) -> String {
-
             format!("{}-{}-{}",
                     PIPE_NAME_BASE,
                     self.id(),
