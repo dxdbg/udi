@@ -21,11 +21,17 @@
 extern "C" {
 #endif
 
+struct udi_pipe_ctx_struct {
+    OVERLAPPED ol;
+    HANDLE handle;
+    int pending;
+};
+
 struct thread_struct {
     uint64_t id;
     udi_thread_state_e ts;
-    udirt_fd request_handle;
-    udirt_fd response_handle;
+    udi_pipe_ctx request_pipe;
+    udi_pipe_ctx response_pipe;
     int single_step;
     breakpoint *single_step_bp;
     CONTEXT context;

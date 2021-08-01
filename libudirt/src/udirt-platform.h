@@ -49,7 +49,9 @@ typedef int udirt_fd;
 
 #else /* UNIX / WINDOWS */
 
-typedef void * udirt_fd;
+typedef struct udi_pipe_ctx_struct udi_pipe_ctx;
+
+typedef udi_pipe_ctx * udirt_fd;
 
 #define EXPORT_FUNCTION(x) __pragma(comment(linker, "/EXPORT:" #x))
 
