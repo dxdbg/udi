@@ -1,0 +1,30 @@
+language = "C"
+style = "tag"
+
+header = """
+/*
+ * Copyright (c) 2011-2023, UDI Contributors
+ * All rights reserved.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+/**
+ * C API for the Userland Debugger Interface (UDI)
+ *
+ * @file libudi.h
+ */
+
+#ifndef _LIBUDI_H_
+#define _LIBUDI_H_ 1
+"""
+
+trailer = """
+#endif /* _LIBUDI_H_ */
+"""
+
+cpp_compat = true
+
+documentation_length = "full"

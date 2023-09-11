@@ -1,79 +1,49 @@
 //
-// Copyright (c) 2011-2017, UDI Contributors
+// Copyright (c) 2011-2023, UDI Contributors
 // All rights reserved.
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-#![deny(warnings)]
 
-extern crate serde_cbor;
-
-use std::error::Error as StdError;
 use std::io;
 use std::sync;
+
+use thiserror::Error;
 
 use super::Process;
 use super::Thread;
 
-#[derive(Debug, ErrorChain)]
-pub enum ErrorKind {
-    #[error_chain(foreign)]
-    Io(io::Error),
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("UDI I/O error")]
+    Io(#[from] io::Error),
 
-    #[error_chain(foreign)]
-    #[error_chain(display = "cbor_error_display")]
-    Cbor(serde_cbor::Error),
-
-    #[error_chain(custom)]
-    #[error_chain(description = "library_error_description")]
-    #[error_chain(display = "library_error_display")]
+    #[error("Library error: {0}")]
     Library(String),
 
-    #[error_chain(custom)]
-    #[error_chain(description = "request_error_description")]
-    #[error_chain(display = "request_error_display")]
-    Request(String)
-}
-
-fn cbor_error_display(f: &mut ::std::fmt::Formatter, e: &serde_cbor::Error)
-    -> ::std::fmt::Result {
-
-    match *e {
-        serde_cbor::Error::Custom(ref s) => write!(f, "CBOR error: {}", s),
-        _ => write!(f, "CBOR error: {}", e.description())
-    }
-}
-
-fn library_error_description(_: &str) -> &str {
-    "library error"
-}
-
-fn library_error_display(f: &mut ::std::fmt::Formatter, s: &str)
-    -> ::std::fmt::Result {
-
-    write!(f, "library error: {}", s)
-}
-
-fn request_error_description(_: &str) -> &str {
-    "invalid request"
-}
-
-fn request_error_display(f: &mut ::std::fmt::Formatter, s: &str)
-    -> ::std::fmt::Result {
-
-    write!(f, "invalid request: {}", s)
+    #[error("Invalid request: {0}")]
+    Request(String),
 }
 
 impl<'a> From<sync::PoisonError<sync::MutexGuard<'a, Process>>> for Error {
     fn from(err: sync::PoisonError<sync::MutexGuard<'a, Process>>) -> Error {
-        ErrorKind::Library(err.description().to_owned()).into()
+        Error::Library(format!("{}", err))
     }
 }
 
 impl<'a> From<sync::PoisonError<sync::MutexGuard<'a, Thread>>> for Error {
     fn from(err: sync::PoisonError<sync::MutexGuard<'a, Thread>>) -> Error {
-        ErrorKind::Library(err.description().to_owned()).into()
+        Error::Library(format!("{}", err))
+    }
+}
+
+impl From<ciborium::de::Error<std::io::Error>> for Error {
+    fn from(err: ciborium::de::Error<std::io::Error>) -> Error {
+        match err {
+            ciborium::de::Error::Io(err) => Error::Io(err),
+            _ => Error::Library(format!("{}", err)),
+        }
     }
 }

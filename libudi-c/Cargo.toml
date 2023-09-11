@@ -1,13 +1,21 @@
 [package]
 name = "udi_c"
 version = "0.1.0"
-authors = ["Dan McNulty <dkmcnulty@gmail.com>"]
+authors = ["Dan McNulty <mcnulty@users.noreply.github.com>"]
+edition = "2021"
 
 [lib]
-name = "udi"
-crate-type = [ "dylib" ]
+crate-type = ["rlib", "dylib"]
 
 [dependencies]
 
 udi = { path = "../libudi" }
-libc = "0.2.20"
+libc = "0.2"
+
+[build-dependencies]
+cbindgen = "0.24"
+
+[dev-dependencies]
+anyhow = "1.0.75"
+lazy_static = "1.4"
+native-file-tests = { git = "https://github.com/dxdbg/native-file-tests.git" }

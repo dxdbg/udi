@@ -7,6 +7,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include <errno.h>
+
 #include "udirt.c"
 
 #include "test-lib.h"

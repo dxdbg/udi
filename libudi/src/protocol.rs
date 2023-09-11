@@ -1,86 +1,40 @@
 //
-// Copyright (c) 2011-2017, UDI Contributors
+// Copyright (c) 2011-2023, UDI Contributors
 // All rights reserved.
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-#![deny(warnings)]
 #![allow(non_camel_case_types)]
-
-extern crate serde_cbor;
 
 use std::io;
 
-use serde::de::{Deserialize, DeserializeOwned};
-use serde::ser::Serialize;
-use self::serde_cbor::de::Deserializer;
+use ciborium::de::from_reader as cbor_from_reader;
 
 use super::errors::*;
 
 pub const UDI_PROTOCOL_VERSION_1: u32 = 1;
 
-// From serde documentation
-macro_rules! enum_number {
-    ($name:ident { $($variant:ident = $value:expr, )* }) => {
-        #[repr(C)]
-        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-        pub enum $name {
-            $($variant = $value,)*
-        }
+use serde_repr::{Deserialize_repr, Serialize_repr};
 
-        impl ::serde::Serialize for $name {
-            fn serialize<S>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
-                where S: ::serde::Serializer
-            {
-                // Serialize the enum as a u16.
-                serializer.serialize_u16(*self as u16)
-            }
-        }
-
-        impl<'de> ::serde::Deserialize<'de> for $name {
-            fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
-                where D: ::serde::Deserializer<'de>
-            {
-                struct Visitor;
-
-                impl<'de> ::serde::de::Visitor<'de> for Visitor {
-                    type Value = $name;
-
-                    fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                        formatter.write_str("positive integer")
-                    }
-
-                    fn visit_u16<E>(self, value: u16) -> ::std::result::Result<$name, E>
-                        where E: ::serde::de::Error
-                    {
-                        // Rust does not come with a simple way of converting a
-                        // number to an enum, so use a big `match`.
-                        match value {
-                            $( $value => Ok($name::$variant), )*
-                            _ => Err(E::custom(
-                                format!("unknown {} value: {}",
-                                stringify!($name), value))),
-                        }
-                    }
-                }
-
-                // Deserialize the enum from a u16.
-                deserializer.deserialize_u16(Visitor)
-            }
-        }
-    }
-}
-
-enum_number!(Architecture {
+#[repr(u16)]
+#[derive(Debug, Clone, Copy, Deserialize_repr, Serialize_repr)]
+pub enum Architecture {
     X86 = 0,
     X86_64 = 1,
-});
+}
 
 pub mod request {
+    use ciborium::ser::into_writer as cbor_into_writer;
+    use serde::{Deserialize, Serialize};
+    use serde_repr::{Deserialize_repr, Serialize_repr};
 
-    enum_number!(Type {
+    use crate::Error;
+
+    #[repr(u16)]
+    #[derive(Debug, Clone, Copy, Deserialize_repr, Serialize_repr)]
+    pub enum Type {
         Invalid = 0,
         Continue = 1,
         ReadMemory = 2,
@@ -97,7 +51,32 @@ pub mod request {
         ThreadResume = 13,
         NextInstruction = 14,
         SingleStep = 15,
-    });
+    }
+
+    impl std::fmt::Display for Type {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let name = match *self {
+                Type::Invalid => "Invalid",
+                Type::Continue => "Continue",
+                Type::ReadMemory => "ReadMemory",
+                Type::WriteMemory => "WriteMemory",
+                Type::ReadRegister => "ReadRegister",
+                Type::WriteRegister => "WriteRegister",
+                Type::State => "State",
+                Type::Init => "Init",
+                Type::CreateBreakpoint => "CreateBreakpoint",
+                Type::InstallBreakpoint => "InstallBreakpoint",
+                Type::RemoveBreakpoint => "RemoveBreakpoint",
+                Type::DeleteBreakpoint => "DeleteBreakpoint",
+                Type::ThreadSuspend => "ThreadSuspend",
+                Type::ThreadResume => "ThreadResume",
+                Type::NextInstruction => "NextInstruction",
+                Type::SingleStep => "SingleStep",
+            };
+
+            write!(f, "{}", name)
+        }
+    }
 
     pub trait RequestType {
         fn typ(&self) -> Type;
@@ -113,9 +92,9 @@ pub mod request {
         typ: Type,
     }
 
-    impl Init {
-        pub fn new() -> Init {
-            Init{ typ: Type::Init }
+    impl Default for Init {
+        fn default() -> Self {
+            Self { typ: Type::Init }
         }
     }
 
@@ -133,12 +112,15 @@ pub mod request {
     pub struct Continue {
         #[serde(skip_serializing)]
         typ: Type,
-        pub sig: u32
+        pub sig: u32,
     }
 
     impl Continue {
         pub fn new(sig: u32) -> Continue {
-            Continue{ typ: Type::Continue, sig: sig }
+            Continue {
+                typ: Type::Continue,
+                sig,
+            }
         }
     }
 
@@ -153,12 +135,16 @@ pub mod request {
         #[serde(skip_serializing)]
         typ: Type,
         pub addr: u64,
-        pub len: u32
+        pub len: u32,
     }
 
     impl ReadMemory {
         pub fn new(addr: u64, len: u32) -> ReadMemory {
-            ReadMemory{ typ: Type::ReadMemory, addr, len }
+            ReadMemory {
+                typ: Type::ReadMemory,
+                addr,
+                len,
+            }
         }
     }
 
@@ -173,12 +159,16 @@ pub mod request {
         #[serde(skip_serializing)]
         typ: Type,
         pub addr: u64,
-        pub data: &'a[u8]
+        pub data: &'a [u8],
     }
 
     impl<'a> WriteMemory<'a> {
-        pub fn new(addr: u64, data: &'a[u8]) -> WriteMemory {
-            WriteMemory{ typ: Type::WriteMemory, addr, data }
+        pub fn new(addr: u64, data: &'a [u8]) -> WriteMemory {
+            WriteMemory {
+                typ: Type::WriteMemory,
+                addr,
+                data,
+            }
         }
     }
 
@@ -192,12 +182,15 @@ pub mod request {
     pub struct ReadRegister {
         #[serde(skip_serializing)]
         typ: Type,
-        pub reg: u32
+        pub reg: u32,
     }
 
     impl ReadRegister {
         pub fn new(reg: u32) -> ReadRegister {
-            ReadRegister{ typ: Type::ReadRegister, reg }
+            ReadRegister {
+                typ: Type::ReadRegister,
+                reg,
+            }
         }
     }
 
@@ -212,12 +205,16 @@ pub mod request {
         #[serde(skip_serializing)]
         typ: Type,
         pub reg: u32,
-        pub value: u64
+        pub value: u64,
     }
 
     impl WriteRegister {
         pub fn new(reg: u32, value: u64) -> WriteRegister {
-            WriteRegister{ typ: Type::WriteRegister, reg, value }
+            WriteRegister {
+                typ: Type::WriteRegister,
+                reg,
+                value,
+            }
         }
     }
 
@@ -231,12 +228,15 @@ pub mod request {
     pub struct CreateBreakpoint {
         #[serde(skip_serializing)]
         typ: Type,
-        pub addr: u64
+        pub addr: u64,
     }
 
     impl CreateBreakpoint {
         pub fn new(addr: u64) -> CreateBreakpoint {
-            CreateBreakpoint{ typ: Type::CreateBreakpoint, addr: addr }
+            CreateBreakpoint {
+                typ: Type::CreateBreakpoint,
+                addr,
+            }
         }
     }
 
@@ -250,12 +250,15 @@ pub mod request {
     pub struct InstallBreakpoint {
         #[serde(skip_serializing)]
         typ: Type,
-        pub addr: u64
+        pub addr: u64,
     }
 
     impl InstallBreakpoint {
         pub fn new(addr: u64) -> InstallBreakpoint {
-            InstallBreakpoint{ typ: Type::InstallBreakpoint, addr: addr }
+            InstallBreakpoint {
+                typ: Type::InstallBreakpoint,
+                addr,
+            }
         }
     }
 
@@ -269,12 +272,15 @@ pub mod request {
     pub struct RemoveBreakpoint {
         #[serde(skip_serializing)]
         typ: Type,
-        pub addr: u64
+        pub addr: u64,
     }
 
     impl RemoveBreakpoint {
         pub fn new(addr: u64) -> RemoveBreakpoint {
-            RemoveBreakpoint{ typ: Type::RemoveBreakpoint, addr: addr }
+            RemoveBreakpoint {
+                typ: Type::RemoveBreakpoint,
+                addr,
+            }
         }
     }
 
@@ -288,12 +294,15 @@ pub mod request {
     pub struct DeleteBreakpoint {
         #[serde(skip_serializing)]
         typ: Type,
-        pub addr: u64
+        pub addr: u64,
     }
 
     impl DeleteBreakpoint {
         pub fn new(addr: u64) -> DeleteBreakpoint {
-            DeleteBreakpoint{ typ: Type::DeleteBreakpoint, addr: addr }
+            DeleteBreakpoint {
+                typ: Type::DeleteBreakpoint,
+                addr,
+            }
         }
     }
 
@@ -306,12 +315,14 @@ pub mod request {
     #[derive(Deserialize, Serialize, Debug)]
     pub struct ThreadSuspend {
         #[serde(skip_serializing)]
-        typ: Type
+        typ: Type,
     }
 
-    impl ThreadSuspend {
-        pub fn new() -> ThreadSuspend {
-            ThreadSuspend{ typ: Type::ThreadSuspend }
+    impl Default for ThreadSuspend {
+        fn default() -> Self {
+            Self {
+                typ: Type::ThreadSuspend,
+            }
         }
     }
 
@@ -328,12 +339,14 @@ pub mod request {
     #[derive(Deserialize, Serialize, Debug)]
     pub struct ThreadResume {
         #[serde(skip_serializing)]
-        typ: Type
+        typ: Type,
     }
 
-    impl ThreadResume {
-        pub fn new() -> ThreadResume {
-            ThreadResume{ typ: Type::ThreadResume }
+    impl Default for ThreadResume {
+        fn default() -> Self {
+            Self {
+                typ: Type::ThreadResume,
+            }
         }
     }
 
@@ -350,12 +363,12 @@ pub mod request {
     #[derive(Deserialize, Serialize, Debug)]
     pub struct State {
         #[serde(skip_serializing)]
-        typ: Type
+        typ: Type,
     }
 
-    impl State {
-        pub fn new() -> State {
-            State{ typ: Type::State }
+    impl Default for State {
+        fn default() -> Self {
+            Self { typ: Type::State }
         }
     }
 
@@ -372,12 +385,14 @@ pub mod request {
     #[derive(Deserialize, Serialize, Debug)]
     pub struct NextInstruction {
         #[serde(skip_serializing)]
-        typ: Type
+        typ: Type,
     }
 
-    impl NextInstruction {
-        pub fn new() -> NextInstruction {
-            NextInstruction{ typ: Type::NextInstruction }
+    impl Default for NextInstruction {
+        fn default() -> Self {
+            Self {
+                typ: Type::NextInstruction,
+            }
         }
     }
 
@@ -395,14 +410,17 @@ pub mod request {
     pub struct SingleStep {
         #[serde(skip_serializing)]
         typ: Type,
-        value: bool
+        value: bool,
     }
 
     impl SingleStep {
         pub fn new(setting: bool) -> SingleStep {
             let value = setting;
 
-            SingleStep{ typ: Type::SingleStep, value }
+            SingleStep {
+                typ: Type::SingleStep,
+                value,
+            }
         }
     }
 
@@ -412,13 +430,24 @@ pub mod request {
         }
     }
 
-    pub fn serialize<T: super::Serialize + RequestType>(req: &T)
-            -> super::Result<Vec<u8>> {
+    pub fn serialize<T: Serialize + RequestType>(req: &T) -> Result<Vec<u8>, Error> {
         let mut output: Vec<u8> = Vec::new();
 
-        super::serde_cbor::ser::to_writer(&mut output, &req.typ())?;
+        cbor_into_writer(&req.typ(), &mut output).map_err(|e| {
+            Error::Library(format!(
+                "Failed to serialize request type {}: {}",
+                req.typ(),
+                e
+            ))
+        })?;
         if !req.empty() {
-            super::serde_cbor::ser::to_writer(&mut output, req)?;
+            cbor_into_writer(&req, &mut output).map_err(|e| {
+                Error::Library(format!(
+                    "Failed to serialize request with type {}: {}",
+                    req.typ(),
+                    e
+                ))
+            })?;
         }
 
         Ok(output)
@@ -426,94 +455,101 @@ pub mod request {
 }
 
 pub mod response {
+    use std::io;
 
-    enum_number!(Type {
+    use ciborium::de::from_reader as cbor_from_reader;
+    use serde::{de::DeserializeOwned, Deserialize, Serialize};
+    use serde_repr::{Deserialize_repr, Serialize_repr};
+
+    use crate::Error;
+
+    #[repr(u16)]
+    #[derive(Debug, Clone, Copy, Deserialize_repr, Serialize_repr)]
+    pub enum Type {
         Valid = 0,
         Error = 1,
-    });
+    }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct Init {
         pub v: u32,
         pub arch: super::Architecture,
         pub mt: bool,
-        pub tid: u64
+        pub tid: u64,
     }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct ReadMemory {
-        pub data: Vec<u8>
+        pub data: Vec<u8>,
     }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct ReadRegister {
-        pub value: u64
+        pub value: u64,
     }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct NextInstruction {
-        pub addr: u64
+        pub addr: u64,
     }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct SingleStep {
-        pub value: bool
+        pub value: bool,
     }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct States {
-        pub states: Vec<State>
+        pub states: Vec<State>,
     }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct State {
         pub tid: u64,
-        pub state: u32
+        pub state: u32,
     }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct ResponseError {
-        pub msg: String
+        pub msg: String,
     }
 
-    pub fn read<T: super::DeserializeOwned, R: super::io::Read>(reader: &mut R)
-        -> super::Result<T> {
-
-        let mut de = super::Deserializer::new(reader);
-
-        let response_type: Type = super::Deserialize::deserialize(&mut de)?;
-        let request_type: super::request::Type = super::Deserialize::deserialize(&mut de)?;
+    pub fn read<T: DeserializeOwned, R: io::Read>(reader: &mut R) -> Result<T, Error> {
+        let response_type: Type = cbor_from_reader(&mut *reader)?;
+        let request_type: super::request::Type = cbor_from_reader(&mut *reader)?;
 
         match response_type {
-            Type::Valid => Ok(super::Deserialize::deserialize(&mut de)?),
+            Type::Valid => Ok(cbor_from_reader(&mut *reader)?),
             Type::Error => {
-                let err: ResponseError = super::Deserialize::deserialize(&mut de)?;
+                let err: ResponseError = cbor_from_reader(&mut *reader)?;
                 let msg = format!("type {:?}: {}", request_type, err.msg);
-                Err(super::ErrorKind::Request(msg).into())
+                Err(super::Error::Request(msg))
             }
         }
     }
 
-    pub fn read_no_data<R: super::io::Read>(reader: &mut R) -> super::Result<()> {
-        let mut de = super::Deserializer::new(reader);
-
-        let response_type: Type = super::Deserialize::deserialize(&mut de)?;
-        let request_type: super::request::Type = super::Deserialize::deserialize(&mut de)?;
+    pub fn read_no_data<R: io::Read>(reader: &mut R) -> Result<(), Error> {
+        let response_type: Type = cbor_from_reader(&mut *reader)?;
+        let request_type: super::request::Type = cbor_from_reader(&mut *reader)?;
 
         match response_type {
             Type::Valid => Ok(()),
             Type::Error => {
-                let err: ResponseError = super::Deserialize::deserialize(&mut de)?;
+                let err: ResponseError = cbor_from_reader(&mut *reader)?;
                 let msg = format!("type {:?}: {}", request_type, err.msg);
-                Err(super::ErrorKind::Request(msg).into())
+                Err(super::Error::Request(msg))
             }
         }
     }
 }
 
 pub mod event {
+    use serde::{Deserialize, Serialize};
+    use serde_repr::{Deserialize_repr, Serialize_repr};
 
-    enum_number!(Type {
+    #[repr(u16)]
+    #[derive(Debug, Deserialize_repr, Serialize_repr)]
+    pub enum Type {
         Unknown = 0,
         Error = 1,
         Signal = 2,
@@ -525,155 +561,176 @@ pub mod event {
         ProcessExec = 8,
         SingleStep = 9,
         ProcessCleanup = 10,
-    });
-
-    #[derive(Deserialize,Serialize,Debug)]
-    pub struct EventError {
-        pub msg: String
     }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
+    pub struct EventError {
+        pub msg: String,
+    }
+
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct Signal {
         pub addr: u64,
-        pub sig: u32
+        pub sig: u32,
     }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct Breakpoint {
-        pub addr: u64
+        pub addr: u64,
     }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct ThreadCreate {
-        pub tid: u64
+        pub tid: u64,
     }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct ProcessExit {
-        pub code: i32
+        pub code: i32,
     }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct ProcessFork {
-        pub pid: u32
+        pub pid: u32,
     }
 
-    #[derive(Deserialize,Serialize,Debug)]
+    #[derive(Deserialize, Serialize, Debug)]
     pub struct ProcessExec {
         pub path: String,
         pub argv: Vec<String>,
-        pub envp: Vec<String>
+        pub envp: Vec<String>,
     }
 
     #[derive(Debug, PartialEq)]
     pub enum EventData {
-        Error{ msg: String },
-        Signal{ addr: u64, sig: u32 },
-        Breakpoint{ addr: u64 },
-        ThreadCreate{ tid: u64 },
+        Error {
+            msg: String,
+        },
+        Signal {
+            addr: u64,
+            sig: u32,
+        },
+        Breakpoint {
+            addr: u64,
+        },
+        ThreadCreate {
+            tid: u64,
+        },
         ThreadDeath,
-        ProcessExit{ code: i32 },
-        ProcessFork{ pid: u32 },
-        ProcessExec{ path: String, argv: Vec<String>, envp: Vec<String> },
+        ProcessExit {
+            code: i32,
+        },
+        ProcessFork {
+            pid: u32,
+        },
+        ProcessExec {
+            path: String,
+            argv: Vec<String>,
+            envp: Vec<String>,
+        },
         SingleStep,
-        ProcessCleanup
+        ProcessCleanup,
     }
 
     #[derive(Debug)]
     pub struct EventMessage {
         pub tid: u64,
-        pub data: EventData
+        pub data: EventData,
     }
 }
 
 #[derive(Debug)]
 pub enum EventReadError {
     Eof,
-    Udi(Error)
+    Udi(Error),
 }
 
-impl From<serde_cbor::Error> for EventReadError {
-    fn from(err: serde_cbor::Error) -> EventReadError {
-        match err {
-            serde_cbor::Error::Io(ioe) => {
-                match ioe.kind() {
-                    io::ErrorKind::UnexpectedEof => EventReadError::Eof,
-                    _ => EventReadError::Udi(::std::convert::From::from(ioe))
-                }
-            },
-            _ => EventReadError::Udi(::std::convert::From::from(err))
+pub fn read_event<R: io::Read>(reader: &mut R) -> Result<event::EventMessage, EventReadError> {
+    match read_event_local(reader) {
+        Ok(event) => Ok(event),
+        Err(Error::Io(err)) => {
+            if err.kind() == io::ErrorKind::UnexpectedEof {
+                Err(EventReadError::Eof)
+            } else {
+                Err(EventReadError::Udi(Error::Io(err)))
+            }
         }
+        Err(err) => Err(EventReadError::Udi(err)),
     }
 }
 
-pub fn read_event<R: io::Read>(reader: R)
-    -> ::std::result::Result<event::EventMessage, EventReadError> {
+fn read_event_local<R: io::Read>(reader: &mut R) -> Result<event::EventMessage, Error> {
+    let event_type: event::Type = cbor_from_reader(&mut *reader)?;
+    let tid: u64 = cbor_from_reader(&mut *reader)?;
 
-    let mut de = Deserializer::new(reader);
+    let data = deserialize_event_data(&mut *reader, &event_type)?;
 
-    let event_type: event::Type = Deserialize::deserialize(&mut de)?;
-    let tid: u64 = Deserialize::deserialize(&mut de)?;
-
-    let data = deserialize_event_data(&mut de, &event_type)?;
-
-    Ok(event::EventMessage{ tid: tid, data: data })
+    Ok(event::EventMessage { tid, data })
 }
 
-fn deserialize_event_data<R: io::Read>(de: &mut Deserializer<R>, event_type: &event::Type)
-    -> ::std::result::Result<event::EventData, EventReadError> {
-
+fn deserialize_event_data<R: io::Read>(
+    reader: &mut R,
+    event_type: &event::Type,
+) -> Result<event::EventData, Error> {
     let event_data = match *event_type {
         event::Type::Unknown => {
             let msg = "Unknown event reported".to_owned();
-            return Err(EventReadError::Udi(ErrorKind::Library(msg).into()));
-        },
+            return Err(Error::Library(msg));
+        }
         event::Type::Error => {
-            let error_data: event::EventError = Deserialize::deserialize(de)?;
-            event::EventData::Error{ msg: error_data.msg }
-        },
+            let error_data: event::EventError = cbor_from_reader(reader)?;
+            event::EventData::Error {
+                msg: error_data.msg,
+            }
+        }
         event::Type::Signal => {
-            let signal_data: event::Signal = Deserialize::deserialize(de)?;
-            event::EventData::Signal{ addr: signal_data.addr, sig: signal_data.sig }
-        },
+            let signal_data: event::Signal = cbor_from_reader(reader)?;
+            event::EventData::Signal {
+                addr: signal_data.addr,
+                sig: signal_data.sig,
+            }
+        }
         event::Type::Breakpoint => {
-            let brkpt_data: event::Breakpoint = Deserialize::deserialize(de)?;
-            event::EventData::Breakpoint{ addr: brkpt_data.addr }
-        },
+            let brkpt_data: event::Breakpoint = cbor_from_reader(reader)?;
+            event::EventData::Breakpoint {
+                addr: brkpt_data.addr,
+            }
+        }
         event::Type::ThreadCreate => {
-            let thr_create_data: event::ThreadCreate = Deserialize::deserialize(de)?;
-            event::EventData::ThreadCreate{ tid: thr_create_data.tid }
-        },
-        event::Type::ThreadDeath => {
-            event::EventData::ThreadDeath
-        },
+            let thr_create_data: event::ThreadCreate = cbor_from_reader(reader)?;
+            event::EventData::ThreadCreate {
+                tid: thr_create_data.tid,
+            }
+        }
+        event::Type::ThreadDeath => event::EventData::ThreadDeath,
         event::Type::ProcessExit => {
-            let exit_data: event::ProcessExit = Deserialize::deserialize(de)?;
-            event::EventData::ProcessExit{ code: exit_data.code }
-        },
+            let exit_data: event::ProcessExit = cbor_from_reader(reader)?;
+            event::EventData::ProcessExit {
+                code: exit_data.code,
+            }
+        }
         event::Type::ProcessFork => {
-            let fork_data: event::ProcessFork = Deserialize::deserialize(de)?;
-            event::EventData::ProcessFork{ pid: fork_data.pid }
-        },
+            let fork_data: event::ProcessFork = cbor_from_reader(reader)?;
+            event::EventData::ProcessFork { pid: fork_data.pid }
+        }
         event::Type::ProcessExec => {
-            let exec_data: event::ProcessExec = Deserialize::deserialize(de)?;
-            event::EventData::ProcessExec{
+            let exec_data: event::ProcessExec = cbor_from_reader(reader)?;
+            event::EventData::ProcessExec {
                 path: exec_data.path,
                 argv: exec_data.argv,
-                envp: exec_data.envp
+                envp: exec_data.envp,
             }
-        },
-        event::Type::SingleStep => {
-            event::EventData::SingleStep
-        },
-        event::Type::ProcessCleanup => {
-            event::EventData::ProcessCleanup
         }
+        event::Type::SingleStep => event::EventData::SingleStep,
+        event::Type::ProcessCleanup => event::EventData::ProcessCleanup,
     };
 
     Ok(event_data)
 }
 
-enum_number!(Register {
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, Deserialize_repr, Serialize_repr)]
+pub enum Register {
     // X86 registers
     X86_MIN = 0,
     X86_GS = 1,
@@ -748,4 +805,4 @@ enum_number!(Register {
     X86_64_XMM14 = 68,
     X86_64_XMM15 = 69,
     X86_64_MAX = 70,
-});
+}

@@ -7,6 +7,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include <unistd.h>
+
 #include "udirt.h"
 
 udirt_fd udi_log_fd() {

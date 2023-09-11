@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017, UDI Contributors
+ * Copyright (c) 2011-2023, UDI Contributors
  * All rights reserved.
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -26,126 +26,122 @@ typedef struct udi_thread_struct udi_thread;
  * library error codes
  */
 typedef enum {
-    UDI_ERROR_LIBRARY, /// there was an internal library error
-    UDI_ERROR_REQUEST, /// the request was invalid
-    UDI_ERROR_NOMEM, /// memory could not be allocated
-    UDI_ERROR_NONE
+  UDI_ERROR_LIBRARY, /// there was an internal library error
+  UDI_ERROR_REQUEST, /// the request was invalid
+  UDI_ERROR_NOMEM,   /// memory could not be allocated
+  UDI_ERROR_NONE
 } udi_error_e;
 
 /**
  * Error structure
  */
 typedef struct udi_error_struct {
-    udi_error_e code;
+  udi_error_e code;
 
-    /**
-     * A heap allocated error string. It will be null if memory could not be allocated for the error message.
-     * Callers of UDI functions are expected to free this value.
-     */
-    const char *const msg;
+  /**
+   * A heap allocated error string. It will be null if memory could not be
+   * allocated for the error message. Callers of UDI functions are expected to
+   * free this value.
+   */
+  const char *const msg;
 } udi_error;
 
 /**
  * architecture of debuggee
  */
-typedef enum {
-    UDI_ARCH_X86 = 0,
-    UDI_ARCH_X86_64
-} udi_arch_e;
+typedef enum { UDI_ARCH_X86 = 0, UDI_ARCH_X86_64 } udi_arch_e;
 
 /**
  * The version of the protocol
  */
-typedef enum {
-    UDI_PROTOCOL_VERSION_1 = 1
-} udi_version_e;
+typedef enum { UDI_PROTOCOL_VERSION_1 = 1 } udi_version_e;
 
 /**
  * The running state for a thread
  */
 typedef enum {
-    UDI_TS_RUNNING = 0,
-    UDI_TS_SUSPENDED,
+  UDI_TS_RUNNING = 0,
+  UDI_TS_SUSPENDED,
 } udi_thread_state_e;
 
 /**
  * Registers
  */
 typedef enum {
-    // X86 registers
-    UDI_X86_MIN = 0,
-    UDI_X86_GS,
-    UDI_X86_FS,
-    UDI_X86_ES,
-    UDI_X86_DS,
-    UDI_X86_EDI,
-    UDI_X86_ESI,
-    UDI_X86_EBP,
-    UDI_X86_ESP,
-    UDI_X86_EBX,
-    UDI_X86_EDX,
-    UDI_X86_ECX,
-    UDI_X86_EAX,
-    UDI_X86_CS,
-    UDI_X86_SS,
-    UDI_X86_EIP,
-    UDI_X86_FLAGS,
-    UDI_X86_ST0,
-    UDI_X86_ST1,
-    UDI_X86_ST2,
-    UDI_X86_ST3,
-    UDI_X86_ST4,
-    UDI_X86_ST5,
-    UDI_X86_ST6,
-    UDI_X86_ST7,
-    UDI_X86_MAX,
+  // X86 registers
+  UDI_X86_MIN = 0,
+  UDI_X86_GS,
+  UDI_X86_FS,
+  UDI_X86_ES,
+  UDI_X86_DS,
+  UDI_X86_EDI,
+  UDI_X86_ESI,
+  UDI_X86_EBP,
+  UDI_X86_ESP,
+  UDI_X86_EBX,
+  UDI_X86_EDX,
+  UDI_X86_ECX,
+  UDI_X86_EAX,
+  UDI_X86_CS,
+  UDI_X86_SS,
+  UDI_X86_EIP,
+  UDI_X86_FLAGS,
+  UDI_X86_ST0,
+  UDI_X86_ST1,
+  UDI_X86_ST2,
+  UDI_X86_ST3,
+  UDI_X86_ST4,
+  UDI_X86_ST5,
+  UDI_X86_ST6,
+  UDI_X86_ST7,
+  UDI_X86_MAX,
 
-    //UDI_X86_64 registers
-    UDI_X86_64_MIN,
-    UDI_X86_64_R8,
-    UDI_X86_64_R9,
-    UDI_X86_64_R10,
-    UDI_X86_64_R11,
-    UDI_X86_64_R12,
-    UDI_X86_64_R13,
-    UDI_X86_64_R14,
-    UDI_X86_64_R15,
-    UDI_X86_64_RDI,
-    UDI_X86_64_RSI,
-    UDI_X86_64_RBP,
-    UDI_X86_64_RBX,
-    UDI_X86_64_RDX,
-    UDI_X86_64_RAX,
-    UDI_X86_64_RCX,
-    UDI_X86_64_RSP,
-    UDI_X86_64_RIP,
-    UDI_X86_64_CSGSFS,
-    UDI_X86_64_FLAGS,
-    UDI_X86_64_ST0,
-    UDI_X86_64_ST1,
-    UDI_X86_64_ST2,
-    UDI_X86_64_ST3,
-    UDI_X86_64_ST4,
-    UDI_X86_64_ST5,
-    UDI_X86_64_ST6,
-    UDI_X86_64_ST7,
-    UDI_X86_64_XMM0,
-    UDI_X86_64_XMM1,
-    UDI_X86_64_XMM2,
-    UDI_X86_64_XMM3,
-    UDI_X86_64_XMM4,
-    UDI_X86_64_XMM5,
-    UDI_X86_64_XMM6,
-    UDI_X86_64_XMM7,
-    UDI_X86_64_XMM8,
-    UDI_X86_64_XMM9,
-    UDI_X86_64_XMM10,
-    UDI_X86_64_XMM11,
-    UDI_X86_64_XMM12,
-    UDI_X86_64_XMM13,
-    UDI_X86_64_XMM14,
-    UDI_X86_64_XMM15,
-    UDI_X86_64_MAX
+  // UDI_X86_64 registers
+  UDI_X86_64_MIN,
+  UDI_X86_64_R8,
+  UDI_X86_64_R9,
+  UDI_X86_64_R10,
+  UDI_X86_64_R11,
+  UDI_X86_64_R12,
+  UDI_X86_64_R13,
+  UDI_X86_64_R14,
+  UDI_X86_64_R15,
+  UDI_X86_64_RDI,
+  UDI_X86_64_RSI,
+  UDI_X86_64_RBP,
+  UDI_X86_64_RBX,
+  UDI_X86_64_RDX,
+  UDI_X86_64_RAX,
+  UDI_X86_64_RCX,
+  UDI_X86_64_RSP,
+  UDI_X86_64_RIP,
+  UDI_X86_64_CSGSFS,
+  UDI_X86_64_FLAGS,
+  UDI_X86_64_ST0,
+  UDI_X86_64_ST1,
+  UDI_X86_64_ST2,
+  UDI_X86_64_ST3,
+  UDI_X86_64_ST4,
+  UDI_X86_64_ST5,
+  UDI_X86_64_ST6,
+  UDI_X86_64_ST7,
+  UDI_X86_64_XMM0,
+  UDI_X86_64_XMM1,
+  UDI_X86_64_XMM2,
+  UDI_X86_64_XMM3,
+  UDI_X86_64_XMM4,
+  UDI_X86_64_XMM5,
+  UDI_X86_64_XMM6,
+  UDI_X86_64_XMM7,
+  UDI_X86_64_XMM8,
+  UDI_X86_64_XMM9,
+  UDI_X86_64_XMM10,
+  UDI_X86_64_XMM11,
+  UDI_X86_64_XMM12,
+  UDI_X86_64_XMM13,
+  UDI_X86_64_XMM14,
+  UDI_X86_64_XMM15,
+  UDI_X86_64_MAX
 } udi_register_e;
 
 // Process management //
@@ -154,8 +150,8 @@ typedef enum {
  * Configuration structure for a process
  */
 typedef struct udi_proc_config_struct {
-    const char *root_dir;
-    const char *rt_lib_path;
+  const char *root_dir;
+  const char *rt_lib_path;
 } udi_proc_config;
 
 /*
@@ -173,11 +169,9 @@ typedef struct udi_proc_config_struct {
  * @return the result of the operation
  * @see execve on a UNIX system
  */
-udi_error create_process(const char *executable,
-                         const char * const *argv,
-                         const char * const *envp,
-                         const udi_proc_config *config,
-                         udi_process * const* process);
+udi_error create_process(const char *executable, const char *const *argv,
+                         const char *const *envp, const udi_proc_config *config,
+                         udi_process *const *process);
 
 /**
  * Tells the library that resources allocated for the process can be released
@@ -250,7 +244,8 @@ udi_error get_proc_architecture(udi_process *proc, udi_arch_e *output);
  * Gets whether the specified process is multithread capable
  *
  * @param proc          the process handle
- * @param output        the output. non-zero if the process is multithread capable
+ * @param output        the output. non-zero if the process is multithread
+ * capable
  *
  * @return the result of the operation
  */
@@ -268,7 +263,8 @@ udi_error get_initial_thread(udi_process *proc, udi_thread **output);
 
 /**
  * @param proc the process handle
- * @param output non-zero if the process has been continued, but events haven't been received yet
+ * @param output non-zero if the process has been continued, but events haven't
+ * been received yet
  *
  * @return the result of the operation
  */
@@ -276,7 +272,8 @@ udi_error is_running(udi_process *proc, int *output);
 
 /**
  * @param proc the process handle
- * @param output non-zero if the process is terminated and can no longer be interacted with
+ * @param output non-zero if the process is terminated and can no longer be
+ * interacted with
  *
  * @return the result of the operation
  */
@@ -326,14 +323,13 @@ udi_error get_state(udi_thread *thr, udi_thread_state_e *output);
 
 /**
  * Gets the next thread
- * 
+ *
  * @param thr the thread
  * @param output the next thread or NULL if no more threads
  *
  * @return the result of the operation
  */
-udi_error get_next_thread(udi_process *proc,
-                          udi_thread *thr,
+udi_error get_next_thread(udi_process *proc, udi_thread *thr,
                           udi_thread **output);
 
 // Thread control //
@@ -348,7 +344,8 @@ udi_error resume_thread(udi_thread *thr);
 /**
  * Suspend the specified thread.
  *
- * @return the result of the operation. it is an error to suspend all the threads in a process
+ * @return the result of the operation. it is an error to suspend all the
+ * threads in a process
  */
 udi_error suspend_thread(udi_thread *thr);
 
@@ -378,7 +375,7 @@ udi_error get_single_step(udi_thread *thr, int *output);
  *
  * @param proc          the process handle
  * @param addr          the address to place the breakpoint
- * 
+ *
  * @return the result of the operation
  */
 udi_error create_breakpoint(udi_process *proc, uint64_t addr);
@@ -428,9 +425,7 @@ udi_error delete_breakpoint(udi_process *proc, uint64_t addr);
  * @param size          the size of the data block to read
  * @param addr          the address of the data block to read
  */
-udi_error read_mem(udi_process *proc,
-                   uint8_t *dst,
-                   uint32_t size,
+udi_error read_mem(udi_process *proc, uint8_t *dst, uint32_t size,
                    uint64_t addr);
 
 /**
@@ -441,9 +436,7 @@ udi_error read_mem(udi_process *proc,
  * @param size          the size of the data block to write
  * @param addr          the address of the data block to write
  */
-udi_error write_mem(udi_process *proc,
-                    const uint8_t *src,
-                    uint32_t size,
+udi_error write_mem(udi_process *proc, const uint8_t *src, uint32_t size,
                     uint64_t addr);
 
 /**
@@ -493,30 +486,29 @@ udi_error get_next_instruction(udi_thread *thr, uint64_t *instr);
 /*
  * Event types
  */
-typedef enum
-{
-    UDI_EVENT_UNKNOWN = 0,
-    UDI_EVENT_ERROR,
-    UDI_EVENT_SIGNAL,
-    UDI_EVENT_BREAKPOINT,
-    UDI_EVENT_THREAD_CREATE,
-    UDI_EVENT_THREAD_DEATH,
-    UDI_EVENT_PROCESS_EXIT,
-    UDI_EVENT_PROCESS_FORK,
-    UDI_EVENT_PROCESS_EXEC,
-    UDI_EVENT_SINGLE_STEP,
-    UDI_EVENT_PROCESS_CLEANUP
+typedef enum {
+  UDI_EVENT_UNKNOWN = 0,
+  UDI_EVENT_ERROR,
+  UDI_EVENT_SIGNAL,
+  UDI_EVENT_BREAKPOINT,
+  UDI_EVENT_THREAD_CREATE,
+  UDI_EVENT_THREAD_DEATH,
+  UDI_EVENT_PROCESS_EXIT,
+  UDI_EVENT_PROCESS_FORK,
+  UDI_EVENT_PROCESS_EXEC,
+  UDI_EVENT_SINGLE_STEP,
+  UDI_EVENT_PROCESS_CLEANUP
 } udi_event_type_e;
 
 /**
  * Encapsulates an event in the debuggee
  */
 typedef struct udi_event_struct {
-    udi_event_type_e event_type;
-    udi_process *process;
-    udi_thread *thr;
-    void *event_data;
-    struct udi_event_struct *next_event;
+  udi_event_type_e event_type;
+  udi_process *process;
+  udi_thread *thr;
+  void *event_data;
+  struct udi_event_struct *next_event;
 } udi_event;
 
 /**
@@ -524,7 +516,7 @@ typedef struct udi_event_struct {
  * typeof(udi_event.event_data) == udi_event_error
  */
 typedef struct udi_event_error_struct {
-    const char *errstr;
+  const char *errstr;
 } udi_event_error;
 
 /**
@@ -532,7 +524,7 @@ typedef struct udi_event_error_struct {
  * typeof(udi_event.event_data) == udi_event_process_exit
  */
 typedef struct udi_event_process_exit_struct {
-    int32_t exit_code;
+  int32_t exit_code;
 } udi_event_process_exit;
 
 /**
@@ -540,7 +532,7 @@ typedef struct udi_event_process_exit_struct {
  * typeof(udi_event.event_data) == udi_event_process_fork
  */
 typedef struct udi_event_process_fork_struct {
-    uint32_t pid;
+  uint32_t pid;
 } udi_event_process_fork;
 
 /**
@@ -548,9 +540,9 @@ typedef struct udi_event_process_fork_struct {
  * typeof(udi_event.event_data) == udi_event_process_exec
  */
 typedef struct udi_event_process_exec_struct {
-    const char *path;
-    const char * const *argv;
-    const char * const *envp;
+  const char *path;
+  const char *const *argv;
+  const char *const *envp;
 } udi_event_process_exec;
 
 /**
@@ -558,7 +550,7 @@ typedef struct udi_event_process_exec_struct {
  * typeof(udi_event.event_data) == udi_event_breakpoint
  */
 typedef struct udi_event_breakpoint_struct {
-    uint64_t breakpoint_addr;
+  uint64_t breakpoint_addr;
 } udi_event_breakpoint;
 
 /**
@@ -566,7 +558,7 @@ typedef struct udi_event_breakpoint_struct {
  * typeof(udi_event.event_data) == udi_event_thread_create
  */
 typedef struct udi_event_thread_create_struct {
-    udi_thread *new_thr;
+  udi_thread *new_thr;
 } udi_event_thread_create;
 
 /**
@@ -574,8 +566,8 @@ typedef struct udi_event_thread_create_struct {
  * typeof(udi_event.event_data) == udi_event_signal
  */
 typedef struct udi_event_signal_struct {
-    uint64_t addr;
-    uint32_t sig;
+  uint64_t addr;
+  uint32_t sig;
 } udi_event_signal;
 
 /**
@@ -587,7 +579,8 @@ typedef struct udi_event_signal_struct {
  *
  * @return the result of the operation
  */
-udi_error wait_for_events(udi_process *procs[], int num_procs, udi_event **events);
+udi_error wait_for_events(udi_process *procs[], int num_procs,
+                          udi_event **events);
 
 /**
  * @return a string representation of the specified event type

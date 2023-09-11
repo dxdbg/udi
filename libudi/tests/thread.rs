@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011-2017, UDI Contributors
+// Copyright (c) 2011-2023, UDI Contributors
 // All rights reserved.
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
@@ -8,30 +8,16 @@
 //
 #![deny(warnings)]
 
-extern crate udi;
-
-#[macro_use]
-extern crate lazy_static;
-
 mod native_file_tests;
 mod utils;
 
-use udi::Result;
 use udi::EventData;
 use udi::ThreadState;
 
 const NUM_THREADS: u8 = 10;
 
 #[test]
-fn thread() {
-    if let Err(e) = thread_test() {
-        utils::print_error(e);
-        panic!("thread test failed");
-    }
-}
-
-fn thread_test() -> Result<()> {
-
+fn thread() -> Result<(), udi::Error> {
     let metadata = native_file_tests::get_test_metadata();
     let binary_path = metadata.workerthreads_path().to_str().unwrap();
     let thread_break_addr = metadata.thread_break_addr();
@@ -40,12 +26,9 @@ fn thread_test() -> Result<()> {
 
     let config = udi::ProcessConfig::new(None, utils::rt_lib_path());
     let envp = Vec::new();
-    let argv = vec![ NUM_THREADS.to_string() ];
+    let argv = vec![NUM_THREADS.to_string()];
 
-    let proc_ref = udi::create_process(binary_path,
-                                       &argv,
-                                       &envp,
-                                       &config)?;
+    let proc_ref = udi::create_process(binary_path, &argv, &envp, &config)?;
 
     let thr_ref;
     {
@@ -72,18 +55,22 @@ fn thread_test() -> Result<()> {
     // Wait for worker threads to be created
     utils::handle_proc_events(&proc_ref, |e| {
         match e.data {
-            EventData::Breakpoint{ addr } => {
+            EventData::Breakpoint { addr } => {
                 if addr == start_notification_addr {
                     start_received = true;
-                    e.thread.lock().unwrap().suspend().expect("Failed to suspend main thread");
+                    e.thread
+                        .lock()
+                        .unwrap()
+                        .suspend()
+                        .expect("Failed to suspend main thread");
                 } else {
-                    panic!(format!("Received unexpected breakpoint event {:?}", e.data))
+                    panic!("Received unexpected breakpoint event {:?}", e.data)
                 }
-            },
-            EventData::ThreadCreate{ .. } => {
+            }
+            EventData::ThreadCreate { .. } => {
                 threads_created += 1;
-            },
-            _ => panic!(format!("Unexpected event {:?}", e.data))
+            }
+            _ => panic!("Unexpected event {:?}", e.data),
         }
 
         start_received && threads_created == NUM_THREADS
@@ -98,18 +85,26 @@ fn thread_test() -> Result<()> {
 
     utils::handle_proc_events(&proc_ref, |e| {
         match e.data {
-            EventData::Breakpoint{ addr } => {
+            EventData::Breakpoint { addr } => {
                 if addr == term_notification_addr {
                     term_received = true;
-                    e.thread.lock().unwrap().suspend().expect("Failed to suspend main thread");
+                    e.thread
+                        .lock()
+                        .unwrap()
+                        .suspend()
+                        .expect("Failed to suspend main thread");
                 } else if addr == thread_break_addr {
                     thread_breaks_received += 1;
-                    e.thread.lock().unwrap().suspend().expect("Failed to suspend worker thread");
+                    e.thread
+                        .lock()
+                        .unwrap()
+                        .suspend()
+                        .expect("Failed to suspend worker thread");
                 } else {
-                    panic!(format!("Unexpected breakpoint event {:?}", e.data));
+                    panic!("Unexpected breakpoint event {:?}", e.data);
                 }
-            },
-            _ => panic!(format!("Unexpected event {:?}", e.data))
+            }
+            _ => panic!("Unexpected event {:?}", e.data),
         }
 
         term_received && thread_breaks_received == NUM_THREADS
@@ -129,8 +124,8 @@ fn thread_test() -> Result<()> {
         match e.data {
             EventData::ThreadDeath => {
                 thread_deaths_received += 1;
-            },
-            _ => panic!(format!("Unexpected event {:?}", e.data))
+            }
+            _ => panic!("Unexpected event {:?}", e.data),
         }
 
         thread_deaths_received == NUM_THREADS

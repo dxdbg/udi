@@ -74,12 +74,14 @@ int main() {
     struct cbor_pair field1_pair;
     field1_pair.key = cbor_move(cbor_build_string("field1"));
     field1_pair.value = cbor_move(cbor_build_uint32(13));
-    cbor_map_add(root, field1_pair);
+    bool add_result = cbor_map_add(root, field1_pair);
+    assert(add_result);
 
     struct cbor_pair field2_pair;
     field2_pair.key = cbor_move(cbor_build_string("field2"));
     field2_pair.value = cbor_move(cbor_build_string("test string"));
-    cbor_map_add(root, field2_pair);
+    add_result = cbor_map_add(root, field2_pair);
+    assert(add_result);
 
     cbor_mutable_data buffer = NULL;
     size_t buffer_size = 0;

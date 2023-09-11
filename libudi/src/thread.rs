@@ -1,35 +1,33 @@
 //
-// Copyright (c) 2011-2017, UDI Contributors
+// Copyright (c) 2011-2023, UDI Contributors
 // All rights reserved.
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-#![deny(warnings)]
 #![allow(unused_variables)]
 
 use ::std::fs::File;
 use ::std::io::Write;
 
 use super::errors::*;
-use super::Thread;
-use super::protocol::Register;
 use super::protocol::request;
 use super::protocol::response;
 use super::protocol::Architecture;
+use super::protocol::Register;
+use super::Thread;
 use super::UserData;
 
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
 impl Thread {
-
-    pub fn set_user_data(&mut self, user_data: Box<UserData>) {
+    pub fn set_user_data(&mut self, user_data: Box<dyn UserData>) {
         self.user_data = Some(user_data);
     }
 
-    pub fn get_user_data(&mut self) -> Option<&mut Box<UserData>> {
+    pub fn get_user_data(&mut self) -> Option<&mut Box<dyn UserData>> {
         self.user_data.as_mut()
     }
 
@@ -41,16 +39,16 @@ impl Thread {
         self.state
     }
 
-    pub fn get_pc(&mut self) -> Result<u64> {
+    pub fn get_pc(&mut self) -> Result<u64, Error> {
         let reg = match self.architecture {
             Architecture::X86 => Register::X86_EIP,
-            Architecture::X86_64 => Register::X86_64_RIP
+            Architecture::X86_64 => Register::X86_64_RIP,
         };
 
         self.read_register(reg)
     }
 
-    pub fn set_single_step(&mut self, setting: bool) -> Result<()> {
+    pub fn set_single_step(&mut self, setting: bool) -> Result<(), Error> {
         let msg = request::SingleStep::new(setting);
 
         let resp: response::SingleStep = self.send_request(&msg)?;
@@ -64,30 +62,30 @@ impl Thread {
         self.single_step
     }
 
-    pub fn get_next_instruction(&mut self) -> Result<u64> {
-        let msg = request::NextInstruction::new();
+    pub fn get_next_instruction(&mut self) -> Result<u64, Error> {
+        let msg = request::NextInstruction::default();
 
         let resp: response::NextInstruction = self.send_request(&msg)?;
 
         Ok(resp.addr)
     }
 
-    pub fn suspend(&mut self) -> Result<()> {
-        let msg = request::ThreadSuspend::new();
+    pub fn suspend(&mut self) -> Result<(), Error> {
+        let msg = request::ThreadSuspend::default();
 
         self.send_request_no_data(&msg)?;
 
         Ok(())
     }
 
-    pub fn resume(&mut self) -> Result<()> {
-        let msg = request::ThreadResume::new();
+    pub fn resume(&mut self) -> Result<(), Error> {
+        let msg = request::ThreadResume::default();
 
         self.send_request_no_data(&msg)?;
         Ok(())
     }
 
-    pub fn read_register(&mut self, reg: Register) -> Result<u64> {
+    pub fn read_register(&mut self, reg: Register) -> Result<u64, Error> {
         let msg = request::ReadRegister::new(reg as u32);
 
         let resp: response::ReadRegister = self.send_request(&msg)?;
@@ -95,7 +93,7 @@ impl Thread {
         Ok(resp.value)
     }
 
-    pub fn write_register(&mut self, reg: Register, value: u64) -> Result<()> {
+    pub fn write_register(&mut self, reg: Register, value: u64) -> Result<(), Error> {
         let msg = request::WriteRegister::new(reg as u32, value);
 
         self.send_request_no_data(&msg)?;
@@ -103,14 +101,18 @@ impl Thread {
         Ok(())
     }
 
-    fn send_request<T: DeserializeOwned, S: request::RequestType + Serialize>(&mut self, msg: &S)
-            -> Result<T> {
+    fn send_request<T: DeserializeOwned, S: request::RequestType + Serialize>(
+        &mut self,
+        msg: &S,
+    ) -> Result<T, Error> {
         let ctx = match self.file_context.as_mut() {
             Some(ctx) => ctx,
             None => {
-                let msg = format!("Thread {:?} terminated, cannot performed requested operation",
-                                  self.tid);
-                return Err(ErrorKind::Request(msg).into());
+                let msg = format!(
+                    "Thread {:?} terminated, cannot performed requested operation",
+                    self.tid
+                );
+                return Err(Error::Request(msg));
             }
         };
 
@@ -119,14 +121,18 @@ impl Thread {
         response::read::<T, File>(&mut ctx.response_file)
     }
 
-    fn send_request_no_data<S: request::RequestType + Serialize>(&mut self, msg: &S)
-            -> Result<()> {
+    fn send_request_no_data<S: request::RequestType + Serialize>(
+        &mut self,
+        msg: &S,
+    ) -> Result<(), Error> {
         let ctx = match self.file_context.as_mut() {
             Some(ctx) => ctx,
             None => {
-                let msg = format!("Thread {:?} terminated, cannot performed requested operation",
-                                  self.tid);
-                return Err(ErrorKind::Request(msg).into());
+                let msg = format!(
+                    "Thread {:?} terminated, cannot performed requested operation",
+                    self.tid
+                );
+                return Err(Error::Request(msg));
             }
         };
 

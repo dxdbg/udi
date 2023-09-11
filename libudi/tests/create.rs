@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011-2017, UDI Contributors
+// Copyright (c) 2011-2023, UDI Contributors
 // All rights reserved.
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
@@ -8,36 +8,21 @@
 //
 #![deny(warnings)]
 
-extern crate udi;
-
-#[macro_use]
-extern crate lazy_static;
-
 mod native_file_tests;
 mod utils;
 
-use udi::Result;
-
 #[test]
-fn create() {
-    if let Err(e) = create_test() {
-        utils::print_error(e);
-        panic!("create test failed");
-    }
-}
-
-fn create_test() -> Result<()> {
-
+fn create() -> Result<(), udi::Error> {
     let config = udi::ProcessConfig::new(None, utils::rt_lib_path());
     let argv = Vec::new();
     let envp = Vec::new();
 
-    let exec_path = native_file_tests::get_test_metadata().simple_path().to_str().unwrap();
+    let exec_path = native_file_tests::get_test_metadata()
+        .simple_path()
+        .to_str()
+        .unwrap();
 
-    let proc_ref = udi::create_process(exec_path,
-                                       &argv,
-                                       &envp,
-                                       &config)?;
+    let proc_ref = udi::create_process(exec_path, &argv, &envp, &config)?;
 
     let thr_ref;
     {

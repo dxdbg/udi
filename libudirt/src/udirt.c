@@ -505,8 +505,6 @@ static const char * const HEX_PREFIX = "0x";
 static const char * const NEG = "-";
 static const char * const SPACE = " ";
 
-typedef void (*format_cb)(void *ctx, const void *data, size_t len);
-
 static
 void write_log(void *ctx, const void *data, size_t len) {
     USE(ctx);

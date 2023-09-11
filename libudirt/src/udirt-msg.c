@@ -43,11 +43,7 @@ struct cbor_read_state {
 
 void init_req_handling()
 {
-#if CBOR_CUSTOM_ALLOC
     cbor_set_allocs(udi_malloc, udi_realloc, udi_free);
-#else
-#error libcbor custom allocated not supported
-#endif
 }
 
 static
@@ -74,7 +70,7 @@ int read_cbor_items(udirt_fd fd,
             buffer = (uint8_t *)udi_realloc(buffer, buflen);
             if (buffer == NULL) {
                 udi_set_errmsg(errmsg, "failed to allocate memory");
-                return ENOMEM;
+                return -1;
             }
             maxbuflen = buflen;
         }
@@ -113,7 +109,6 @@ int read_cbor_items(udirt_fd fd,
                                            &state);
 
         switch (decode_result.status) {
-            case CBOR_DECODER_EBUFFER:
             case CBOR_DECODER_ERROR:
             {
                 result = -1;
@@ -122,7 +117,7 @@ int read_cbor_items(udirt_fd fd,
             }
             case CBOR_DECODER_NEDATA:
             {
-                buflen += decode_result.required;
+                buflen = decode_result.required;
                 break;
             }
             case CBOR_DECODER_FINISHED:
@@ -714,7 +709,8 @@ int read_handler(udirt_fd req_fd, udirt_fd resp_fd, udi_errmsg *errmsg) {
     struct cbor_pair mem_map_item;
     mem_map_item.key = cbor_move(cbor_build_string("data"));
     mem_map_item.value = cbor_move(mem_item);
-    cbor_map_add(map, mem_map_item);
+    bool add_result = cbor_map_add(map, mem_map_item);
+    assert(add_result);
 
     result = write_response(resp_fd,
                             UDI_RESP_VALID,
@@ -815,14 +811,17 @@ int state_handler(udirt_fd req_fd, udirt_fd resp_fd, udi_errmsg *errmsg) {
         struct cbor_pair tid_pair;
         tid_pair.key = cbor_move(cbor_build_string("tid"));
         tid_pair.value = cbor_move(cbor_build_uint64(get_thread_id(thr)));
-        cbor_map_add(state_map, tid_pair);
+        bool add_result = cbor_map_add(state_map, tid_pair);
+        assert(add_result);
 
         struct cbor_pair state_pair;
         state_pair.key = cbor_move(cbor_build_string("state"));
         state_pair.value = cbor_move(cbor_build_uint16(get_thread_state(thr)));
-        cbor_map_add(state_map, state_pair);
+        add_result = cbor_map_add(state_map, state_pair);
+        assert(add_result);
 
-        cbor_array_push(array, cbor_move(state_map));
+        add_result = cbor_array_push(array, cbor_move(state_map));
+        assert(add_result);
 
         thr = get_next_thread(thr);
     }
@@ -832,7 +831,8 @@ int state_handler(udirt_fd req_fd, udirt_fd resp_fd, udi_errmsg *errmsg) {
     struct cbor_pair states_pair;
     states_pair.key = cbor_move(cbor_build_string("states"));
     states_pair.value = cbor_move(array);
-    cbor_map_add(map, states_pair);
+    bool add_result = cbor_map_add(map, states_pair);
+    assert(add_result);
 
     return write_response(resp_fd, UDI_RESP_VALID, UDI_REQ_STATE, map, errmsg);
 }
@@ -1081,7 +1081,8 @@ int write_error_response(udirt_fd resp_fd, udi_request_type_e req_type, udi_errm
     struct cbor_pair msg_pair;
     msg_pair.key = cbor_move(cbor_build_string("msg"));
     msg_pair.value = cbor_move(cbor_build_string(errmsg->msg));
-    cbor_map_add(map, msg_pair);
+    bool add_result = cbor_map_add(map, msg_pair);
+    assert(add_result);
 
     int result = write_response(resp_fd, UDI_RESP_ERROR, req_type, map, &local_errmsg);
     if (result != RESULT_SUCCESS) {
@@ -1129,22 +1130,26 @@ int init_handler(uint64_t tid, udirt_fd resp_fd, udi_errmsg *errmsg) {
     struct cbor_pair v_pair;
     v_pair.key = cbor_move(cbor_build_string("v"));
     v_pair.value = cbor_move(cbor_build_uint32(get_protocol_version()));
-    cbor_map_add(map, v_pair);
+    bool add_result = cbor_map_add(map, v_pair);
+    assert(add_result);
 
     struct cbor_pair arch_pair;
     arch_pair.key = cbor_move(cbor_build_string("arch"));
     arch_pair.value = cbor_move(cbor_build_uint16(get_architecture()));
-    cbor_map_add(map, arch_pair);
+    add_result = cbor_map_add(map, arch_pair);
+    assert(add_result);
 
     struct cbor_pair mt_pair;
     mt_pair.key = cbor_move(cbor_build_string("mt"));
     mt_pair.value = cbor_move(cbor_build_bool(get_multithread_capable()));
-    cbor_map_add(map, mt_pair);
+    add_result = cbor_map_add(map, mt_pair);
+    assert(add_result);
 
     struct cbor_pair tid_pair;
     tid_pair.key = cbor_move(cbor_build_string("tid"));
     tid_pair.value = cbor_move(cbor_build_uint64(tid));
-    cbor_map_add(map, tid_pair);
+    add_result = cbor_map_add(map, tid_pair);
+    assert(add_result);
 
     return write_response(resp_fd, UDI_RESP_VALID, UDI_REQ_INIT, map, errmsg);
 }
@@ -1246,7 +1251,8 @@ int read_register_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_er
     struct cbor_pair value_pair;
     value_pair.key = cbor_move(cbor_build_string("value"));
     value_pair.value = cbor_move(cbor_build_uint64(value));
-    cbor_map_add(map, value_pair);
+    bool add_result = cbor_map_add(map, value_pair);
+    assert(add_result);
 
     return write_response(resp_fd, UDI_RESP_VALID, UDI_REQ_READ_REGISTER, map, errmsg);
 }
@@ -1350,12 +1356,14 @@ int thr_state_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_errmsg
     struct cbor_pair tid_pair;
     tid_pair.key = cbor_move(cbor_build_string("tid"));
     tid_pair.value = cbor_move(cbor_build_uint64(get_thread_id(thr)));
-    cbor_map_add(map, tid_pair);
+    bool add_result = cbor_map_add(map, tid_pair);
+    assert(add_result);
 
     struct cbor_pair state_pair;
     state_pair.key = cbor_move(cbor_build_string("state"));
     state_pair.value = cbor_move(cbor_build_uint16(get_thread_state(thr)));
-    cbor_map_add(map, state_pair);
+    add_result = cbor_map_add(map, state_pair);
+    assert(add_result);
 
     return write_response(resp_fd, UDI_RESP_VALID, UDI_REQ_STATE, map, errmsg);
 }
@@ -1387,7 +1395,8 @@ int next_instr_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_errms
     struct cbor_pair addr_pair;
     addr_pair.key = cbor_move(cbor_build_string("addr"));
     addr_pair.value = cbor_move(cbor_build_uint64(address));
-    cbor_map_add(map, addr_pair);
+    bool add_result = cbor_map_add(map, addr_pair);
+    assert(add_result);
 
     return write_response(resp_fd, UDI_RESP_VALID, UDI_REQ_NEXT_INSTRUCTION, map, errmsg);
 }
@@ -1470,7 +1479,8 @@ int single_step_handler(udirt_fd req_fd, udirt_fd resp_fd, thread *thr, udi_errm
     struct cbor_pair value_pair;
     value_pair.key = cbor_move(cbor_build_string("value"));
     value_pair.value = cbor_move(cbor_build_bool(prev_setting));
-    cbor_map_add(map, value_pair);
+    bool add_result = cbor_map_add(map, value_pair);
+    assert(add_result);
 
     return write_response(resp_fd, UDI_RESP_VALID, UDI_REQ_SINGLE_STEP, map, errmsg);
 }
@@ -1696,7 +1706,8 @@ int decode_breakpoint(thread *thr,
     struct cbor_pair addr_pair;
     addr_pair.key = cbor_move(cbor_build_string("addr"));
     addr_pair.value = cbor_move(cbor_build_uint64(bp->address));
-    cbor_map_add(map, addr_pair);
+    bool add_result = cbor_map_add(map, addr_pair);
+    assert(add_result);
 
     result = write_event(events_handle,
                          UDI_EVENT_BREAKPOINT,
@@ -1731,7 +1742,8 @@ int handle_exit_event(uint64_t tid, int32_t status, udi_errmsg *errmsg) {
     struct cbor_pair code_pair;
     code_pair.key = cbor_move(cbor_build_string("code"));
     code_pair.value = cbor_move(code);
-    cbor_map_add(map, code_pair);
+    bool add_result = cbor_map_add(map, code_pair);
+    assert(add_result);
 
     return write_event(events_handle, UDI_EVENT_PROCESS_EXIT, tid, map, errmsg);
 }
@@ -1743,7 +1755,8 @@ int handle_fork_event(uint64_t tid, uint32_t pid, udi_errmsg *errmsg) {
     struct cbor_pair pid_pair;
     pid_pair.key = cbor_move(cbor_build_string("pid"));
     pid_pair.value = cbor_move(cbor_build_uint32(pid));
-    cbor_map_add(map, pid_pair);
+    bool add_result = cbor_map_add(map, pid_pair);
+    assert(add_result);
 
     return write_event(events_handle, UDI_EVENT_PROCESS_FORK, tid, map, errmsg);
 }
@@ -1757,7 +1770,8 @@ int handle_thread_create_event(uint64_t creator_tid,
     struct cbor_pair tid_pair;
     tid_pair.key = cbor_move(cbor_build_string("tid"));
     tid_pair.value = cbor_move(cbor_build_uint64(tid));
-    cbor_map_add(map, tid_pair);
+    bool add_result = cbor_map_add(map, tid_pair);
+    assert(add_result);
 
     return write_event(events_handle, UDI_EVENT_THREAD_CREATE, creator_tid, map, errmsg);
 }
@@ -1773,7 +1787,8 @@ int handle_error_event(uint64_t tid, udi_errmsg *errmsg) {
     struct cbor_pair error_pair;
     error_pair.key = cbor_move(cbor_build_string("msg"));
     error_pair.value = cbor_move(cbor_build_string(errmsg->msg));
-    cbor_map_add(map, error_pair);
+    bool add_result = cbor_map_add(map, error_pair);
+    assert(add_result);
 
     return write_event(events_handle, UDI_EVENT_ERROR, tid, map, errmsg);
 }

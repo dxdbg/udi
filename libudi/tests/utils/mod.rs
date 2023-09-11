@@ -1,27 +1,25 @@
 //
-// Copyright (c) 2011-2017, UDI Contributors
+// Copyright (c) 2011-2023, UDI Contributors
 // All rights reserved.
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-#![deny(warnings)]
 #![allow(dead_code)]
 
-use ::std::sync::{Mutex, Arc};
+use ::std::sync::{Arc, Mutex};
 
 use ::std::collections::HashSet;
 
 use ::std::path::PathBuf;
 
+use udi::wait_for_events;
+use udi::Event;
+use udi::EventData;
 use udi::Process;
 use udi::Thread;
 use udi::ThreadState;
-use udi::EventData;
-use udi::wait_for_events;
-use udi::Event;
-use udi::Error;
 
 pub fn rt_lib_path() -> Option<String> {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -34,54 +32,57 @@ pub fn rt_lib_path() -> Option<String> {
     Some(path.to_str().unwrap().to_owned())
 }
 
-pub fn print_error(e: Error) {
-    println!("test failed: {}", e);
+pub fn wait_for_exit(
+    process: &Arc<Mutex<Process>>,
+    thread: &Arc<Mutex<Thread>>,
+    expected_status: i32,
+) {
+    wait_for_event(
+        process,
+        thread,
+        &EventData::ProcessExit {
+            code: expected_status,
+        },
+    );
 
-    for e in e.iter().skip(1) {
-        println!("caused by: {}", e);
-    }
-
-    if let Some(backtrace) = e.backtrace() {
-        println!("backtrace: {:?}", backtrace);
-    }
-}
-
-pub fn wait_for_exit(process: &Arc<Mutex<Process>>,
-                     thread: &Arc<Mutex<Thread>>,
-                     expected_status: i32) {
-
-    wait_for_event(process, thread, &EventData::ProcessExit{ code: expected_status });
-
-    process.lock().expect("Failed unlock process").continue_process().expect("Continue failed");
+    process
+        .lock()
+        .expect("Failed unlock process")
+        .continue_process()
+        .expect("Continue failed");
 
     wait_for_event(process, thread, &EventData::ProcessCleanup);
 }
 
-pub fn wait_for_event(process: &Arc<Mutex<Process>>,
-                      thread: &Arc<Mutex<Thread>>,
-                      expected_event: &EventData) {
-
-    let procs = vec![ process.clone() ];
+pub fn wait_for_event(
+    process: &Arc<Mutex<Process>>,
+    thread: &Arc<Mutex<Thread>>,
+    expected_event: &EventData,
+) {
+    let procs = vec![process.clone()];
 
     let events = wait_for_events(&procs).expect("Failed to wait for events");
     assert_eq!(1, events.len());
 
     let event = &events[0];
     assert_eq!(*expected_event, event.data);
-    assert_proc_eq(&process, &event.process);
-    assert_thr_eq(&thread, &event.thread);
+    assert_proc_eq(process, &event.process);
+    assert_thr_eq(thread, &event.thread);
 }
 
-pub fn handle_proc_events<F>(process: &Arc<Mutex<Process>>,
-                             callback: F) where F: FnMut(&Event) -> bool {
-    let procs = vec![ process.clone() ];
+pub fn handle_proc_events<F>(process: &Arc<Mutex<Process>>, callback: F)
+where
+    F: FnMut(&Event) -> bool,
+{
+    let procs = vec![process.clone()];
 
     handle_events(&procs, callback);
 }
 
-pub fn handle_events<F>(procs: &Vec<Arc<Mutex<Process>>>,
-                        mut callback: F) where F: FnMut(&Event) -> bool {
-
+pub fn handle_events<F>(procs: &Vec<Arc<Mutex<Process>>>, mut callback: F)
+where
+    F: FnMut(&Event) -> bool,
+{
     let mut complete = false;
     while !complete {
         let events = wait_for_events(procs).expect("Failed to wait for events");
@@ -93,14 +94,14 @@ pub fn handle_events<F>(procs: &Vec<Arc<Mutex<Process>>>,
                 Some(event) => {
                     event_procs.insert(event.process.lock().unwrap().get_pid());
                     complete = callback(event);
-                },
+                }
                 None => {
                     break;
                 }
             }
         }
 
-        if let Some(_) = event_iter.next() {
+        if event_iter.next().is_some() {
             panic!("Callback did not consume all possible events");
         }
 
@@ -108,7 +109,9 @@ pub fn handle_events<F>(procs: &Vec<Arc<Mutex<Process>>>,
             for proc_ref in procs.iter() {
                 let mut process = proc_ref.lock().unwrap();
                 if event_procs.contains(&process.get_pid()) {
-                    process.continue_process().expect("Failed to continue process");
+                    process
+                        .continue_process()
+                        .expect("Failed to continue process");
                 }
             }
         }

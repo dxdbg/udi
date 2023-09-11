@@ -28,8 +28,10 @@ if not udibuild.IsUnix():
     topenv['LIBPREFIX'] = ''
     topenv['LIBSUFFIX'] = '.lib'
 
+if udibuild.IsUnix():
+    topenv['CC'] = 'clang'
 
-if topenv['CC'] == 'gcc':
+if topenv['CC'] == 'gcc' or topenv['CC'] == 'clang':
     # C compiler flags
     topenv.Append(CFLAGS = "-Wall -Werror -fPIC -std=gnu99 -g")
 
@@ -84,7 +86,7 @@ if 'configure' in COMMAND_LINE_TARGETS:
 
     if udibuild.IsX86():
         if not conf.CheckLibWithHeader('udis86', 'udis86.h', 'c'):
-            print 'Did not find libudis86'
+            print('Did not find libudis86')
             Exit(1)
 
     if not conf.CheckLibWithHeader('cbor', 'cbor.h', 'c'):

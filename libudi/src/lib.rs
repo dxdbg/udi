@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2017, UDI Contributors
+// Copyright (c) 2011-2023, UDI Contributors
 // All rights reserved.
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
@@ -8,45 +8,38 @@
 #![deny(warnings)]
 #![recursion_limit = "1024"]
 
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate downcast_rs;
-#[macro_use]
-extern crate derive_error_chain;
-
 use std::fs;
-use std::sync::{Mutex, Arc};
+use std::sync::{Arc, Mutex};
 
 use downcast_rs::Downcast;
 
-pub mod protocol;
-mod errors;
 mod create;
-mod process;
-mod thread;
+mod errors;
 mod events;
+mod process;
+pub mod protocol;
+mod thread;
 
-pub use errors::*;
 pub use create::create_process;
 pub use create::ProcessConfig;
-pub use events::Event;
+pub use errors::*;
 pub use events::wait_for_events;
+pub use events::Event;
 pub use protocol::event::EventData;
 pub use protocol::Architecture;
 pub use protocol::Register;
 
 pub trait UserData: Downcast + std::fmt::Debug {}
-impl_downcast!(UserData);
+downcast_rs::impl_downcast!(UserData);
 
 #[derive(Debug)]
 struct ProcessFileContext {
     request_file: fs::File,
     response_file: fs::File,
-    events_file: fs::File
+    events_file: fs::File,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Process {
     pid: u32,
@@ -56,23 +49,24 @@ pub struct Process {
     multithread_capable: bool,
     running: bool,
     terminating: bool,
-    user_data: Option<Box<UserData>>,
+    user_data: Option<Box<dyn UserData>>,
     threads: Vec<Arc<Mutex<Thread>>>,
-    child: create::UdiChild
+    child: create::UdiChild,
 }
 
-#[derive(Debug,Copy,Clone,PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ThreadState {
     Running,
-    Suspended
+    Suspended,
 }
 
 #[derive(Debug)]
 struct ThreadFileContext {
     request_file: fs::File,
-    response_file: fs::File
+    response_file: fs::File,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Thread {
     initial: bool,
@@ -81,5 +75,5 @@ pub struct Thread {
     single_step: bool,
     state: ThreadState,
     architecture: Architecture,
-    user_data: Option<Box<UserData>>
+    user_data: Option<Box<dyn UserData>>,
 }

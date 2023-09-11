@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011-2017, UDI Contributors
+// Copyright (c) 2011-2023, UDI Contributors
 // All rights reserved.
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
@@ -8,37 +8,22 @@
 //
 #![deny(warnings)]
 
-extern crate udi;
-
-#[macro_use]
-extern crate lazy_static;
-
 mod native_file_tests;
 mod utils;
 
-use udi::Result;
-
 #[test]
-fn breakpoint() {
-    if let Err(e) = breakpoint_test() {
-        utils::print_error(e);
-        panic!("breakpoint test failed");
-    }
-}
-
-fn breakpoint_test() -> Result<()> {
-
+fn breakpoint() -> Result<(), udi::Error> {
     let addr = native_file_tests::get_test_metadata().simple_function1_addr();
-    let exec_path = native_file_tests::get_test_metadata().simple_path().to_str().unwrap();
+    let exec_path = native_file_tests::get_test_metadata()
+        .simple_path()
+        .to_str()
+        .unwrap();
 
     let config = udi::ProcessConfig::new(None, utils::rt_lib_path());
     let argv = Vec::new();
     let envp = Vec::new();
 
-    let proc_ref = udi::create_process(exec_path,
-                                       &argv,
-                                       &envp,
-                                       &config)?;
+    let proc_ref = udi::create_process(exec_path, &argv, &envp, &config)?;
     let thr_ref;
     {
         let mut process = proc_ref.lock()?;
@@ -49,7 +34,7 @@ fn breakpoint_test() -> Result<()> {
         process.continue_process()?;
     }
 
-    utils::wait_for_event(&proc_ref, &thr_ref, &udi::EventData::Breakpoint{ addr });
+    utils::wait_for_event(&proc_ref, &thr_ref, &udi::EventData::Breakpoint { addr });
 
     let brkpt_addr = thr_ref.lock()?.get_pc()?;
     assert_eq!(addr, brkpt_addr);

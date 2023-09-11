@@ -28,7 +28,8 @@ else:
 
 read_test_req_srcs = [
     'read-test-req.c',
-    mock_lib_obj
+    mock_lib_obj,
+    mock_lib_obj_sys
 ]
 
 read_test_req_bin = bin_env.Program('read-test-req', read_test_req_srcs, LIBS=libs)

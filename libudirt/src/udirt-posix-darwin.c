@@ -18,3 +18,12 @@
 uint64_t get_kernel_thread_id() {
     return (uint64_t)syscall(SYS_thread_selfid);
 }
+
+void udi_log_error(format_cb cb, void *ctx, int error) {
+    char buf[64];
+    memset(buf, 0, 64);
+
+    strerror_r(error, buf, 64);
+
+    udi_log_string(cb, ctx, result);
+}

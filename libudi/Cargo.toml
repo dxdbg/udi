@@ -1,23 +1,23 @@
 [package]
 name = "udi"
 version = "0.0.1"
-authors = ["Dan McNulty <dkmcnulty@gmail.com>"]
+authors = ["Dan McNulty <mcnulty@users.noreply.github.com>"]
 description = """
 This experimental library implements the debugger side of the UDI protocol
 by sending requests, receiving responses and events using a pseudo-filesystem for transport."""
 homepage = "https://github.com/dxdbg/udi"
 repository = "https://github.com/dxdbg/udi.git"
 license = "MPL-2.0"
-exclude = [ "*.iml" ]
+edition = "2021"
 
 [dependencies]
-serde =  "1.0"
+ciborium = "0.2"
+downcast-rs = "1.2"
+mio = { version = "0.8", features = ["os-ext"] }
+serde = "1.0"
 serde_derive = "1.0"
-serde_cbor = "0.6"
-mio = "0.6.6"
-downcast-rs = "= 1.0.1"
-error-chain = "0.11.x"
-derive-error-chain = "0.11.0"
+serde_repr = "0.1"
+thiserror = "1.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = [
@@ -27,22 +27,15 @@ winapi = { version = "0.3", features = [
     "memoryapi",
     "errhandlingapi",
     "winbase",
-    "minwinbase"
-    ] }
+    "minwinbase",
+] }
 
 [target.'cfg(unix)'.dependencies]
-users = "0.5.2"
+uzers = "0.11.2"
 
 [dev-dependencies]
-native-file-tests = "0.1.0"
+native-file-tests = { git = "https://github.com/dxdbg/native-file-tests.git" }
 lazy_static = "1.1.0"
 
-[patch.crates-io]
-native-file-tests = { path = "../../native-file-tests/rust-binding" }
-pdb = { git = "https://github.com/mcnulty/pdb.git", branch = "procedure-symbol" }
-
 [badges]
-
-appveyor = { repository = "mcnulty/native-file-tests" }
-travis-ci = { repository = "dxdbg/native-file-tests" }
 maintenance = { status = "experimental" }
