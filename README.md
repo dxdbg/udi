@@ -37,11 +37,6 @@ or modification to the native application being debugged.
 The [libudi-c](libudi-c/README.md) library, written in Rust, is a wrapper
 around libudi that provides a C ABI API to libudi.
 
-### libudi-java ###
-
-The [libudi-java](libudi-java/README.md) library, written in Java, is a wrapper
-around libudi-c that provides a Java API to libudi.
-
 ## License ##
 
 UDI is licensed under the [MPL 2](https://www.mozilla.org/MPL/2.0/).
