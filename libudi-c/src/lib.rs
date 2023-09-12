@@ -1229,40 +1229,37 @@ unsafe fn handle_thread_create(
     process: *const udi_process,
     event: &udi::Event,
 ) -> Result<(), udi_error> {
-    match event.data {
-        udi::EventData::ThreadCreate { tid } => {
-            let internal_process = try_unsafe!(event.process.lock());
+    if let udi::EventData::ThreadCreate { tid } = event.data {
+        let internal_process = try_unsafe!(event.process.lock());
 
-            for handle in internal_process.threads() {
-                let internal_thread = try_unsafe!(handle.lock());
-                if internal_thread.get_tid() == tid {
-                    let mut thr: *mut udi_thread = (*process).thr as *mut udi_thread;
+        for handle in internal_process.threads() {
+            let internal_thread = try_unsafe!(handle.lock());
+            if internal_thread.get_tid() == tid {
+                let mut thr: *mut udi_thread = (*process).thr as *mut udi_thread;
 
-                    while !thr.is_null() {
-                        if (*thr).next.is_null() {
-                            break;
-                        }
-                        thr = (*thr).next as *mut udi_thread;
+                while !thr.is_null() {
+                    if (*thr).next.is_null() {
+                        break;
                     }
-
-                    let new_thr = Box::new(udi_thread {
-                        handle: handle.clone(),
-                        tid,
-                        next: std::ptr::null(),
-                    });
-                    (*thr).next = Box::into_raw(new_thr);
-
-                    return Ok(());
+                    thr = (*thr).next as *mut udi_thread;
                 }
-                drop(internal_thread);
-            }
 
-            return Err(udi_error {
-                code: udi_error_e::UDI_ERROR_LIBRARY,
-                msg: to_c_string("Could not locate event thread handle for newly created thread"),
-            });
+                let new_thr = Box::new(udi_thread {
+                    handle: handle.clone(),
+                    tid,
+                    next: std::ptr::null(),
+                });
+                (*thr).next = Box::into_raw(new_thr);
+
+                return Ok(());
+            }
+            drop(internal_thread);
         }
-        _ => {}
+
+        return Err(udi_error {
+            code: udi_error_e::UDI_ERROR_LIBRARY,
+            msg: to_c_string("Could not locate event thread handle for newly created thread"),
+        });
     }
 
     Ok(())

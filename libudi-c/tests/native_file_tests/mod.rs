@@ -11,7 +11,10 @@ use std::path::PathBuf;
 
 lazy_static::lazy_static! {
     static ref METADATA: native_file_tests::TestMetadata = {
-        let nft_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("native-file-tests");
+        let nft_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("libudi")
+            .join("native-file-tests");
 
         native_file_tests::create_test_metadata(&nft_path, std::env::consts::OS)
             .expect("Failed to create test metadata")
