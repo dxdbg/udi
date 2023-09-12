@@ -24,7 +24,7 @@ jobs:
         run: |
           if [ "${{ matrix.os }}" = "macos-latest" ]; then
             brew update
-            brew install scons
+            brew install scons automake
             echo "NFT_PLATFORM_NAME=macos" >> "$GITHUB_ENV"
           fi
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
