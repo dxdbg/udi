@@ -229,7 +229,7 @@ void N##_invalid_callback(void *ctx) { \
 
 #define DEFINE_STRING_CALLBACKS(N) \
 static \
-void N##_callback(void *ctx, cbor_data data, size_t len) { \
+void N##_callback(void *ctx, cbor_data data, uint64_t len) { \
     const struct msg_item *item = check_state(ctx, #N); \
     if (item != NULL) { \
         item->callbacks.N(ctx, data, len); \
@@ -237,7 +237,7 @@ void N##_callback(void *ctx, cbor_data data, size_t len) { \
 } \
 \
 static \
-void N##_invalid_callback(void *ctx, cbor_data data, size_t len) { \
+void N##_invalid_callback(void *ctx, cbor_data data, uint64_t len) { \
     USE(data); \
     USE(len); \
     \
@@ -246,7 +246,7 @@ void N##_invalid_callback(void *ctx, cbor_data data, size_t len) { \
 
 #define DEFINE_COLL_START_CALLBACKS(N) \
 static \
-void N##_callback(void *ctx, size_t len) { \
+void N##_callback(void *ctx, uint64_t len) { \
     const struct msg_item *item = check_state(ctx, #N); \
     if (item != NULL) { \
         item->callbacks.N(ctx, len); \
@@ -254,7 +254,7 @@ void N##_callback(void *ctx, size_t len) { \
 } \
 \
 static \
-void N##_invalid_callback(void *ctx, size_t len) { \
+void N##_invalid_callback(void *ctx, uint64_t len) { \
     USE(len); \
     \
     set_invalid_error(ctx, #N); \
@@ -363,7 +363,7 @@ const struct cbor_callbacks item_callbacks = {
 };
 
 static
-void request_data_map_start(void *ctx, size_t len) {
+void request_data_map_start(void *ctx, uint64_t len) {
     struct req_data_state *data_state = req_state(ctx);
 
     if (data_state->error) {
@@ -384,7 +384,7 @@ void request_data_map_start(void *ctx, size_t len) {
 }
 
 static
-void request_data_string(void *ctx, cbor_data data, size_t len) {
+void request_data_string(void *ctx, cbor_data data, uint64_t len) {
     struct cbor_read_state *state = (struct cbor_read_state *)ctx;
     struct req_data_state *data_state = (struct req_data_state *)state->ctx;
 
@@ -723,7 +723,7 @@ int read_handler(udirt_fd req_fd, udirt_fd resp_fd, udi_errmsg *errmsg) {
 
 // write request handling
 static
-void write_data_callback(void *ctx, cbor_data data, size_t len) {
+void write_data_callback(void *ctx, cbor_data data, uint64_t len) {
     write_mem_req *state = (write_mem_req *)req_state(ctx)->data;
 
     state->data = (uint8_t *)udi_malloc(len);
