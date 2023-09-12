@@ -23,14 +23,14 @@ jobs:
       - name: Install extra packages
         run: |
           if [ "${{ matrix.os }}" = "macos-latest" ]; then
-            export NFT_PLATFORM_NAME="macos"
             brew update
             brew install scons
+            echo "NFT_PLATFORM_NAME=macos" >> "$GITHUB_ENV"
           fi
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            export NFT_PLATFORM_NAME="linux"
             sudo apt-get update
             sudo apt-get install -y scons
+            echo "NFT_PLATFORM_NAME=linux" >> "$GITHUB_ENV"
           fi
       - name: Set up dependencies workspace
         run: |
