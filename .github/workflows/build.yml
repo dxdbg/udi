@@ -39,8 +39,9 @@ jobs:
       - name: Build udis86
         working-directory: deps/work
         run: |
-          git clone --branch d95a9d1 --depth=1 https://github.com/BlueArc0/udis86.git
+          git clone --depth=1 https://github.com/BlueArc0/udis86.git
           cd udis86
+          git checkout d95a9d1
           ./autogen.sh
           export CFLAGS=-fPIC
           ./configure --prefix="$UDI_DEPS" --with-python=python3 --disable-shared --enable-static
