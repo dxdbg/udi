@@ -31,7 +31,7 @@ void field1_callback(void *ctx, uint32_t value) {
 }
 
 static
-void field2_callback(void *ctx, cbor_data data, size_t len) {
+void field2_callback(void *ctx, cbor_data data, uint64_t len) {
     struct test_req *req = (struct test_req *)req_state(ctx)->data;
     char *field2 = (char *)udi_malloc(len+1);
     if (field2 == NULL) {
