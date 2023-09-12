@@ -39,11 +39,11 @@ jobs:
       - name: Build udis86
         working-directory: deps/work
         run: |
-          git clone --depth=1 https://github.com/vmt/udis86.git
+          git clone --branch d95a9d1 --depth=1 https://github.com/BlueArc0/udis86.git
           cd udis86
           ./autogen.sh
           export CFLAGS=-fPIC
-          ./configure --prefix="$UDI_DEPS" --with-python=/usr/bin/python2 --disable-shared --enable-static
+          ./configure --prefix="$UDI_DEPS" --with-python=python3 --disable-shared --enable-static
           make install
       - name: Build libcbor
         working-directory: deps/work

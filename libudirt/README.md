@@ -34,12 +34,12 @@ sudo make install
 #### libudis86
 
 ```
-sudo apt install libtool autoconf python2
-git clone https://github.com/vmt/udis86.git
+sudo apt install libtool autoconf
+git clone --branch d95a9d1 --depth=1 https://github.com/BlueArc0/udis86.git
 cd udis86
 ./autogen.sh
 export CFLAGS=-fPIC
-./configure --prefix=/usr/local --with-python=/usr/bin/python2 --disable-shared --enable-static
+./configure --prefix=/usr/local --with-python=python3 --disable-shared --enable-static
 make
 sudo make install
 ```
