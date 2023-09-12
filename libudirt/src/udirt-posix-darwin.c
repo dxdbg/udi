@@ -25,5 +25,5 @@ void udi_log_error(format_cb cb, void *ctx, int error) {
 
     strerror_r(error, buf, 64);
 
-    udi_log_string(cb, ctx, result);
+    udi_log_string(cb, ctx, buf);
 }
