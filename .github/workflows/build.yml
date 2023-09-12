@@ -55,6 +55,7 @@ jobs:
           cd libcbor-0.10.2
           export CFLAGS=-fPIC
           cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$UDI_DEPS" -DBUILD_SHARED_LIBS=OFF .
+          make
           make install
       - name: Build libudirt
         working-directory: libudirt
