@@ -458,6 +458,7 @@ void signal_entry_impl(int signal, siginfo_t *siginfo, void *v_context) {
                get_kernel_thread_id(),
                signal,
                get_pc(context));
+    log_context(context);
     if ( is_performing_mem_access() ) {
         udi_log("memory access at %a in progress", (uint64_t)get_mem_access_addr());
     }

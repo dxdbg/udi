@@ -52,6 +52,37 @@ void set_pc(ucontext_t *context, unsigned long pc) {
     context->uc_mcontext->__ss.__rip = pc;
 }
 
+void log_context(const ucontext_t *context) {
+    udi_log("rax: 0x%x rbx: 0x%x rcx: 0x%x rdx: 0x%x",
+            context->uc_mcontext->__ss.__rax,
+            context->uc_mcontext->__ss.__rbx,
+            context->uc_mcontext->__ss.__rcx,
+            context->uc_mcontext->__ss.__rdx);
+    udi_log("rsi: 0x%x rdi: 0x%x rbp: 0x%x rsp: 0x%x",
+            context->uc_mcontext->__ss.__rsi,
+            context->uc_mcontext->__ss.__rdi,
+            context->uc_mcontext->__ss.__rbp,
+            context->uc_mcontext->__ss.__rsp);
+    udi_log("r8:  0x%x r9:  0x%x r10: 0x%x r11: 0x%x",
+            context->uc_mcontext->__ss.__r8,
+            context->uc_mcontext->__ss.__r9,
+            context->uc_mcontext->__ss.__r10,
+            context->uc_mcontext->__ss.__r11);
+    udi_log("r12: 0x%x r13: 0x%x r14: 0x%x r15: 0x%x",
+            context->uc_mcontext->__ss.__r12,
+            context->uc_mcontext->__ss.__r13,
+            context->uc_mcontext->__ss.__r14,
+            context->uc_mcontext->__ss.__r15);
+    udi_log("rip: 0x%x rsp: 0x%x rflags: 0x%x",
+            context->uc_mcontext->__ss.__rip,
+            context->uc_mcontext->__ss.__rsp,
+            context->uc_mcontext->__ss.__rflags);
+    udi_log("cs: 0x%x fs: 0x%x gs: 0x%x",
+            context->uc_mcontext->__ss.__cs,
+            context->uc_mcontext->__ss.__fs,
+            context->uc_mcontext->__ss.__gs);
+}
+
 
 uint64_t get_pc(const void *input) {
     ucontext_t *context = (ucontext_t *)input;

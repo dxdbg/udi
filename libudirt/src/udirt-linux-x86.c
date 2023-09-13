@@ -221,6 +221,40 @@ void set_pc(ucontext_t *context, unsigned long pc) {
     }
 }
 
+void log_context(const ucontext_t *context) {
+    if (__WORDSIZE == 64) {
+        udi_log("rax: 0x%x rbx: 0x%x rcx: 0x%x rdx: 0x%x",
+                context->uc_mcontext.gregs[X86_64_RAX_OFFSET],
+                context->uc_mcontext.gregs[X86_64_RBX_OFFSET],
+                context->uc_mcontext.gregs[X86_64_RCX_OFFSET],
+                context->uc_mcontext.gregs[X86_64_RDX_OFFSET]);
+        udi_log("rsi: 0x%x rdi: 0x%x rbp: 0x%x rsp: 0x%x",
+                context->uc_mcontext.gregs[X86_64_RSI_OFFSET],
+                context->uc_mcontext.gregs[X86_64_RDI_OFFSET],
+                context->uc_mcontext.gregs[X86_64_RBP_OFFSET],
+                context->uc_mcontext.gregs[X86_64_RSP_OFFSET]);
+        udi_log("r8:  0x%x r9:  0x%x r10: 0x%x r11: 0x%x",
+                context->uc_mcontext.gregs[X86_64_R8_OFFSET],
+                context->uc_mcontext.gregs[X86_64_R9_OFFSET],
+                context->uc_mcontext.gregs[X86_64_R10_OFFSET],
+                context->uc_mcontext.gregs[X86_64_R11_OFFSET]);
+        udi_log("r12: 0x%x r13: 0x%x r14: 0x%x r15: 0x%x",
+                context->uc_mcontext.gregs[X86_64_R12_OFFSET],
+                context->uc_mcontext.gregs[X86_64_R13_OFFSET],
+                context->uc_mcontext.gregs[X86_64_R14_OFFSET],
+                context->uc_mcontext.gregs[X86_64_R15_OFFSET]);
+        udi_log("rip: 0x%x rsp: 0x%x rflags: 0x%x",
+                context->uc_mcontext.gregs[X86_64_RIP_OFFSET],
+                context->uc_mcontext.gregs[X86_64_RSP_OFFSET],
+                context->uc_mcontext.gregs[X86_64_FLAGS_OFFSET]);
+    
+        uint64_t csgsfs = context->uc_mcontext.gregs[X86_64_CSGSFS_OFFSET];
+        udi_log("cs: 0x%x fs: 0x%x gs: 0x%x",
+                (uint32_t)((csgsfs & 0xffff000000000000) >> 48),
+                (uint32_t)((csgsfs & 0xffff00000000) >> 32),
+                (uint32_t)((csgsfs & 0xffff0000) >> 16));
+    }
+}
 
 uint64_t get_pc(const void *input) {
     ucontext_t *context = (ucontext_t *)input;

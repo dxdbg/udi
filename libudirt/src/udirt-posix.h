@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2011-2018, UDI Contributors
  * All rights reserved.
- * 
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -13,11 +13,11 @@
 // This needs to be included first to set feature macros
 #include "udirt-platform.h"
 
-#include <ucontext.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <string.h>
 #include <dlfcn.h>
+#include <signal.h>
+#include <string.h>
+#include <sys/types.h>
+#include <ucontext.h>
 
 #include "udirt.h"
 
@@ -25,19 +25,19 @@
 extern "C" {
 #endif
 
-extern const char * const UDI_ROOT_DIR_ENV;
-extern const char * const DEFAULT_UDI_ROOT_DIR;
-extern const char * const UDI_DS;
+extern const char *const UDI_ROOT_DIR_ENV;
+extern const char *const DEFAULT_UDI_ROOT_DIR;
+extern const char *const UDI_DS;
 extern const unsigned int DS_LEN;
 
 extern char *UDI_ROOT_DIR;
 
 // syscall events
-typedef int (*sigaction_type)(int, const struct sigaction *, 
-        struct sigaction *);
+typedef int (*sigaction_type)(int, const struct sigaction *,
+                              struct sigaction *);
 typedef pid_t (*fork_type)(void);
 typedef int (*execve_type)(const char *, char *const *, char *const *);
-typedef void (* (*signal_type)(int, void (*handler)(int)))(int);
+typedef void (*(*signal_type)(int, void (*handler)(int)))(int);
 
 extern sigaction_type real_sigaction;
 extern fork_type real_fork;
@@ -66,15 +66,16 @@ void reinit_udirt();
 extern int exiting;
 
 /**
- * Determines the argument to the exit function, given the context at which the exit breakpoint
- * was hit
+ * Determines the argument to the exit function, given the context at which the
+ * exit breakpoint was hit
  *
  * @param context the current context
  * @param errmsg the error message populated by the memory access
  *
  * @return the result
  */
-int get_exit_argument(const ucontext_t *context, int *status, udi_errmsg *errmsg);
+int get_exit_argument(const ucontext_t *context, int *status,
+                      udi_errmsg *errmsg);
 
 // library wrapping
 extern void *UDI_RTLD_NEXT;
@@ -98,6 +99,13 @@ uint64_t get_trap_address(const ucontext_t *context);
  */
 void set_pc(ucontext_t *context, unsigned long pc);
 
+/**
+ * Log the context for debugging purposes if logging is enabled
+ *
+ * @param context the context
+ */
+void log_context(const ucontext_t *context);
+
 // signal handling
 int setup_signal_handlers();
 int uninstall_signal_handlers();
@@ -111,30 +119,30 @@ extern int pipe_write_failure;
 
 // signal handling
 typedef struct signal_state_struct {
-    int signal;
-    siginfo_t siginfo;
-    ucontext_t context;
-    void *context_data;
-    int context_valid;
+  int signal;
+  siginfo_t siginfo;
+  ucontext_t context;
+  void *context_data;
+  int context_valid;
 } signal_state;
 
 extern int THREAD_SUSPEND_SIGNAL;
 
 struct thread_struct {
-    uint64_t id;
-    udi_thread_state_e ts;
-    int dead;
-    int request_handle;
-    int response_handle;
-    int control_write;
-    int control_read;
-    int control_thread;
-    int suspend_pending;
-    int single_step;
-    int stack_event_pending;
-    breakpoint *single_step_bp;
-    signal_state event_state;
-    struct thread_struct *next_thread;
+  uint64_t id;
+  udi_thread_state_e ts;
+  int dead;
+  int request_handle;
+  int response_handle;
+  int control_write;
+  int control_read;
+  int control_thread;
+  int suspend_pending;
+  int single_step;
+  int stack_event_pending;
+  breakpoint *single_step_bp;
+  signal_state event_state;
+  struct thread_struct *next_thread;
 };
 
 int setsigmask(int how, const sigset_t *new_set, sigset_t *old_set);
@@ -163,9 +171,9 @@ uint64_t get_kernel_thread_id();
 
 // thread synchronization
 typedef struct udi_barrier_struct {
-    unsigned int sync_var;
-    int read_handle;
-    int write_handle;
+  unsigned int sync_var;
+  int read_handle;
+  int write_handle;
 } udi_barrier;
 
 /**
@@ -186,15 +194,17 @@ extern udi_barrier thread_barrier;
 extern const unsigned char sentinel;
 
 /**
- * The first thread that calls this function forces all other threads into the UDI signal handler,
- * which eventually routes to this function.
+ * The first thread that calls this function forces all other threads into the
+ * UDI signal handler, which eventually routes to this function.
  *
- * If a thread isn't the first thread calling this function, it will block until the library
- * decides the thread should continue executing, which is a combination of the user's desired
- * run state for a thread and the library's desired run state for a thread.
+ * If a thread isn't the first thread calling this function, it will block until
+ * the library decides the thread should continue executing, which is a
+ * combination of the user's desired run state for a thread and the library's
+ * desired run state for a thread.
  *
  * @return less than 0 if there is an error
- * @return 0 if the thread was the first thread or the thread should handle its event now
+ * @return 0 if the thread was the first thread or the thread should handle its
+ * event now
  * @return greater than 0 if the thread was not the first thread
  */
 int block_other_threads();
@@ -210,8 +220,9 @@ int block_other_threads();
 int release_other_threads();
 
 /**
- * @return non-zero if a single thread will be executing due to a library operation (such as
- * a memory access to a non-accessible address or a single-step event)
+ * @return non-zero if a single thread will be executing due to a library
+ * operation (such as a memory access to a non-accessible address or a
+ * single-step event)
  */
 int single_thread_executing();
 
@@ -233,7 +244,8 @@ thread *create_initial_thread();
 int thread_create_callback(thread *thr, udi_errmsg *errmsg);
 
 /**
- * Performs the handshake with the debugger after the creation of the thread files
+ * Performs the handshake with the debugger after the creation of the thread
+ * files
  *
  * @param thr the thread structure for the created thread
  * @param errmsg the error message
