@@ -69,7 +69,6 @@ jobs:
           cargo clippy
           curl -sSfL -o native-file-tests.zip "https://github.com/dxdbg/native-file-tests/releases/download/$NFT_VERSION/native-file-tests-$NFT_PLATFORM_NAME-$NFT_VERSION.zip"
           unzip -j native-file-tests.zip -d native-file-tests
-          export UDI_DEBUG=1
           cargo test
       - name: Build libudi-c
         working-directory: libudi-c
