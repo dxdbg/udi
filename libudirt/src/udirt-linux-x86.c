@@ -289,8 +289,8 @@ int get_exit_argument(const ucontext_t *context,
 {
     int result;
     if (__WORDSIZE == 64) {
-        // The exit argument is passed in rax
-        *status = (int)context->uc_mcontext.gregs[X86_64_RAX_OFFSET];
+        // The exit argument is passed in rdi, per the calling convention.
+        *status = (int)context->uc_mcontext.gregs[X86_64_RDI_OFFSET];
         result = RESULT_SUCCESS;
     }else{
         // The exit argument is the first parameter on the stack

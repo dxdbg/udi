@@ -106,8 +106,8 @@ int get_exit_argument(const ucontext_t *context,
                       udi_errmsg *errmsg)
 {
 
-    // The exit argument is passed in rax
-    *status = (int)context->uc_mcontext->__ss.__rax;
+    // The exit argument is passed in rdi, per the calling convention.
+    *status = (int)context->uc_mcontext->__ss.__rdi;
     return RESULT_SUCCESS;
 }
 
