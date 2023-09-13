@@ -180,8 +180,8 @@ int install_event_breakpoints(udi_errmsg *errmsg) {
 }
 
 /**
- * Handle the occurence of a hit on the exit breakpoint. This includes gathering all information
- * neccessary to create the exit event.
+ * Handle the occurrence of a hit on the exit breakpoint. This includes gathering all information
+ * necessary to create the exit event.
  *
  * @param context the context for the breakpoint
  * @param errmsg the error message populated on error
