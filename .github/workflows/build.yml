@@ -3,7 +3,7 @@ name: build
 on:
   push:
     branches:
-      - master
+      - main
 
 env:
   NFT_VERSION: v0.1.6
@@ -13,7 +13,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
